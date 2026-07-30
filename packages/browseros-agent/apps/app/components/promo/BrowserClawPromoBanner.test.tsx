@@ -68,7 +68,7 @@ describe('BrowserClawPromoBanner', () => {
 
     expect(html).toContain('Meet BrowserClaw — the browser for AI agents')
     expect(html).toContain(
-      'A new product from the BrowserOS team — free, open source, and ready to download',
+      'A new product from the Astro team — free, open source, and ready to download',
     )
     expect(html).toContain('Check it out')
   })

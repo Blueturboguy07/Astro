@@ -26,7 +26,7 @@ export const ClaudeMark: FC<AgentMarkProps> = (props) => (
   <AnthropicBlack aria-hidden {...props} />
 )
 
-// Kept so legacy installs that still have an active BrowserOS link
+// Kept so legacy installs that still have an active Astro link
 // to Claude Desktop render with the right brand mark; new users no
 // longer see the row (filtered server-side in listAgents).
 export const ClaudeDesktopMark: FC<AgentMarkProps> = (props) => (

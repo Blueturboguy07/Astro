@@ -1,6 +1,7 @@
-import { ChevronDown, Folder, Layers, PlugZap } from 'lucide-react'
+import { ChevronDown, Cpu, Folder, Layers, PlugZap } from 'lucide-react'
 import type { FC, FormEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { ChatProviderSelector } from '@/components/chat/ChatProviderSelector'
 import { AppSelector } from '@/components/elements/AppSelector'
 import { WorkspaceSelector } from '@/components/elements/workspace-selector'
 import { McpServerIcon } from '@/components/mcp/McpServerIcon'
@@ -12,6 +13,7 @@ import {
 } from '@/lib/selected-text/selectedTextStorage'
 import { cn } from '@/lib/utils'
 import { useCapabilities } from '@/modules/browseros/capabilities.hooks'
+import { useChatSessionContext } from '@/modules/chat/chat-session-context'
 import type { ChatMode } from '@/modules/chat/chat-types'
 import { useGetUserMCPIntegrations } from '@/modules/mcp/user-integrations.hooks'
 import type { VoiceInputState } from '@/modules/voice/voice.hooks'
@@ -57,6 +59,8 @@ export const ChatFooter: FC<ChatFooterProps> = ({
   onOpenVoiceMode,
 }) => {
   const { selectedFolder } = useWorkspace()
+  const { providers, selectedProvider, handleSelectProvider } =
+    useChatSessionContext()
   const { servers: mcpServers } = useMcpServers()
   const { data: userMCPIntegrations } = useGetUserMCPIntegrations()
   const { supports } = useCapabilities()
@@ -221,6 +225,27 @@ export const ChatFooter: FC<ChatFooterProps> = ({
               </button>
             </AppSelector>
           </div>
+
+          {/* Model picker sits at the right edge of the control row, where Comet
+              puts it. It used to live in the panel header, which no longer
+              exists. */}
+          <ChatProviderSelector
+            providers={providers}
+            selectedProvider={selectedProvider}
+            onSelectProvider={handleSelectProvider}
+          >
+            <button
+              type="button"
+              className="ml-auto flex max-w-[45%] cursor-pointer items-center gap-1 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-accent"
+              title="Change model"
+            >
+              <Cpu className="h-4 w-4 shrink-0" />
+              <span className="truncate font-medium text-xs">
+                {selectedProvider?.name ?? 'Model'}
+              </span>
+              <ChevronDown className="h-3 w-3 shrink-0" />
+            </button>
+          </ChatProviderSelector>
         </div>
 
         {supportsVoiceInput && voice?.error && (

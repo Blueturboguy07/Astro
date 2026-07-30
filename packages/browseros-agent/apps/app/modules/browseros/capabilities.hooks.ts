@@ -52,7 +52,7 @@ export function useCapabilities(): UseCapabilitiesResult {
 
     async function init() {
       const [browserOSVersion, serverVersion] = await Promise.all([
-        Capabilities.getBrowserOSVersion(),
+        Capabilities.getAstroVersion(),
         Capabilities.getServerVersion(),
       ])
 

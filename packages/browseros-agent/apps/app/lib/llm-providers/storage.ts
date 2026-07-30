@@ -1,6 +1,6 @@
 import { storage } from '@wxt-dev/storage'
 import { sessionStorage } from '@/lib/auth/sessionStorage'
-import { getBrowserOSAdapter } from '@/lib/browseros/adapter'
+import { getAstroAdapter } from '@/lib/browseros/adapter'
 import { BROWSEROS_PREFS } from '@/lib/browseros/prefs'
 import {
   migrateLlmProvidersToV3,
@@ -54,22 +54,22 @@ export const providersStorage = storage.defineItem<LlmProviderConfig[]>(
   },
 )
 
-/** Mirrors provider data into BrowserOS prefs without blocking local writes. */
-async function backupToBrowserOS(backup: LlmProvidersBackup): Promise<void> {
+/** Mirrors provider data into Astro prefs without blocking local writes. */
+async function backupToAstro(backup: LlmProvidersBackup): Promise<void> {
   try {
-    const adapter = getBrowserOSAdapter()
+    const adapter = getAstroAdapter()
     await adapter.setPref(BROWSEROS_PREFS.PROVIDERS, JSON.stringify(backup))
   } catch {
-    // BrowserOS API not available - ignore
+    // Astro API not available - ignore
   }
 }
 
-/** Sets up one-way sync of LLM providers to BrowserOS prefs. */
-export function setupLlmProvidersBackupToBrowserOS(): () => void {
+/** Sets up one-way sync of LLM providers to Astro prefs. */
+export function setupLlmProvidersBackupToAstro(): () => void {
   const unsubscribe = providersStorage.watch(async (providers) => {
     if (providers) {
       const defaultProviderId = await defaultProviderIdStorage.getValue()
-      await backupToBrowserOS({ defaultProviderId, providers })
+      await backupToAstro({ defaultProviderId, providers })
     }
   })
   return unsubscribe
@@ -120,8 +120,8 @@ export async function loadProviders(): Promise<LlmProviderConfig[]> {
   return normalizedProviders
 }
 
-/** Creates the default BrowserOS provider configuration */
-export function createDefaultBrowserOSProvider(): LlmProviderConfig {
+/** Creates the default Astro provider configuration */
+export function createDefaultAstroProvider(): LlmProviderConfig {
   const timestamp = Date.now()
   return {
     id: DEFAULT_PROVIDER_ID,
@@ -139,7 +139,7 @@ export function createDefaultBrowserOSProvider(): LlmProviderConfig {
 
 /** Creates the default providers configuration. Only call when storage is empty. */
 export function createDefaultProvidersConfig(): LlmProviderConfig[] {
-  return [createDefaultBrowserOSProvider()]
+  return [createDefaultAstroProvider()]
 }
 
 export const defaultProviderIdStorage = storage.defineItem<string>(

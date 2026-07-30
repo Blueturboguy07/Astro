@@ -25,13 +25,13 @@ async function loadWebExtConfig(product?: string) {
 }
 
 describe('web-ext Chromium product args', () => {
-  it('defaults BrowserOS launches to the BrowserOS product', async () => {
+  it('defaults Astro launches to the Astro product', async () => {
     const config = await loadWebExtConfig()
 
     expect(config.chromiumArgs).toContain('--browseros-product=browseros')
   })
 
-  it('honors an explicit BrowserOS product override', async () => {
+  it('honors an explicit Astro product override', async () => {
     const config = await loadWebExtConfig('browserclaw')
 
     expect(config.chromiumArgs).toContain('--browseros-product=browserclaw')

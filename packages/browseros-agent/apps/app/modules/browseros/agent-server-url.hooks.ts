@@ -6,7 +6,7 @@ export type UseAgentServerUrlResult =
   | { baseUrl?: never; isLoading: true; error: null }
   | { baseUrl?: never; isLoading: false; error: Error }
 
-/** Resolves the local BrowserOS server URL used by React surfaces. */
+/** Resolves the local Astro server URL used by React surfaces. */
 export function useAgentServerUrl(): UseAgentServerUrlResult {
   const [state, setState] = useState<UseAgentServerUrlResult>({
     isLoading: true,

@@ -100,7 +100,7 @@ const OAUTH_PROVIDERS_CONFIG: Record<string, OAuthProviderFlowConfig> = {
 }
 
 /**
- * BrowserOS AI pane — manage LLM providers and the default model.
+ * Astro AI pane — manage LLM providers and the default model.
  */
 export const BrowserOsAiPane: FC = () => {
   const {

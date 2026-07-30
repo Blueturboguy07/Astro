@@ -1,4 +1,4 @@
-import { getBrowserOSAdapter } from '@/lib/browseros/adapter'
+import { getAstroAdapter } from '@/lib/browseros/adapter'
 
 const versions = {
   extension: null as string | null,
@@ -6,7 +6,7 @@ const versions = {
   browseros: null as string | null,
 }
 
-const adapter = getBrowserOSAdapter()
+const adapter = getAstroAdapter()
 adapter
   .getVersion()
   .then((v) => {

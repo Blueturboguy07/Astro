@@ -161,10 +161,10 @@ mock.module('@/components/ui/switch', () => ({
 }))
 
 mock.module('@/lib/browseros/adapter', () => ({
-  BrowserOSAdapter: {
+  AstroAdapter: {
     getInstance: () => browserOSAdapter,
   },
-  getBrowserOSAdapter: () => browserOSAdapter,
+  getAstroAdapter: () => browserOSAdapter,
 }))
 
 mock.module('@/lib/browseros/prefs', () => ({
@@ -189,7 +189,7 @@ mock.module('@/lib/browseros/capabilities', () => ({
   Capabilities: {
     getStaticSupport: () => null,
     supports: async () => false,
-    getBrowserOSVersion: async () => null,
+    getAstroVersion: async () => null,
     getServerVersion: async () => null,
     initialize: async () => {},
     reset: () => {},

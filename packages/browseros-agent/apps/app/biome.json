@@ -70,6 +70,12 @@
           }
         }
       }
+    },
+    {
+      "includes": ["screens/simplicity/**", "lib/simplicity/**"],
+      "linter": { "enabled": false },
+      "formatter": { "enabled": false },
+      "assist": { "enabled": false }
     }
   ]
 }

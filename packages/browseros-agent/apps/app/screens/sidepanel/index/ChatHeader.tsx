@@ -7,7 +7,7 @@ import { CreditBadge } from '@/components/credits/CreditBadge'
 import { ThemeToggle } from '@/components/elements/theme-toggle'
 import { Feature } from '@/lib/browseros/capabilities'
 import { productRepositoryUrl } from '@/lib/constants/productUrls'
-import { BrowserOSIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
+import { AstroIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
 import type { ProviderType } from '@/lib/llm-providers/types'
 import { useCapabilities } from '@/modules/browseros/capabilities.hooks'
 import { useCredits } from '@/modules/credits/credits.hooks'
@@ -67,7 +67,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
             {selectedProvider.kind === 'acp' ? (
               <Bot className="h-[18px] w-[18px]" />
             ) : selectedProvider.type === 'browseros' ? (
-              <BrowserOSIcon size={18} />
+              <AstroIcon size={18} />
             ) : (
               <ProviderIcon
                 type={selectedProvider.type as ProviderType}

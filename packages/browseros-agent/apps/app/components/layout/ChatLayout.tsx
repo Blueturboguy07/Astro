@@ -4,17 +4,11 @@ import {
   ChatSessionProvider,
   useChatSessionContext,
 } from '@/modules/chat/chat-session-context'
-import { ChatHeader } from '@/screens/sidepanel/index/ChatHeader'
+import { PanelOverflowMenu } from '@/screens/sidepanel/index/PanelOverflowMenu'
 
 const ChatLayoutContent: FC = () => {
-  const {
-    providers,
-    selectedProvider,
-    handleSelectProvider,
-    resetConversation,
-    messages,
-    isLoading,
-  } = useChatSessionContext()
+  const { selectedProvider, resetConversation, isLoading } =
+    useChatSessionContext()
 
   if (isLoading || !selectedProvider) {
     return (
@@ -25,14 +19,10 @@ const ChatLayoutContent: FC = () => {
   }
 
   return (
-    <div className="mx-auto flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
-      <ChatHeader
-        selectedProvider={selectedProvider}
-        onSelectProvider={handleSelectProvider}
-        providers={providers}
-        onNewConversation={resetConversation}
-        hasMessages={messages.length > 0}
-      />
+    /* No header bar — the overflow menu floats over the canvas instead, so the
+       panel opens to empty space the way Comet's does. */
+    <div className="relative mx-auto flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+      <PanelOverflowMenu onNewConversation={resetConversation} />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </div>

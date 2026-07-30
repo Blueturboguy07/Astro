@@ -138,7 +138,7 @@ describe('side panel scope routing', () => {
     expect(openCalls).toEqual([])
   })
 
-  it('keeps toolbar toggles on the BrowserOS tab-specific API when scope storage is absent', async () => {
+  it('keeps toolbar toggles on the Astro tab-specific API when scope storage is absent', async () => {
     const result = await toggleSidePanel({ tabId: 7, windowId: 3 })
 
     expect(result).toEqual({ opened: true })
@@ -147,7 +147,7 @@ describe('side panel scope routing', () => {
     expect(closeCalls).toEqual([])
   })
 
-  it('keeps toolbar toggles on the BrowserOS tab-specific API when scope storage is false', async () => {
+  it('keeps toolbar toggles on the Astro tab-specific API when scope storage is false', async () => {
     storedSidePanelPerWindow = false
 
     const result = await toggleSidePanel({ tabId: 7, windowId: 3 })
@@ -179,7 +179,7 @@ describe('side panel scope routing', () => {
     expect(closeCalls).toEqual([{ windowId: 3 }])
   })
 
-  it('keeps programmatic opens on the BrowserOS API in window mode', async () => {
+  it('keeps programmatic opens on the Astro API in window mode', async () => {
     await setSidePanelPerWindowPreference(true)
 
     const result = await openSidePanel({ tabId: 7, windowId: 3 })

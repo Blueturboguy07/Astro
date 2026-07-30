@@ -5,7 +5,7 @@ import {
   getCreditBarColor,
   getCreditTextColor,
 } from '@/lib/credits/credit-colors'
-import { BrowserOSIcon } from '@/lib/llm-providers/providerIcons'
+import { AstroIcon } from '@/lib/llm-providers/providerIcons'
 import { cn } from '@/lib/utils'
 import { useCredits } from '@/modules/credits/credits.hooks'
 
@@ -24,11 +24,11 @@ export const UsagePage: FC = () => {
     return (
       <div className="space-y-6 p-6">
         <div className="flex items-center gap-4 rounded-xl border p-5">
-          <BrowserOSIcon size={40} />
+          <AstroIcon size={40} />
           <div>
             <h2 className="font-semibold text-lg">Usage & Billing</h2>
             <p className="text-muted-foreground text-sm">
-              Monitor your BrowserOS AI credit usage
+              Monitor your Astro AI credit usage
             </p>
           </div>
         </div>
@@ -49,11 +49,11 @@ export const UsagePage: FC = () => {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-4 rounded-xl border p-5">
-        <BrowserOSIcon size={40} />
+        <AstroIcon size={40} />
         <div>
           <h2 className="font-semibold text-lg">Usage & Billing</h2>
           <p className="text-muted-foreground text-sm">
-            Monitor your BrowserOS AI credit usage
+            Monitor your Astro AI credit usage
           </p>
         </div>
       </div>

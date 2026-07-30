@@ -3,9 +3,6 @@ import { HashRouter, Navigate, Route, Routes, useParams } from 'react-router'
 import { AuthLayout } from '@/components/layout/AuthLayout'
 import { SettingsSidebarLayout } from '@/components/layout/SettingsSidebarLayout'
 import { SidebarLayout } from '@/components/layout/SidebarLayout'
-import { AgentCommandConversation } from '@/screens/agent-command/AgentCommandConversation'
-import { AgentCommandHome } from '@/screens/agent-command/AgentCommandHome'
-import { AgentCommandLayout } from '@/screens/agent-command/AgentCommandLayout'
 import { AISettingsPage } from '@/screens/ai-settings/AISettingsPage'
 import { LoginPage } from '@/screens/auth/LoginPage'
 import { LogoutPage } from '@/screens/auth/LogoutPage'
@@ -14,15 +11,19 @@ import { CustomizationPage } from '@/screens/customization/CustomizationPage'
 import { SurveyPage } from '@/screens/jtbd-agent/SurveyPage'
 import { LlmHubPage } from '@/screens/llm-hub/LlmHubPage'
 import { MCPSettingsPage } from '@/screens/mcp-settings/MCPSettingsPage'
-import { NewTabChat } from '@/screens/newtab/index/NewTabChat'
-import { NewTabLayout } from '@/screens/newtab/layout/NewTabLayout'
-import { Personalize } from '@/screens/newtab/personalize/Personalize'
-import { OnboardingDemo } from '@/screens/onboarding/demo/OnboardingDemo'
-import { FeaturesPage } from '@/screens/onboarding/features/Features'
-import { Onboarding } from '@/screens/onboarding/index/Onboarding'
-import { StepsLayout } from '@/screens/onboarding/steps/StepsLayout'
 import { ProfilePage } from '@/screens/profile/ProfilePage'
 import { ScheduledTasksPage } from '@/screens/scheduled-tasks/ScheduledTasksPage'
+import ChatWindow from '@/screens/simplicity/ChatWindow'
+import { DiscoverPage } from '@/screens/simplicity/pages/DiscoverPage'
+import { LibraryPage } from '@/screens/simplicity/pages/LibraryPage'
+import {
+  ArtifactsPage,
+  ComputerPage,
+  MemoryPage,
+  SkillsPage,
+  SpacesPage,
+} from '@/screens/simplicity/pages/NotBuiltPage'
+import { SimplicityApp } from '@/screens/simplicity/SimplicityApp'
 import { UsagePage } from '@/screens/usage/UsagePage'
 
 function getSurveyParams(): { maxTurns?: number; experimentId?: string } {
@@ -71,23 +72,31 @@ export const App: FC = () => {
           <Route path="profile" element={<ProfilePage />} />
         </Route>
 
-        <Route element={<SidebarLayout />}>
-          <Route path="home" element={<NewTabLayout />}>
-            <Route element={<AgentCommandLayout />}>
-              <Route index element={<AgentCommandHome />} />
-              <Route
-                path="agents/:agentId"
-                element={<AgentCommandConversation />}
-              />
-              <Route
-                path="agents/:agentId/sessions/:sessionId"
-                element={<AgentCommandConversation />}
-              />
-            </Route>
-            <Route path="chat" element={<NewTabChat />} />
-            <Route path="personalize" element={<Personalize />} />
-          </Route>
+        {/* Simplicity is the product surface. Its own left rail / bottom bar is
+            replaced by TopNav so it doesn't fight the browser's tab strip. */}
+        <Route path="home" element={<SimplicityApp />}>
+          <Route index element={<ChatWindow />} />
+          <Route path="c/:chatId" element={<ChatWindow />} />
+          <Route path="discover" element={<DiscoverPage />} />
+          <Route path="library" element={<LibraryPage />} />
+          {/* Comet sidebar destinations. Customize/Connectors map onto real
+              screens; the rest state plainly that they are not built. */}
+          <Route path="computer" element={<ComputerPage />} />
+          <Route path="spaces" element={<SpacesPage />} />
+          <Route path="artifacts" element={<ArtifactsPage />} />
+          <Route
+            path="customize"
+            element={<Navigate to="/settings/ai" replace />}
+          />
+          <Route
+            path="connectors"
+            element={<Navigate to="/connect-apps" replace />}
+          />
+          <Route path="skills" element={<SkillsPage />} />
+          <Route path="memory" element={<MemoryPage />} />
+        </Route>
 
+        <Route element={<SidebarLayout />}>
           <Route path="connect-apps" element={<ConnectMCP />} />
           <Route path="scheduled" element={<ScheduledTasksPage />} />
         </Route>
@@ -109,12 +118,8 @@ export const App: FC = () => {
           </Route>
         </Route>
 
-        <Route path="onboarding">
-          <Route index element={<Onboarding />} />
-          <Route path="steps/:stepId" element={<StepsLayout />} />
-          <Route path="demo" element={<OnboardingDemo />} />
-          <Route path="features" element={<FeaturesPage />} />
-        </Route>
+        {/* Onboarding removed — provider setup lives in Simplicity's Settings. */}
+        <Route path="/onboarding/*" element={<Navigate to="/home" replace />} />
 
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route

@@ -14,7 +14,7 @@ export type AgentChatSource =
   | 'channel'
   | 'other'
 
-export interface BrowserOSAgentSession {
+export interface AstroAgentSession {
   key: string
   updatedAt: number
   sessionId: string
@@ -27,7 +27,7 @@ export interface BrowserOSAgentSession {
   modelProvider?: string
 }
 
-export interface BrowserOSChatHistoryToolCall {
+export interface AstroChatHistoryToolCall {
   toolCallId?: string
   toolName: string
   label: string
@@ -39,12 +39,12 @@ export interface BrowserOSChatHistoryToolCall {
   durationMs?: number
 }
 
-export interface BrowserOSChatHistoryReasoning {
+export interface AstroChatHistoryReasoning {
   text: string
   durationMs?: number
 }
 
-export interface BrowserOSChatHistoryAttachment {
+export interface AstroChatHistoryAttachment {
   kind: 'image' | 'file'
   mediaType: string
   // Images carry a `data:` URL so we can render directly without any
@@ -54,7 +54,7 @@ export interface BrowserOSChatHistoryAttachment {
   name?: string
 }
 
-export interface BrowserOSChatHistoryItem {
+export interface AstroChatHistoryItem {
   id: string
   role: AgentChatRole
   text: string
@@ -65,16 +65,16 @@ export interface BrowserOSChatHistoryItem {
   costUsd?: number
   tokensIn?: number
   tokensOut?: number
-  toolCalls?: BrowserOSChatHistoryToolCall[]
-  reasoning?: BrowserOSChatHistoryReasoning
-  attachments?: BrowserOSChatHistoryAttachment[]
+  toolCalls?: AstroChatHistoryToolCall[]
+  reasoning?: AstroChatHistoryReasoning
+  attachments?: AstroChatHistoryAttachment[]
 }
 
 export interface AgentHistoryPageResponse {
   agentId: string
   sessionKey: string | null
-  session: BrowserOSAgentSession | null
-  items: BrowserOSChatHistoryItem[]
+  session: AstroAgentSession | null
+  items: AstroChatHistoryItem[]
   page: {
     cursor?: string
     hasMore: boolean
@@ -126,7 +126,7 @@ export interface AgentChatMessage {
 }
 
 export function mapHistoryItemToAgentMessage(
-  item: BrowserOSChatHistoryItem,
+  item: AstroChatHistoryItem,
 ): AgentChatMessage {
   const parts: AgentChatMessagePart[] = []
 

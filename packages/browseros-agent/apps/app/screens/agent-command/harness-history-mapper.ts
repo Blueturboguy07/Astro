@@ -2,31 +2,29 @@ import type { HarnessAgentHistoryPage } from '@/modules/agents/agent-harness-typ
 import { buildToolLabel } from '../../lib/tool-labels'
 import type {
   AgentHistoryPageResponse,
-  BrowserOSChatHistoryItem,
-  BrowserOSChatHistoryToolCall,
+  AstroChatHistoryItem,
+  AstroChatHistoryToolCall,
 } from './agent-chat-types'
 
 export function mapHarnessHistoryPage(
   page: HarnessAgentHistoryPage,
 ): AgentHistoryPageResponse {
-  const items: BrowserOSChatHistoryItem[] = page.items.map((item, index) => {
-    const toolCalls = item.toolCalls?.map(
-      (tool): BrowserOSChatHistoryToolCall => {
-        const input = asRecord(tool.input)
-        const { label, subject } = buildToolLabel(tool.toolName, input)
-        return {
-          toolName: tool.toolName,
-          label,
-          status: tool.status,
-          ...(tool.toolCallId ? { toolCallId: tool.toolCallId } : {}),
-          ...(subject ? { subject } : {}),
-          ...(tool.input !== undefined ? { input: tool.input } : {}),
-          ...(tool.output !== undefined ? { output: tool.output } : {}),
-          ...(tool.error ? { error: tool.error } : {}),
-          ...(tool.durationMs != null ? { durationMs: tool.durationMs } : {}),
-        }
-      },
-    )
+  const items: AstroChatHistoryItem[] = page.items.map((item, index) => {
+    const toolCalls = item.toolCalls?.map((tool): AstroChatHistoryToolCall => {
+      const input = asRecord(tool.input)
+      const { label, subject } = buildToolLabel(tool.toolName, input)
+      return {
+        toolName: tool.toolName,
+        label,
+        status: tool.status,
+        ...(tool.toolCallId ? { toolCallId: tool.toolCallId } : {}),
+        ...(subject ? { subject } : {}),
+        ...(tool.input !== undefined ? { input: tool.input } : {}),
+        ...(tool.output !== undefined ? { output: tool.output } : {}),
+        ...(tool.error ? { error: tool.error } : {}),
+        ...(tool.durationMs != null ? { durationMs: tool.durationMs } : {}),
+      }
+    })
 
     return {
       id: item.id,

@@ -25,7 +25,7 @@ describe('buildSidepanelPreparedSendMessagesRequest', () => {
       conversationId,
       provider: 'browseros',
       providerType: 'browseros',
-      providerName: 'BrowserOS',
+      providerName: 'Astro',
       model: 'gpt-5',
       mode: 'agent',
       browserContext: {
@@ -155,7 +155,7 @@ function commonRequestInput() {
 const fallbackProvider: LlmProviderConfig = {
   id: 'browseros',
   type: 'browseros',
-  name: 'BrowserOS',
+  name: 'Astro',
   modelId: 'gpt-5',
   supportsImages: true,
   contextWindow: 128000,

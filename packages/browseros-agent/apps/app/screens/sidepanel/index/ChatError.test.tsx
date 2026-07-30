@@ -51,9 +51,9 @@ describe('ChatError', () => {
     expect(html).not.toContain('Try again')
   })
 
-  it('hides retry for BrowserOS daily-limit errors', () => {
+  it('hides retry for Astro daily-limit errors', () => {
     const html = renderError(
-      new Error('BrowserOS LLM daily limit reached for today'),
+      new Error('Astro LLM daily limit reached for today'),
     )
 
     expect(html).toContain('Add your own API key')

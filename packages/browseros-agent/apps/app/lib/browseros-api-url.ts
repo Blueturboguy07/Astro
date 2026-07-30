@@ -1,7 +1,7 @@
 export const DEFAULT_BROWSEROS_API_URL = 'https://api.browseros.com'
 
-/** Resolves and validates the BrowserOS API base URL for runtime and build config. */
-export function parseBrowserOSApiUrl(value: string | undefined): string {
+/** Resolves and validates the Astro API base URL for runtime and build config. */
+export function parseAstroApiUrl(value: string | undefined): string {
   const rawUrl = value?.trim() || DEFAULT_BROWSEROS_API_URL
   let url: URL
 

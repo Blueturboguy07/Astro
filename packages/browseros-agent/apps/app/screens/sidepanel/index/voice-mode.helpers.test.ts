@@ -9,13 +9,11 @@ import {
 
 describe('chipTextFor', () => {
   it('returns the agent-working chip when responding', () => {
-    expect(chipTextFor('responding', null)).toBe('BrowserOS Agent is working')
+    expect(chipTextFor('responding', null)).toBe('Astro Agent is working')
   })
 
   it('returns the agent-working chip during barge_in_pending', () => {
-    expect(chipTextFor('barge_in_pending', null)).toBe(
-      'BrowserOS Agent is working',
-    )
+    expect(chipTextFor('barge_in_pending', null)).toBe('Astro Agent is working')
   })
 
   it('returns the error message when in error state', () => {

@@ -74,7 +74,7 @@ export interface LlmProviderConfig {
 }
 
 /**
- * Schema for LLM provider config stored in BrowserOS prefs (browseros.providers)
+ * Schema for LLM provider config stored in Astro prefs (browseros.providers)
  * @public
  */
 export interface LlmProvidersBackup {

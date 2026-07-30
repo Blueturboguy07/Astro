@@ -27,7 +27,7 @@ export const BrowserClawPromoBannerCard: FC<{
         Meet BrowserClaw — the browser for AI agents
       </p>
       <p className="text-muted-foreground text-xs">
-        A new product from the BrowserOS team — free, open source, and ready to
+        A new product from the Astro team — free, open source, and ready to
         download
       </p>
     </div>

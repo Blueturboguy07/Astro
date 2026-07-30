@@ -58,7 +58,7 @@ export function resolveChatProvider(
 
 /**
  * Scheduled tasks and refine-prompt requests go through the hosted
- * BrowserOS `/chat` endpoint and therefore cannot use local-runtime
+ * Astro `/chat` endpoint and therefore cannot use local-runtime
  * providers (claude-code, codex, acp-custom) which only exist as a
  * spawned CLI on the user's machine. These helpers explicitly skip
  * those types so the resolver falls back to a cloud-routable provider.

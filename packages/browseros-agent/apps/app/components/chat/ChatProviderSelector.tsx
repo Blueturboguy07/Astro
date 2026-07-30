@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { BrowserOSIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
+import { AstroIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
 import type { ProviderType } from '@/lib/llm-providers/types'
 import { cn } from '@/lib/utils'
 import {
@@ -108,6 +108,6 @@ export const ChatProviderSelector: FC<
 
 function ProviderOptionIcon({ provider }: { provider: Provider }) {
   if (provider.kind === 'acp') return <Bot size={18} />
-  if (provider.type === 'browseros') return <BrowserOSIcon size={18} />
+  if (provider.type === 'browseros') return <AstroIcon size={18} />
   return <ProviderIcon type={provider.type as ProviderType} size={18} />
 }

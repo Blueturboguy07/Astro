@@ -65,7 +65,7 @@ export function useMcpAgents() {
 }
 
 /**
- * Mutation: install BrowserOS as MCP into a single agent. Takes the
+ * Mutation: install Astro as MCP into a single agent. Takes the
  * proxy-facing MCP URL so the agent's on-disk config records the
  * URL external clients can actually reach (NOT the agent server's
  * internal port — those differ in production where the browser
@@ -97,7 +97,7 @@ export function useInstallAgent(mcpUrl: string | null) {
   })
 }
 
-/** Mutation: remove BrowserOS as MCP from a single agent. */
+/** Mutation: remove Astro as MCP from a single agent. */
 export function useUninstallAgent() {
   const { baseUrl } = useAgentServerUrl()
   const queryClient = useQueryClient()

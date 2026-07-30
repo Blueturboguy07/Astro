@@ -2,7 +2,7 @@ import { type FC, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { getBrowserOSAdapter } from '@/lib/browseros/adapter'
+import { getAstroAdapter } from '@/lib/browseros/adapter'
 import { Capabilities, Feature } from '@/lib/browseros/capabilities'
 import { BROWSEROS_PREFS } from '@/lib/browseros/prefs'
 import { sidePanelPerWindowStorage } from '@/lib/browseros/sidePanelOpenStateStorage'
@@ -33,7 +33,7 @@ const DEFAULT_NATIVE_TOOLBAR_SETTINGS_STATE: NativeToolbarSettingsState = {
 
 async function loadNativeToolbarSettingsState(): Promise<NativeToolbarSettingsState> {
   try {
-    const adapter = getBrowserOSAdapter()
+    const adapter = getAstroAdapter()
     const [chatPref, labelsPref] = await Promise.all([
       adapter.getPref(BROWSEROS_PREFS.SHOW_LLM_CHAT),
       adapter.getPref(BROWSEROS_PREFS.SHOW_TOOLBAR_LABELS),
@@ -105,7 +105,7 @@ export const ToolbarSettingsCard: FC = () => {
     setter: (v: boolean) => void,
   ) => {
     try {
-      const adapter = getBrowserOSAdapter()
+      const adapter = getAstroAdapter()
       const success = await adapter.setPref(prefKey, value)
       if (!success) {
         throw new Error('Failed to update setting')

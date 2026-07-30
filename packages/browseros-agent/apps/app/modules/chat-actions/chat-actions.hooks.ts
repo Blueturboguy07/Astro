@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createBrowserOSAction } from '@/lib/chat-actions/types'
+import { createAstroAction } from '@/lib/chat-actions/types'
 import { track } from '@/lib/metrics/track'
 import { useChatSessionContext } from '@/modules/chat/chat-session-context'
 import type { ChatMode } from '@/modules/chat/chat-types'
@@ -112,7 +112,7 @@ export function useChatActions(config: ChatActionsConfig) {
     if (!messageText) return
 
     if (attachedTabs.length) {
-      const action = createBrowserOSAction({
+      const action = createAstroAction({
         mode,
         message: messageText,
         tabs: attachedTabs,

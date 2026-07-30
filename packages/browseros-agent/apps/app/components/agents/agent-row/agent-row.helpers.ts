@@ -26,7 +26,7 @@ const USER_QUERY_OPEN = /^<USER_QUERY>$/i
 const USER_QUERY_CLOSE = /^<\/USER_QUERY>$/i
 
 /**
- * First non-blank line, with the BrowserOS user-system-prompt
+ * First non-blank line, with the Astro user-system-prompt
  * `<USER_QUERY>` envelope tags stripped so previews don't show
  * structural noise.
  */

@@ -21,7 +21,7 @@ const providers: LlmProviderConfig[] = [
   {
     id: 'browseros',
     type: 'browseros',
-    name: 'BrowserOS',
+    name: 'Astro',
     baseUrl: 'https://api.browseros.com/v1',
     modelId: 'browseros-auto',
     supportsImages: true,
@@ -159,7 +159,7 @@ describe('buildSidepanelChatTargets', () => {
       {
         kind: 'llm',
         id: 'browseros',
-        name: 'BrowserOS',
+        name: 'Astro',
         type: 'browseros',
         provider: providers[0],
       },

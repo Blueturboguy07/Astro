@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { getBrowserOSAdapter } from '@/lib/browseros/adapter'
+import { getAstroAdapter } from '@/lib/browseros/adapter'
 import { getProxyPort } from '@/lib/browseros/helpers'
 import { BROWSEROS_PREFS } from '@/lib/browseros/prefs'
 import { MCP_PROXY_PORT_CHANGED_EVENT } from '@/lib/constants/analyticsEvents'
@@ -25,12 +25,12 @@ async function readCurrentPort(): Promise<number> {
   try {
     return await getProxyPort()
   } catch {
-    // Pref unset or BrowserOS API unavailable — fall back to the default port
+    // Pref unset or Astro API unavailable — fall back to the default port
     return PROXY_PORT_MIN
   }
 }
 
-/** Popover for editing the MCP proxy port and waiting for BrowserOS to rebind it. */
+/** Popover for editing the MCP proxy port and waiting for Astro to rebind it. */
 export const ServerPortEditor: FC<ServerPortEditorProps> = ({
   onPortChanged,
 }) => {
@@ -72,7 +72,7 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
     setIsSaving(true)
     setError(null)
     try {
-      const success = await getBrowserOSAdapter().setPref(
+      const success = await getAstroAdapter().setPref(
         BROWSEROS_PREFS.PROXY_PORT,
         result.port,
       )

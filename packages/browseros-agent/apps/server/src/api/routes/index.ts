@@ -26,6 +26,7 @@ import { createOAuthRoutes } from './oauth'
 import { createProviderRoutes } from './provider'
 import { createRefinePromptRoutes } from './refine-prompt'
 import { createShutdownRoute } from './shutdown'
+import { createSimplicityRoutes } from './simplicity'
 import { createStatusRoute } from './status'
 
 interface CreateApiRoutesDeps {
@@ -113,6 +114,10 @@ export function createApiRoutes(deps: CreateApiRoutesDeps) {
         }),
       )
       .route('/agents', protectedAgentRoutes(config, turnRegistry, agentRoutes))
+      /* Simplicity's own API surface. Mounted under /api because its client
+         calls same-origin /api/* paths, and because BrowserOS already owns
+         /chat at the root. */
+      .route('/api', createSimplicityRoutes())
   )
 }
 

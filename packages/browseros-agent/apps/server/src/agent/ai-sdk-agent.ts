@@ -25,6 +25,7 @@ import { logger } from '../lib/logger'
 import { metrics } from '../lib/metrics'
 import { buildFilesystemToolSet } from '../tools/filesystem/build-toolset'
 import { createReadTool } from '../tools/filesystem/read'
+import { buildSearchToolSet } from '../tools/search/build-toolset'
 import { isAcpProvider } from './acp-providers'
 import { CHAT_MODE_ALLOWED_TOOLS } from './chat-mode'
 import { createCompactionPrepareStep, type StepWithUsage } from './compaction'
@@ -121,6 +122,23 @@ export function buildAgentFilesystemToolSet(
     }
   }
   return buildFilesystemToolSet(resolvedConfig.workingDir)
+}
+
+/**
+ * Builds web search for model-backed sessions.
+ *
+ * Unlike filesystem tools this is not workspace-gated — retrieval is useful in
+ * chat mode too, and the backing SearXNG instance is local, so there is no key
+ * or account to gate on. ACP providers bring their own tools.
+ */
+export function buildAgentSearchToolSet(
+  resolvedConfig: ResolvedAgentConfig,
+  model: LanguageModel,
+): ToolSet {
+  if (isAcpProvider(resolvedConfig.provider)) {
+    return {}
+  }
+  return buildSearchToolSet({ resolvedConfig, model })
 }
 
 export class AiSdkAgent {
@@ -309,6 +327,7 @@ export class AiSdkAgent {
       ...browserTools,
       ...externalMcpTools,
       ...filesystemTools,
+      ...buildAgentSearchToolSet(config.resolvedConfig, model),
       ...buildNudgeToolSet(),
     }
 

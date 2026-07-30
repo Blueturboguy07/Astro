@@ -5,7 +5,7 @@ import { buildChatRequestBody } from './buildChatRequestBody'
 const provider: LlmProviderConfig = {
   id: 'browseros',
   type: 'browseros',
-  name: 'BrowserOS',
+  name: 'Astro',
   modelId: 'browseros-auto',
   supportsImages: true,
   contextWindow: 200000,

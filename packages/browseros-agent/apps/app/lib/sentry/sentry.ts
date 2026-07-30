@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/react'
-import { getBrowserOSAdapter } from '../browseros/adapter'
+import { getAstroAdapter } from '../browseros/adapter'
 import { env } from '../env'
 import { sanitizeEvent } from './sanitize'
 
@@ -51,7 +51,7 @@ if (env.VITE_PUBLIC_SENTRY_DSN) {
   })
 
   ;(async () => {
-    const adapter = getBrowserOSAdapter()
+    const adapter = getAstroAdapter()
     const chromiumVersion = await adapter.getVersion()
     const browserOSVersion = await adapter.getBrowserosVersion()
     Sentry.setTag('chromiumVersion', chromiumVersion)

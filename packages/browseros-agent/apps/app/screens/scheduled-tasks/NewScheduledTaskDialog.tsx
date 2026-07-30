@@ -41,7 +41,7 @@ import {
   isChatProviderType,
   resolveChatProvider,
 } from '@/lib/llm-providers/provider-runtime'
-import { BrowserOSIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
+import { AstroIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
 import {
   defaultProviderIdStorage,
   providersStorage,
@@ -373,7 +373,7 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
                     <span className="flex items-center gap-2">
                       <span className="text-muted-foreground">
                         {resolvedProvider.type === 'browseros' ? (
-                          <BrowserOSIcon size={16} />
+                          <AstroIcon size={16} />
                         ) : (
                           <ProviderIcon
                             type={resolvedProvider.type as ProviderType}

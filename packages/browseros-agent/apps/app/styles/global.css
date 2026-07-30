@@ -45,79 +45,84 @@
   font-display: swap;
 }
 
+/* Palette ported from Simplicity (~/Vane, MIT — (c) ItzCrazyKns).
+   Surfaces are its light/dark ramps (tailwind.config.ts themeLight/themeDark);
+   the accent is #24A0ED, the color its components actually use. Variable NAMES
+   are unchanged so every existing component restyles without edits. */
 :root {
   --radius: 0.65rem;
-  --background: oklch(0.985 0.002 85);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(0.99 0.001 85);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(0.99 0.001 85);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.646 0.222 41.116);
-  --primary-foreground: oklch(0.98 0.016 73.684);
-  --secondary: oklch(0.97 0.002 85);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.97 0.002 85);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.97 0.002 85);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.75 0.183 55.934);
-  --chart-1: oklch(0.837 0.128 66.29);
-  --chart-2: oklch(0.705 0.213 47.604);
-  --chart-3: oklch(0.646 0.222 41.116);
-  --chart-4: oklch(0.553 0.195 38.402);
-  --chart-5: oklch(0.47 0.157 37.304);
-  --sidebar: oklch(0.98 0.002 85);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.646 0.222 41.116);
-  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
-  --sidebar-accent: oklch(0.92 0.004 85);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.75 0.183 55.934);
-  /* Custom accent color for BrowserOS branding */
-  --accent-orange: oklch(0.6781 0.1663 43.21);
-  /* Added brighter orange variant for shimmer animation */
-  --accent-orange-bright: oklch(0.7531 0.1963 43.21);
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #ffffff;
+  --card-foreground: #1f2328;
+  --popover: #ffffff;
+  --popover-foreground: #1f2328;
+  --primary: #f97316;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f8fa;
+  --secondary-foreground: #1f2328;
+  --muted: #f6f8fa;
+  --muted-foreground: #57606a;
+  --accent: #e8edf1;
+  --accent-foreground: #1f2328;
+  --destructive: #d73a49;
+  --destructive-foreground: #ffffff;
+  --border: #d0d7de;
+  --input: #d0d7de;
+  --ring: #f97316;
+  --chart-1: #fde68a;
+  --chart-2: #fbbf24;
+  --chart-3: #f97316;
+  --chart-4: #f59e0b;
+  --chart-5: #c2410c;
+  --sidebar: #f6f8fa;
+  --sidebar-foreground: #1f2328;
+  --sidebar-primary: #f97316;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8edf1;
+  --sidebar-accent-foreground: #1f2328;
+  --sidebar-border: #d0d7de;
+  --sidebar-ring: #f97316;
+  /* Branding accent. Name kept (components reference it); value moved off
+     BrowserOS orange onto the Simplicity accent so shimmer matches the theme. */
+  --accent-orange: #f97316;
+  /* Brighter variant for the shimmer animation */
+  --accent-orange-bright: #fde68a;
 }
 
 .dark {
-  --background: oklch(0.25 0.01 265);
-  --foreground: oklch(0.92 0 0);
-  --card: oklch(0.28 0.01 265);
-  --card-foreground: oklch(0.92 0 0);
-  --popover: oklch(0.28 0.01 265);
-  --popover-foreground: oklch(0.92 0 0);
-  --primary: oklch(0.705 0.213 47.604);
-  --primary-foreground: oklch(0.98 0.016 73.684);
-  --secondary: oklch(0.32 0.01 265);
-  --secondary-foreground: oklch(0.92 0 0);
-  --muted: oklch(0.32 0.01 265);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.32 0.01 265);
-  --accent-foreground: oklch(0.92 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.92 0 0);
-  --border: oklch(0.38 0.01 265);
-  --input: oklch(0.38 0.01 265);
-  --ring: oklch(0.408 0.123 38.172);
-  --chart-1: oklch(0.837 0.128 66.29);
-  --chart-2: oklch(0.705 0.213 47.604);
-  --chart-3: oklch(0.646 0.222 41.116);
-  --chart-4: oklch(0.553 0.195 38.402);
-  --chart-5: oklch(0.47 0.157 37.304);
-  --sidebar: oklch(0.25 0.01 265);
-  --sidebar-foreground: oklch(0.92 0 0);
-  --sidebar-primary: oklch(0.705 0.213 47.604);
-  --sidebar-primary-foreground: oklch(0.92 0 0);
-  --sidebar-accent: oklch(0.32 0.01 265);
-  --sidebar-accent-foreground: oklch(0.92 0 0);
-  --sidebar-border: oklch(0.38 0.01 265);
-  --sidebar-ring: oklch(0.408 0.123 38.172);
+  --background: #0d1117;
+  --foreground: #e6edf3;
+  --card: #161b22;
+  --card-foreground: #e6edf3;
+  --popover: #161b22;
+  --popover-foreground: #e6edf3;
+  --primary: #f97316;
+  --primary-foreground: #ffffff;
+  --secondary: #161b22;
+  --secondary-foreground: #e6edf3;
+  --muted: #21262d;
+  --muted-foreground: #8b949e;
+  --accent: #21262d;
+  --accent-foreground: #e6edf3;
+  --destructive: #ff7b72;
+  --destructive-foreground: #0d1117;
+  --border: #30363d;
+  --input: #30363d;
+  --ring: #f97316;
+  --chart-1: #fde68a;
+  --chart-2: #fbbf24;
+  --chart-3: #f97316;
+  --chart-4: #f59e0b;
+  --chart-5: #c2410c;
+  --sidebar: #0d1117;
+  --sidebar-foreground: #e6edf3;
+  --sidebar-primary: #f97316;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #21262d;
+  --sidebar-accent-foreground: #e6edf3;
+  --sidebar-border: #30363d;
+  --sidebar-ring: #f97316;
 }
 
 @theme inline {

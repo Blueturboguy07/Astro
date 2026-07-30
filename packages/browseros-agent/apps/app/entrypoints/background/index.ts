@@ -1,5 +1,6 @@
 import { storage } from '@wxt-dev/storage'
 import { sessionStorage } from '@/lib/auth/sessionStorage'
+import { applyBrowserChromeDefaults } from '@/lib/browseros/browser-chrome-defaults'
 import { Capabilities } from '@/lib/browseros/capabilities'
 import { getHealthCheckUrl, getMcpServerUrl } from '@/lib/browseros/helpers'
 import {
@@ -12,7 +13,7 @@ import {
 } from '@/lib/browseros/toggleSidePanel'
 import { checkAndShowChangelog } from '@/lib/changelog/changelog-notifier'
 import {
-  setupLlmProvidersBackupToBrowserOS,
+  setupLlmProvidersBackupToAstro,
   setupLlmProvidersSyncToBackend,
   syncLlmProviders,
 } from '@/lib/llm-providers/storage'
@@ -53,7 +54,7 @@ export default defineBackground(() => {
   ensureSidePanelRuntimeStateLoaded().catch(() => null)
 
   Capabilities.initialize().catch(() => null)
-  setupLlmProvidersBackupToBrowserOS()
+  setupLlmProvidersBackupToAstro()
   setupLlmProvidersSyncToBackend()
   setupScheduledJobsSyncToBackend()
 
@@ -91,9 +92,9 @@ export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener((details) => {
     if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
       initializeSidePanelOptions().catch(() => null)
-      chrome.tabs.create({
-        url: chrome.runtime.getURL('app.html#/onboarding'),
-      })
+      /* No first-run onboarding tab. Provider setup lives in Simplicity's own
+         Settings/Setup surface instead. */
+      applyBrowserChromeDefaults().catch(() => null)
     }
 
     if (details.reason === chrome.runtime.OnInstalledReason.UPDATE) {

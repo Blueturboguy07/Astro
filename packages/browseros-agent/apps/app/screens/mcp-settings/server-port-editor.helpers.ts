@@ -7,7 +7,7 @@ export type ParseResult =
 
 /**
  * Validate a user-entered proxy port. Accepts only whole numbers in the
- * BrowserOS port band (9000–9999); rejects empty, non-numeric, and fractional
+ * Astro port band (9000–9999); rejects empty, non-numeric, and fractional
  * input rather than letting parseInt silently truncate (e.g. "9000.5").
  */
 export function parseProxyPort(raw: string): ParseResult {

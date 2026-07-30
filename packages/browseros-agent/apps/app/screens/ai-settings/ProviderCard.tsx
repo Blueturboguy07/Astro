@@ -3,7 +3,7 @@ import type { FC } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { canTestProvider } from '@/lib/llm-providers/provider-runtime'
-import { BrowserOSIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
+import { AstroIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
 import type { LlmProviderConfig } from '@/lib/llm-providers/types'
 import { cn } from '@/lib/utils'
 
@@ -61,7 +61,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
       </div>
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-orange)]/10 text-[var(--accent-orange)]">
         {isBuiltIn ? (
-          <BrowserOSIcon size={24} />
+          <AstroIcon size={24} />
         ) : (
           <ProviderIcon type={provider.type} size={24} />
         )}
@@ -81,7 +81,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         <p className="truncate text-muted-foreground text-sm">
           {isBuiltIn ? (
             <>
-              BrowserOS-hosted model with strict rate limits.{' '}
+              Astro-hosted model with strict rate limits.{' '}
               <a
                 href="https://docs.browseros.com/features/bring-your-own-llm"
                 target="_blank"

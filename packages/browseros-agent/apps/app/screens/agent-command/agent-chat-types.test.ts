@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import type { AgentConversationTurn } from '@/lib/agent-conversations/types'
 import {
   type AgentHistoryPageResponse,
-  type BrowserOSChatHistoryItem,
+  type AstroChatHistoryItem,
   buildChatHistoryFromAgentMessages,
   filterTurnsPersistedInHistory,
   flattenHistoryPages,
@@ -10,8 +10,8 @@ import {
 } from './agent-chat-types'
 
 function historyItem(
-  overrides: Partial<BrowserOSChatHistoryItem>,
-): BrowserOSChatHistoryItem {
+  overrides: Partial<AstroChatHistoryItem>,
+): AstroChatHistoryItem {
   return {
     id: 'session-1:0',
     role: 'user',
@@ -24,7 +24,7 @@ function historyItem(
   }
 }
 
-function page(items: BrowserOSChatHistoryItem[]): AgentHistoryPageResponse {
+function page(items: AstroChatHistoryItem[]): AgentHistoryPageResponse {
   return {
     agentId: 'main',
     sessionKey: 'session-1',

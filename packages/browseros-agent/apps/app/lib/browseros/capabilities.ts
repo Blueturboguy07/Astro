@@ -1,11 +1,11 @@
 import { env } from '../env'
-import { BrowserOSAdapter } from './adapter'
+import { AstroAdapter } from './adapter'
 
 const SERVER_VERSION_PREF = 'browseros.server.version'
 
 type FeatureConfig = {
-  minBrowserOSVersion?: string
-  maxBrowserOSVersion?: string
+  minAstroVersion?: string
+  maxAstroVersion?: string
   minServerVersion?: string
   maxServerVersion?: string
   requiresAlphaFlag?: boolean
@@ -13,7 +13,7 @@ type FeatureConfig = {
 }
 
 /**
- * Features gated by BrowserOS version or explicit environment flags.
+ * Features gated by Astro version or explicit environment flags.
  * Add new features here with corresponding config in FEATURE_CONFIG.
  *
  * Note: In development mode, all features are enabled regardless of version
@@ -42,8 +42,8 @@ export enum Feature {
 
 /**
  * Version requirements for each feature.
- * - minBrowserOSVersion: feature enabled when BrowserOS >= this version
- * - maxBrowserOSVersion: feature enabled when BrowserOS < this version (for deprecation)
+ * - minAstroVersion: feature enabled when Astro >= this version
+ * - maxAstroVersion: feature enabled when Astro < this version (for deprecation)
  * - minServerVersion: feature enabled when server >= this version
  * - maxServerVersion: feature enabled when server < this version (for deprecation)
  *
@@ -54,19 +54,19 @@ export enum Feature {
 const FEATURE_CONFIG: { [K in Feature]: FeatureConfig } = {
   [Feature.ALPHA_FEATURES_SUPPORT]: { requiresAlphaFlag: true },
   [Feature.VOICE_INPUT_SUPPORT]: { requiresAlphaFlag: true },
-  [Feature.NEWTAB_CHAT_SUPPORT]: { minBrowserOSVersion: '0.40.0.0' },
-  [Feature.VERTICAL_TABS_SUPPORT]: { minBrowserOSVersion: '0.42.0.0' },
+  [Feature.NEWTAB_CHAT_SUPPORT]: { minAstroVersion: '0.40.0.0' },
+  [Feature.VERTICAL_TABS_SUPPORT]: { minAstroVersion: '0.42.0.0' },
   [Feature.CHATGPT_PRO_SUPPORT]: { minServerVersion: '0.0.77' },
   [Feature.GITHUB_COPILOT_SUPPORT]: { minServerVersion: '0.0.77' },
   [Feature.QWEN_CODE_SUPPORT]: { minServerVersion: '0.0.77' },
   [Feature.CREDITS_SUPPORT]: { minServerVersion: '0.0.78' },
-  [Feature.AGENT_HARNESS_SUPPORT]: { minBrowserOSVersion: '0.46.0.0' },
+  [Feature.AGENT_HARNESS_SUPPORT]: { minAstroVersion: '0.46.0.0' },
 }
 
 function hasVersionConstraints(config: FeatureConfig): boolean {
   return Boolean(
-    config.minBrowserOSVersion ||
-      config.maxBrowserOSVersion ||
+    config.minAstroVersion ||
+      config.maxAstroVersion ||
       config.minServerVersion ||
       config.maxServerVersion,
   )
@@ -173,7 +173,7 @@ function getStaticFeatureSupport(feature: Feature): boolean | null {
 }
 
 async function doInitialize(): Promise<CapabilitiesState> {
-  const adapter = BrowserOSAdapter.getInstance()
+  const adapter = AstroAdapter.getInstance()
   const state: CapabilitiesState = {
     browserOSVersion: null,
     serverVersion: null,
@@ -185,7 +185,7 @@ async function doInitialize(): Promise<CapabilitiesState> {
       state.browserOSVersion = parseVersion(versionStr)
     }
   } catch {
-    // BrowserOS version unknown - features requiring it will be disabled
+    // Astro version unknown - features requiring it will be disabled
   }
 
   try {
@@ -216,14 +216,13 @@ export function checkFeatureSupport(
   const config = FEATURE_CONFIG[feature]
   if (!config) return false
 
-  const hasBrowserOSConstraints =
-    config.minBrowserOSVersion || config.maxBrowserOSVersion
+  const hasAstroConstraints = config.minAstroVersion || config.maxAstroVersion
   if (
-    hasBrowserOSConstraints &&
+    hasAstroConstraints &&
     !checkVersionConstraints(
       state.browserOSVersion,
-      config.minBrowserOSVersion,
-      config.maxBrowserOSVersion,
+      config.minAstroVersion,
+      config.maxAstroVersion,
     )
   ) {
     return false
@@ -266,7 +265,7 @@ export const Capabilities = {
     return checkFeatureSupport(state, feature)
   },
 
-  async getBrowserOSVersion(): Promise<string | null> {
+  async getAstroVersion(): Promise<string | null> {
     const state = await ensureInitialized()
     if (!state.browserOSVersion) return null
     return state.browserOSVersion.join('.')

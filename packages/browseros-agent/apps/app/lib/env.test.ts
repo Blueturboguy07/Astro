@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { parseBrowserOSApiUrl } from './browseros-api-url'
+import { parseAstroApiUrl } from './browseros-api-url'
 import { parseAlphaFeaturesFlag } from './env'
 
 describe('parseAlphaFeaturesFlag', () => {
@@ -16,30 +16,30 @@ describe('parseAlphaFeaturesFlag', () => {
   })
 })
 
-describe('parseBrowserOSApiUrl', () => {
-  it('defaults to the production BrowserOS API when unset', () => {
-    expect(parseBrowserOSApiUrl(undefined)).toBe('https://api.browseros.com')
+describe('parseAstroApiUrl', () => {
+  it('defaults to the production Astro API when unset', () => {
+    expect(parseAstroApiUrl(undefined)).toBe('https://api.browseros.com')
   })
 
   it('preserves explicit overrides', () => {
-    expect(parseBrowserOSApiUrl('http://127.0.0.1:3000')).toBe(
+    expect(parseAstroApiUrl('http://127.0.0.1:3000')).toBe(
       'http://127.0.0.1:3000',
     )
   })
 
   it('rejects overrides without a scheme', () => {
-    expect(() => parseBrowserOSApiUrl('api.browseros.com')).toThrow(
+    expect(() => parseAstroApiUrl('api.browseros.com')).toThrow(
       'VITE_PUBLIC_BROWSEROS_API must be a valid URL including http:// or https://',
     )
   })
 
   it('rejects non-HTTP overrides', () => {
-    expect(() =>
-      parseBrowserOSApiUrl('chrome-extension://extension-id'),
-    ).toThrow('VITE_PUBLIC_BROWSEROS_API must use http:// or https://')
+    expect(() => parseAstroApiUrl('chrome-extension://extension-id')).toThrow(
+      'VITE_PUBLIC_BROWSEROS_API must use http:// or https://',
+    )
   })
 
   it('returns a URL that can form a valid WXT match pattern', () => {
-    expect(`${parseBrowserOSApiUrl(undefined)}/home`).toStartWith('https://')
+    expect(`${parseAstroApiUrl(undefined)}/home`).toStartWith('https://')
   })
 })

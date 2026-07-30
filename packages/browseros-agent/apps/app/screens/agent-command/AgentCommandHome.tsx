@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import type { Provider } from '@/components/chat/chatComponentTypes'
 import { BrowserClawPromoBanner } from '@/components/promo/BrowserClawPromoBanner'
 import { Feature } from '@/lib/browseros/capabilities'
-import { createBrowserOSAction } from '@/lib/chat-actions/types'
+import { createAstroAction } from '@/lib/chat-actions/types'
 import { openSidePanelWithSearch } from '@/lib/messaging/sidepanel/openSidepanelWithSearch'
 import {
   useAgentAdapters,
@@ -68,7 +68,7 @@ export const AgentCommandHome: FC = () => {
     [targets],
   )
 
-  // Default the picker to the user's default LLM provider (BrowserOS out of the
+  // Default the picker to the user's default LLM provider (Astro out of the
   // box) so the composer works with zero agents. Re-resolve if the current
   // selection disappears (e.g. its provider/agent was removed).
   useEffect(() => {
@@ -117,7 +117,7 @@ export const AgentCommandHome: FC = () => {
     await persistSidepanelChatTargetSelection(target)
     await setDefaultProvider(route.providerId)
     if (llmRoutingMode === 'sidepanel') {
-      const action = createBrowserOSAction({
+      const action = createAstroAction({
         mode: 'chat',
         message: input.text,
         tabs: input.selectedTabs,
@@ -145,7 +145,7 @@ export const AgentCommandHome: FC = () => {
               next?
             </h1>
             <p className="mx-auto max-w-2xl text-muted-foreground text-sm leading-6 [text-wrap:pretty]">
-              Pick BrowserOS AI or any agent, then start a task — all without
+              Pick Astro AI or any agent, then start a task — all without
               leaving this tab.
             </p>
           </div>

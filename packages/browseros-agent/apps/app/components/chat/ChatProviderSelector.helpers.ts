@@ -17,7 +17,7 @@ export function groupProviderOptions(
       ? [
           {
             key: 'llm' as const,
-            label: 'BrowserOS agent + your LLM',
+            label: 'Astro agent + your LLM',
             options: llm,
           },
         ]

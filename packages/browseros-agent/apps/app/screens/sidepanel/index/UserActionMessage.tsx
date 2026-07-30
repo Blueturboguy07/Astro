@@ -2,7 +2,7 @@ import { Bot, FileText, Globe, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
 import type {
   AITabAction,
-  BrowserOSAction,
+  AstroAction,
   ChatAction,
 } from '@/lib/chat-actions/types'
 
@@ -63,7 +63,7 @@ const AITabActionCard: FC<{ action: AITabAction }> = ({ action }) => {
   )
 }
 
-const BrowserOSActionCard: FC<{ action: BrowserOSAction }> = ({ action }) => {
+const AstroActionCard: FC<{ action: AstroAction }> = ({ action }) => {
   const isAgent = action.mode === 'agent'
 
   return (
@@ -95,7 +95,7 @@ export const UserActionMessage: FC<UserActionMessageProps> = ({ action }) => {
     case 'ai-tab':
       return <AITabActionCard action={action} />
     case 'browseros':
-      return <BrowserOSActionCard action={action} />
+      return <AstroActionCard action={action} />
     default:
       return null
   }

@@ -1,10 +1,7 @@
 import { Loader2 } from 'lucide-react'
 import { type FC, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router'
-import {
-  createAITabAction,
-  createBrowserOSAction,
-} from '@/lib/chat-actions/types'
+import { createAITabAction, createAstroAction } from '@/lib/chat-actions/types'
 import {
   NEWTAB_AI_TRIGGERED_EVENT,
   NEWTAB_CHAT_MODE_CHANGED_EVENT,
@@ -111,7 +108,7 @@ export const NewTabChat: FC = () => {
                   description: tabDescription ?? '',
                   tabs: matchedTabs,
                 })
-              : createBrowserOSAction({
+              : createAstroAction({
                   mode: (chatMode as 'chat' | 'agent') ?? 'agent',
                   message: query,
                   tabs: matchedTabs,

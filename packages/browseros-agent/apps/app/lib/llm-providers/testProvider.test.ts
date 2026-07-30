@@ -88,7 +88,7 @@ describe('testProvider — request body', () => {
 })
 
 describe('testProvider — client-side fetch failure (issue #1844)', () => {
-  it('wraps a network fetch error as "could not reach BrowserOS server"', async () => {
+  it('wraps a network fetch error as "could not reach Astro server"', async () => {
     globalThis.fetch = (async () => {
       throw new TypeError('Failed to fetch')
     }) as unknown as typeof globalThis.fetch
@@ -99,7 +99,7 @@ describe('testProvider — client-side fetch failure (issue #1844)', () => {
     // not blame the user's provider config. Guards against a future
     // refactor re-introducing the bare `error.message` return which
     // reads as if the port the user typed was dropped.
-    expect(result.message).toContain('local BrowserOS server')
+    expect(result.message).toContain('local Astro server')
     expect(result.message).toContain('http://127.0.0.1:9200')
     expect(result.message).toContain('Failed to fetch')
     expect(result.responseTime).toBeGreaterThanOrEqual(0)
@@ -116,7 +116,7 @@ describe('testProvider — client-side fetch failure (issue #1844)', () => {
 
     const result = await testProvider(baseProvider(), 'http://127.0.0.1:9200')
     expect(result.success).toBe(false)
-    expect(result.message).toContain('local BrowserOS server')
+    expect(result.message).toContain('local Astro server')
     expect(result.message).toContain('http://127.0.0.1:9200')
     expect(result.message).toContain('Unexpected token')
   })
@@ -138,6 +138,6 @@ describe('testProvider — client-side fetch failure (issue #1844)', () => {
     const result = await testProvider(baseProvider(), 'http://127.0.0.1:9200')
     expect(result.success).toBe(false)
     expect(result.message).toBe('[anthropic] 401 Unauthorized')
-    expect(result.message).not.toContain('local BrowserOS server')
+    expect(result.message).not.toContain('local Astro server')
   })
 })

@@ -24,7 +24,7 @@ import { formatConversationHistory } from '@/lib/conversations/formatConversatio
 import { useConversations } from '@/lib/conversations/useConversations'
 import { declinedAppsStorage } from '@/lib/declined-apps/storage'
 import { resolveChatProvider } from '@/lib/llm-providers/provider-runtime'
-import { createDefaultBrowserOSProvider } from '@/lib/llm-providers/storage'
+import { createDefaultAstroProvider } from '@/lib/llm-providers/storage'
 import type { ChatRequestBrowserContext } from '@/lib/messaging/server/buildChatRequestBody'
 import { track } from '@/lib/metrics/track'
 import { searchActionsStorage } from '@/lib/search-actions/searchActionsStorage'
@@ -322,7 +322,7 @@ export const useChatSession = (options?: ChatSessionOptions) => {
             selectedLlmProviderRef.current
               ? [selectedLlmProviderRef.current]
               : [],
-          ) ?? createDefaultBrowserOSProvider()
+          ) ?? createDefaultAstroProvider()
         const activeTabsList = await chrome.tabs.query({
           active: true,
           currentWindow: true,

@@ -2,11 +2,9 @@ import {
   ArrowLeft,
   BookOpen,
   Bot,
-  Compass,
   CreditCard,
   MessageSquare,
   Palette,
-  RotateCcw,
   Server,
 } from 'lucide-react'
 import type { FC } from 'react'
@@ -71,11 +69,11 @@ const primarySettingsSections: NavSection[] = [
     label: 'Other',
     items: [
       {
-        name: 'Customize BrowserOS',
+        name: 'Customize Astro',
         to: '/settings/customization',
         icon: Palette,
       },
-      { name: 'BrowserOS as MCP', to: '/settings/mcp', icon: Server },
+      { name: 'Astro as MCP', to: '/settings/mcp', icon: Server },
       {
         name: 'Usage & Billing',
         to: '/settings/usage',
@@ -88,8 +86,6 @@ const primarySettingsSections: NavSection[] = [
 
 const helpItems: NavItem[] = [
   { name: 'Docs', href: 'https://docs.browseros.com/', icon: BookOpen },
-  { name: 'Features', to: '/onboarding/features', icon: Compass },
-  { name: 'Revisit Onboarding', to: '/onboarding', icon: RotateCcw },
 ]
 
 export const SettingsSidebar: FC = () => {

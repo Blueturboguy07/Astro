@@ -72,7 +72,7 @@ export const IntegrationsSection: FC<IntegrationsSectionProps> = ({
             Connected agents
           </h2>
           <p className="text-muted-foreground text-sm">
-            Add BrowserOS as an MCP server in your AI agents — no copy-paste
+            Add Astro as an MCP server in your AI agents — no copy-paste
             required.
           </p>
         </div>

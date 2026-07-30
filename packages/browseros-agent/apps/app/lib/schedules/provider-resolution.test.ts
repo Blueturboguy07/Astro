@@ -6,10 +6,10 @@ const storageValues = new Map<string, unknown>()
 const fetchBodies: Array<Record<string, unknown>> = []
 const originalFetch = globalThis.fetch
 
-const createBrowserOSProvider = () => ({
+const createAstroProvider = () => ({
   id: 'browseros',
   type: 'browseros',
-  name: 'BrowserOS',
+  name: 'Astro',
   modelId: 'browseros-auto',
   supportsImages: true,
   contextWindow: 200000,
@@ -26,8 +26,8 @@ const createBrowserOSProvider = () => ({
 // reliability audit) covers the general class regardless.
 mock.module('@/lib/llm-providers/storage', () => ({
   DEFAULT_PROVIDER_ID: 'browseros',
-  createDefaultBrowserOSProvider: createBrowserOSProvider,
-  createDefaultProvidersConfig: () => [createBrowserOSProvider()],
+  createDefaultAstroProvider: createAstroProvider,
+  createDefaultProvidersConfig: () => [createAstroProvider()],
   loadProviders: async () =>
     (storageValues.get('providers') as LlmProviderConfig[]) ?? [],
   providersStorage: {
@@ -139,7 +139,7 @@ const providers: LlmProviderConfig[] = [
   {
     id: 'browseros',
     type: 'browseros',
-    name: 'BrowserOS',
+    name: 'Astro',
     modelId: 'browseros-auto',
     supportsImages: true,
     contextWindow: 200000,

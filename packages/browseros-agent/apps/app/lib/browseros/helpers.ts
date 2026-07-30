@@ -1,4 +1,4 @@
-import { getBrowserOSAdapter } from './adapter'
+import { getAstroAdapter } from './adapter'
 import { BROWSEROS_PREFS } from './prefs'
 
 class McpPortError extends Error {
@@ -9,8 +9,8 @@ class McpPortError extends Error {
 }
 
 /**
- * Returns the local BrowserOS server base URL for chat and agent APIs.
- * BrowserOS publishes this through the unified MCP/server-port preference.
+ * Returns the local Astro server base URL for chat and agent APIs.
+ * Astro publishes this through the unified MCP/server-port preference.
  */
 export async function getAgentServerUrl(): Promise<string> {
   const port = await getMcpPort()
@@ -19,14 +19,14 @@ export async function getAgentServerUrl(): Promise<string> {
 
 async function getMcpPort(): Promise<number> {
   try {
-    const adapter = getBrowserOSAdapter()
+    const adapter = getAstroAdapter()
     const pref = await adapter.getPref(BROWSEROS_PREFS.MCP_PORT)
 
     if (pref?.value && typeof pref.value === 'number') {
       return pref.value
     }
   } catch {
-    // BrowserOS API not available
+    // Astro API not available
   }
 
   throw new McpPortError()
@@ -47,14 +47,14 @@ class ProxyPortError extends Error {
 
 export async function getProxyPort(): Promise<number> {
   try {
-    const adapter = getBrowserOSAdapter()
+    const adapter = getAstroAdapter()
     const pref = await adapter.getPref(BROWSEROS_PREFS.PROXY_PORT)
 
     if (pref?.value && typeof pref.value === 'number') {
       return pref.value
     }
   } catch {
-    // BrowserOS API not available
+    // Astro API not available
   }
 
   throw new ProxyPortError()

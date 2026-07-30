@@ -13,7 +13,7 @@ const legacySharedProfiles = new Set([
 ])
 const configDir = dirname(fileURLToPath(import.meta.url))
 
-/** Returns a worktree-scoped Chromium profile for local BrowserOS dev runs. */
+/** Returns a worktree-scoped Chromium profile for local Astro dev runs. */
 function defaultChromiumProfile(): string {
   const agentRoot = resolve(configDir, '../..')
   const worktreeRoot = resolve(agentRoot, '../..')
@@ -79,8 +79,7 @@ if (env.BROWSEROS_EXTENSION_PORT) {
 export default defineWebExtConfig({
   binaries: {
     chrome:
-      env.BROWSEROS_BINARY ||
-      '/Applications/BrowserOS.app/Contents/MacOS/BrowserOS',
+      env.BROWSEROS_BINARY || '/Applications/Astro.app/Contents/MacOS/Astro',
   },
   chromiumArgs,
   chromiumProfile: chromiumProfile(),

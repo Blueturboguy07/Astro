@@ -40,14 +40,14 @@ const browserOSAdapter = {
   setPref: async () => {},
 }
 
-const MockBrowserOSAdapter = {
+const MockAstroAdapter = {
   getInstance: () => browserOSAdapter,
 }
 
-const createBrowserOSProvider = () => ({
+const createAstroProvider = () => ({
   id: 'browseros',
   type: 'browseros',
-  name: 'BrowserOS',
+  name: 'Astro',
   modelId: 'browseros-auto',
   supportsImages: true,
   contextWindow: 200000,
@@ -57,8 +57,8 @@ const createBrowserOSProvider = () => ({
 })
 
 mock.module('@/lib/browseros/adapter', () => ({
-  BrowserOSAdapter: MockBrowserOSAdapter,
-  getBrowserOSAdapter: () => browserOSAdapter,
+  AstroAdapter: MockAstroAdapter,
+  getAstroAdapter: () => browserOSAdapter,
 }))
 
 mock.module('@/lib/browseros/prefs', () => ({
@@ -70,8 +70,8 @@ mock.module('@/lib/browseros/prefs', () => ({
 
 mock.module('../../lib/llm-providers/storage', () => ({
   DEFAULT_PROVIDER_ID: 'browseros',
-  createDefaultBrowserOSProvider: createBrowserOSProvider,
-  createDefaultProvidersConfig: () => [createBrowserOSProvider()],
+  createDefaultAstroProvider: createAstroProvider,
+  createDefaultProvidersConfig: () => [createAstroProvider()],
   defaultProviderIdStorage: {
     getValue: async () => storageValues.get('local:default-provider-id'),
     setValue: async (value: string) => {
@@ -117,7 +117,7 @@ const providers: LlmProviderConfig[] = [
   {
     id: 'browseros',
     type: 'browseros',
-    name: 'BrowserOS',
+    name: 'Astro',
     modelId: 'browseros-auto',
     supportsImages: true,
     contextWindow: 200000,

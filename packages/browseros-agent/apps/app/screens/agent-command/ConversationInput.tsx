@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { type StagedAttachment, stageAttachments } from '@/lib/attachments'
 import { Feature } from '@/lib/browseros/capabilities'
-import { BrowserOSIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
+import { AstroIcon, ProviderIcon } from '@/lib/llm-providers/providerIcons'
 import type { ProviderType } from '@/lib/llm-providers/types'
 import { useMcpServers } from '@/lib/mcp/mcpServerStorage'
 import { cn } from '@/lib/utils'
@@ -52,7 +52,7 @@ export interface ConversationInputProps {
   onSend: (input: ConversationInputSendInput) => void
   /**
    * Merged provider/agent picker shown only on the `home` variant. Lets the
-   * composer target either an LLM provider (BrowserOS, etc.) or a named agent.
+   * composer target either an LLM provider (Astro, etc.) or a named agent.
    */
   providers?: Provider[]
   selectedProvider?: Provider | null
@@ -697,6 +697,6 @@ function BotInputIcon({ variant }: { variant: 'home' | 'conversation' }) {
 
 function TargetPillIcon({ provider }: { provider: Provider }) {
   if (provider.kind === 'acp') return <Bot className="size-3" />
-  if (provider.type === 'browseros') return <BrowserOSIcon size={12} />
+  if (provider.type === 'browseros') return <AstroIcon size={12} />
   return <ProviderIcon type={provider.type as ProviderType} size={12} />
 }

@@ -19,10 +19,10 @@ export interface AITabAction extends BaseChatAction {
 }
 
 /**
- * Action for BrowserOS chat/agent queries
+ * Action for Astro chat/agent queries
  * @public
  */
-export interface BrowserOSAction extends BaseChatAction {
+export interface AstroAction extends BaseChatAction {
   type: 'browseros'
   mode: 'chat' | 'agent'
   message: string
@@ -33,7 +33,7 @@ export interface BrowserOSAction extends BaseChatAction {
  * Union type of all chat actions
  * @public
  */
-export type ChatAction = AITabAction | BrowserOSAction
+export type ChatAction = AITabAction | AstroAction
 
 /**
  * Storage format for search actions passed between newtab and sidepanel
@@ -63,14 +63,14 @@ export const createAITabAction = (params: {
 })
 
 /**
- * Helper to create a BrowserOS action
+ * Helper to create a Astro action
  * @public
  */
-export const createBrowserOSAction = (params: {
+export const createAstroAction = (params: {
   mode: 'chat' | 'agent'
   message: string
   tabs?: chrome.tabs.Tab[]
-}): BrowserOSAction => ({
+}): AstroAction => ({
   id: crypto.randomUUID(),
   type: 'browseros',
   timestamp: Date.now(),

@@ -5,16 +5,16 @@ export type PrefObject = chrome.browserOS.PrefObject
 export type ChoosePathOptions = chrome.browserOS.ChoosePathOptions
 export type SelectedPath = chrome.browserOS.SelectedPath
 
-export class BrowserOSAdapter {
-  private static instance: BrowserOSAdapter | null = null
+export class AstroAdapter {
+  private static instance: AstroAdapter | null = null
 
   private constructor() {}
 
-  static getInstance(): BrowserOSAdapter {
-    if (!BrowserOSAdapter.instance) {
-      BrowserOSAdapter.instance = new BrowserOSAdapter()
+  static getInstance(): AstroAdapter {
+    if (!AstroAdapter.instance) {
+      AstroAdapter.instance = new AstroAdapter()
     }
-    return BrowserOSAdapter.instance
+    return AstroAdapter.instance
   }
 
   async getVersion(): Promise<string | null> {
@@ -148,4 +148,4 @@ export class BrowserOSAdapter {
 }
 
 /** @public */
-export const getBrowserOSAdapter = () => BrowserOSAdapter.getInstance()
+export const getAstroAdapter = () => AstroAdapter.getInstance()

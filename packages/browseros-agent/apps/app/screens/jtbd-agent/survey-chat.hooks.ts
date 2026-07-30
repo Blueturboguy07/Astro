@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { getBrowserOSAdapter } from '@/lib/browseros/adapter'
+import { getAstroAdapter } from '@/lib/browseros/adapter'
 import { BROWSEROS_PREFS } from '@/lib/browseros/prefs'
 
 const JTBD_API_URL = 'https://jtbd-agent.fly.dev'
@@ -14,13 +14,13 @@ export interface SurveyChatOptions {
 
 async function getInstallId(): Promise<string> {
   try {
-    const adapter = getBrowserOSAdapter()
+    const adapter = getAstroAdapter()
     const pref = await adapter.getPref(BROWSEROS_PREFS.INSTALL_ID)
     if (pref?.value) {
       return String(pref.value)
     }
   } catch {
-    // BrowserOS API not available
+    // Astro API not available
   }
   return ''
 }

@@ -47,7 +47,7 @@ mock.module('@/lib/auth/sessionStorage', () => ({
 }))
 
 mock.module('@/lib/browseros/adapter', () => ({
-  getBrowserOSAdapter: () => ({ setPref: async () => {} }),
+  getAstroAdapter: () => ({ setPref: async () => {} }),
 }))
 
 mock.module('@/lib/browseros/prefs', () => ({

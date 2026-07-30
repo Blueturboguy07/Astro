@@ -7,7 +7,7 @@ import {
 
 const llm: Provider = {
   id: 'browseros',
-  name: 'BrowserOS',
+  name: 'Astro',
   type: 'browseros',
   kind: 'llm',
 }

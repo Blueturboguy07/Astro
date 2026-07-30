@@ -27,18 +27,18 @@ mock.module('./prefs', () => ({
 }))
 
 mock.module('./adapter', () => ({
-  BrowserOSAdapter: {
+  AstroAdapter: {
     getInstance: () => ({
       getPref: async (name: string) => readPref(name),
       getBrowserosVersion: async () => null,
     }),
   },
-  getBrowserOSAdapter: () => ({
+  getAstroAdapter: () => ({
     getPref: async (name: string) => readPref(name),
   }),
 }))
 
-describe('BrowserOS helper URLs', () => {
+describe('Astro helper URLs', () => {
   beforeEach(() => {
     originalChrome = globalThis.chrome
     Object.assign(globalThis, {
@@ -65,19 +65,19 @@ describe('BrowserOS helper URLs', () => {
     Reflect.deleteProperty(globalThis, 'chrome')
   })
 
-  it('uses the BrowserOS MCP port as the server URL', async () => {
+  it('uses the Astro MCP port as the server URL', async () => {
     const { getAgentServerUrl } = await import('./helpers')
 
     await expect(getAgentServerUrl()).resolves.toBe('http://127.0.0.1:9105')
   })
 
-  it('uses the BrowserOS proxy port for MCP requests', async () => {
+  it('uses the Astro proxy port for MCP requests', async () => {
     const { getMcpServerUrl } = await import('./helpers')
 
     await expect(getMcpServerUrl()).resolves.toBe('http://127.0.0.1:9106/mcp')
   })
 
-  it('uses the BrowserOS proxy port for health checks', async () => {
+  it('uses the Astro proxy port for health checks', async () => {
     const { getHealthCheckUrl } = await import('./helpers')
 
     await expect(getHealthCheckUrl()).resolves.toBe(
