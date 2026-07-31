@@ -6,14 +6,33 @@ agent surfaces are replaced by the UI from
 Model Council come from Simplicity; browsing and browser automation come from
 BrowserOS.
 
-**There is no installer yet.** Shipping a branded browser means building
-Chromium, which needs ~100 GB of disk per platform and cannot be cross-compiled
-(a Windows build needs Windows, a Linux build needs Linux). What you *can* do
-today — on macOS, Windows and Linux — is run Astro's UI and agent on top of an
-installed BrowserOS. That is what this guide covers, and it takes about ten
-minutes.
+## macOS: just download it
+
+Astro ships as a complete browser on macOS. You do **not** need BrowserOS, Bun,
+Node or any of the toolchain below.
+
+**[⬇️ Download Astro.dmg](https://github.com/Blueturboguy07/Astro/releases/latest/download/Astro.dmg)**
+(~231 MB, Apple silicon)
+
+Open the disk image, drag **Astro** to Applications, and launch it. It is
+Developer ID signed and notarized by Apple, so it opens with no security
+warning and no right-click trick.
+
+> **If you also have BrowserOS installed**, the two share a bundle identifier
+> and therefore a browser profile, and BrowserOS will remove Astro's agent
+> extension from it. Use one or the other for now.
+
+Everything below is for **Windows, Linux, and anyone working on Astro itself.**
 
 ---
+
+## Windows and Linux: run Astro on top of BrowserOS
+
+There is no standalone build for these platforms yet. Shipping a branded
+browser means building Chromium, which needs ~100 GB of disk per platform and
+cannot be cross-compiled — a Windows build needs Windows, a Linux build needs
+Linux. Until then you can run Astro's UI and agent on top of an installed
+BrowserOS, which takes about ten minutes.
 
 ## 1. Install BrowserOS
 
@@ -21,15 +40,14 @@ Astro drives the BrowserOS binary rather than shipping its own.
 
 | Platform | Download |
 |---|---|
-| macOS | [BrowserOS.dmg](https://files.browseros.com/download/BrowserOS.dmg) |
 | Windows | [BrowserOS_installer.exe](https://files.browseros.com/download/BrowserOS_installer.exe) |
 | Linux (AppImage) | [BrowserOS.AppImage](https://files.browseros.com/download/BrowserOS.AppImage) |
 | Linux (Debian) | [BrowserOS.deb](https://cdn.browseros.com/download/BrowserOS.deb) |
 
-### Windows and Linux: you will hit a security warning
+### You will hit a security warning
 
-BrowserOS is signed on macOS but **not** on Windows, and Linux has no signing at
-all. You have to allow it explicitly:
+BrowserOS is **not** signed on Windows, and Linux has no signing at all. You
+have to allow it explicitly:
 
 - **Windows** — SmartScreen shows *"Windows protected your PC."* Click **More
   info**, then **Run anyway**. If your browser blocks the download itself, open
@@ -40,8 +58,6 @@ all. You have to allow it explicitly:
   ./BrowserOS.AppImage
   ```
   On some desktops you also need `--no-sandbox`, or install the `.deb` instead.
-- **macOS** — signed and notarized, so it opens normally. If macOS still
-  complains after a manual download, run `xattr -cr /Applications/BrowserOS.app`.
 
 ---
 

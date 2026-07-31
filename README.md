@@ -43,23 +43,31 @@ web page cannot issue instructions to your agent.
 
 ## Running Astro
 
-**There is no installer.** Shipping a branded browser means building Chromium —
-roughly 100 GB per platform, and it cannot be cross-compiled, so a Windows build
-needs Windows and a Linux build needs Linux. That is not something this project
-can hand you as a download today.
+### macOS
 
-What you can do, on **macOS, Windows and Linux**, is run Astro on top of an
-installed BrowserOS. It takes about ten minutes:
+**[⬇️ Download Astro.dmg](https://github.com/Blueturboguy07/Astro/releases/latest/download/Astro.dmg)**
+— a complete browser, signed and notarized by Apple. Drag it to Applications
+and open it. No BrowserOS, no toolchain, no security warning.
+
+If you also run BrowserOS, use one or the other: they share a bundle
+identifier, so they share a profile, and BrowserOS deletes Astro's agent
+extension from it.
+
+### Windows and Linux
+
+No standalone build yet — a branded Chromium is roughly 100 GB per platform and
+cannot be cross-compiled, so a Windows build needs Windows and a Linux build
+needs Linux. Until then, run Astro on top of an installed BrowserOS. About ten
+minutes:
 
 ### [→ Full setup guide](SETUP.md)
 
 In short:
 
-1. **Install BrowserOS** — [macOS](https://files.browseros.com/download/BrowserOS.dmg) ·
-   [Windows](https://files.browseros.com/download/BrowserOS_installer.exe) ·
+1. **Install BrowserOS** — [Windows](https://files.browseros.com/download/BrowserOS_installer.exe) ·
    [Linux](https://files.browseros.com/download/BrowserOS.AppImage).
-   It is signed on macOS, **unsigned on Windows and Linux** — see the guide for
-   how to get past SmartScreen and how to make the AppImage executable.
+   It is **unsigned on both** — see the guide for how to get past SmartScreen
+   and how to make the AppImage executable.
 2. **Install the toolchain** — Bun 1.3.6, Node 22+, Go, Lima.
 3. **Set it up**, and mind the one trap:
    ```bash
