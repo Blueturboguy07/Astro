@@ -14,15 +14,20 @@ const apiPattern = apiUrl.port
   : apiUrl.hostname
 
 // See https://wxt.dev/api/config.html
-// Extension ID will be bflpfmnmnokmjhmgnolecpppdbdophmk
+/* `key` is the public half of the CRX signing key, and Chrome derives the
+   extension ID from it. It must stay in step with the private key used to pack
+   the crx (~/.astro-extension-key.pem, kept out of the repo) — a different key
+   means a different ID, which the browser's extension catalog will not
+   recognize. Astro's ID: kofbmbngmnnpmopgbhpbajhnnnoflolg */
 export default defineConfig({
   outDir: 'dist',
   modules: ['@wxt-dev/module-react'],
   manifest: {
     name: 'Astro',
-    key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvBDAaDRvv61NpBeLR8etBRw82lv9VJO3sz/mA26gDzWKtVuzW4DXCl8Zfj5oWmoXLTfv3aiTigUXo/LHOoGpSucEVroMmAc7cgu2KuQ1fZPpMvYa0npD/m4h89360q8Oz0oKKaZGS905IJ04M2IkF4CuU3YEHFJBWb+cUyK9H8YVugelYbPD0IVs63T1SkGbh/t/Tfb2DpkinduSO8+x26sKydm30SRt+iZ2+7Nolcdum3LExInUiX2Pgb65Jb+mVw8NqyTVJyCEp8uq0cSHomWFQirSJ80tsDhISp4btwaRKHrXqovQx9XHQv4hCd+3LuB830eUEVMUNuCO+OyPxQIDAQAB',
-    update_url: 'https://cdn.browseros.com/extensions/update-manifest.xml',
-    // update_url: 'https://cdn.browseros.com/extensions/update-manifest.alpha.xml',
+    key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoZMul4RLe6LnxQB1CMVNGRO+f7PCpbpax0ON+EedN2hbCvz888u8M8vA3bkhY4wx/K9JU3WO97wLMLwyhB10TaVFDOHewcwpuT7Q0gGSiXgExy35WmCqsegpiMth8WuNhBqJyW+cvWPTd43iUu+LGhAnLW7CP+W6vlpd9DXG8WynJ9UIN3C5Cht3xA0XAs1xcbukA3WKy4jhQx/1dtEm+xBiVPMbDYGOOZhtR8/+L/K/HTRlMsRF6qGwsbLSPCw8QJI74FVR2YsHEKrJ3gE/94fABoosYzQSkVgLyBc11LbXLp75+jp/fqb+UXVgbvh+6YO9ikXZgMHu9ovzvNZWVQIDAQAB',
+    /* No update_url: upstream points this at cdn.browseros.com, which serves
+       their extension, not ours. Astro has no update server, so an absent
+       update_url is the honest answer — updates come with the app. */
     externally_connectable: {
       matches: [`https://${apiPattern}/*`, `https://*.${apiPattern}/*`],
     },
@@ -72,6 +77,13 @@ export default defineConfig({
   vite: () => ({
     build: {
       sourcemap: 'hidden',
+    },
+    /* WXT reads each entrypoint's config through vite-node, and an entrypoint
+       whose `matches` depends on env pulls zod in there. Externalized, zod
+       resolves to a namespace without `z` and the build fails before writing
+       anything; bundling it for SSR keeps that path working. */
+    ssr: {
+      noExternal: ['zod'],
     },
     plugins: [
       tailwindcss(),

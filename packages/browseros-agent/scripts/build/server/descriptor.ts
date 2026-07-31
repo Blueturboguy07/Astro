@@ -5,13 +5,14 @@ import {
 
 export const SERVER_BUNDLE_ENTRYPOINT = 'apps/server/src/compiled-bootstrap.ts'
 
-const REQUIRED_PROD_VARS = [
-  'BROWSEROS_CONFIG_URL',
-  'POSTHOG_API_KEY',
-  'SENTRY_DSN',
-]
+/* Telemetry keys are inlined when present but no longer gate the build — see
+   apps/server/src/env.ts. Requiring them pushes anyone building this fork to
+   paste in upstream's keys, which ships their users' analytics elsewhere. */
+const REQUIRED_PROD_VARS = ['BROWSEROS_CONFIG_URL']
 const INLINED_ENV_VARS = [
   ...REQUIRED_PROD_VARS,
+  'POSTHOG_API_KEY',
+  'SENTRY_DSN',
   'NODE_ENV',
   'LOG_LEVEL',
 ] as const

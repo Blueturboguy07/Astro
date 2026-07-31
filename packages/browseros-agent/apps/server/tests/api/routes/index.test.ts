@@ -134,7 +134,7 @@ describe('createApiRoutes', () => {
     const allowed = await app.request('/agents/guard-check', {
       method: 'POST',
       headers: {
-        Origin: 'chrome-extension://bflpfmnmnokmjhmgnolecpppdbdophmk',
+        Origin: 'chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg',
       },
     })
     expect(allowed.status).toBe(200)

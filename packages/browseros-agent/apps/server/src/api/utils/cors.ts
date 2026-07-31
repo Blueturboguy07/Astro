@@ -9,8 +9,11 @@ import { logger } from '../../lib/logger'
 
 export type CorsOptions = Parameters<typeof cors>[0]
 
+/* Astro's extension ID differs from upstream's because it is packed with a
+   different signing key (see apps/app/wxt.config.ts). The UI is blocked from
+   reaching this server unless its origin is listed here. */
 const STATIC_ALLOWED_ORIGINS = new Set<string>([
-  'chrome-extension://bflpfmnmnokmjhmgnolecpppdbdophmk',
+  'chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg',
 ])
 const EXTENSION_PROTOCOLS = new Set(['chrome-extension:', 'moz-extension:'])
 

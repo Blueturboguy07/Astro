@@ -23,14 +23,14 @@ describe('isAllowedOrigin', () => {
   it('accepts the pinned published extension origin even when env is empty', () => {
     process.env.BROWSEROS_TRUSTED_ORIGINS = ''
     expect(
-      isAllowedOrigin('chrome-extension://bflpfmnmnokmjhmgnolecpppdbdophmk'),
+      isAllowedOrigin('chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg'),
     ).toBe(true)
   })
 
   it('accepts the pinned published extension origin when env is unset', () => {
     delete process.env.BROWSEROS_TRUSTED_ORIGINS
     expect(
-      isAllowedOrigin('chrome-extension://bflpfmnmnokmjhmgnolecpppdbdophmk'),
+      isAllowedOrigin('chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg'),
     ).toBe(true)
   })
 

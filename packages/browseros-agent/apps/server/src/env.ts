@@ -20,8 +20,19 @@ export const INLINED_ENV = {
   BROWSEROS_CONFIG_URL: process.env.BROWSEROS_CONFIG_URL,
 } as const
 
+/**
+ * Telemetry keys are deliberately not required.
+ *
+ * Upstream fails a production build without SENTRY_DSN and POSTHOG_API_KEY, so
+ * anyone building the browser has to supply analytics credentials — and the
+ * obvious shortcut, reusing upstream's, silently ships their users' telemetry
+ * to someone else's project. Both are optional here: absent, the server logs
+ * "Metrics disabled" and reports nothing.
+ *
+ * BROWSEROS_CONFIG_URL stays required. It resolves the bundled default model,
+ * and without it a fresh install has no way to answer anything until the user
+ * configures a provider by hand.
+ */
 export const REQUIRED_FOR_PRODUCTION = [
-  'SENTRY_DSN',
-  'POSTHOG_API_KEY',
   'BROWSEROS_CONFIG_URL',
 ] as const satisfies readonly (keyof typeof INLINED_ENV)[]
