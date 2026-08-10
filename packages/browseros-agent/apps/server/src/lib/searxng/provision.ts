@@ -171,6 +171,33 @@ function extract(tgz: string, into: string, excludes: string[] = []) {
   fs.rmSync(tgz, { force: true })
 }
 
+/* python-build-standalone's CPython isn't Apple Developer ID signed or
+   notarized. If the extracted tree ends up quarantined (macOS can propagate
+   com.apple.quarantine from a quarantined download onto files it produces),
+   executing python3 out of it trips Gatekeeper's "Apple could not verify
+   that Python 3.12 is free of malware" block on first use — reported as
+   search/chat failing right after install. Astro.app is itself notarized
+   and just verified this tree came from the pinned python-build-standalone
+   release asset, so it's safe to clear quarantine here before first
+   execution, the same way Homebrew and other tool-downloading apps do for
+   binaries they fetch into their own private data directory. Only runs on
+   macOS — Gatekeeper doesn't exist elsewhere. `xattr -dr` exits 0 whether or
+   not anything was actually quarantined, so the common case (nothing to
+   clear) is a fast no-op, not a failure. */
+export function clearQuarantine(dir: string) {
+  if (process.platform !== 'darwin') return
+  try {
+    execFileSync('/usr/bin/xattr', ['-dr', 'com.apple.quarantine', dir], {
+      stdio: 'ignore',
+    })
+  } catch (err) {
+    logger.warn('Could not clear quarantine on downloaded Python runtime', {
+      dir,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
 /* Skipped when unpacking the SearXNG repo — and ONLY the SearXNG repo. Its
    deployment scripting (utils/, container/) contains a symlink, and Windows
    tar.exe can't create symlinks without admin rights, which kills the whole
@@ -323,6 +350,7 @@ async function provision(
     const tgz = path.join(p.root, 'python.tar.gz')
     await download(await resolvePythonURL(), tgz, 'the Python runtime')
     extract(tgz, p.python)
+    clearQuarantine(p.python)
   }
 
   if (!fs.existsSync(path.join(p.src, 'searx', 'webapp.py'))) {
