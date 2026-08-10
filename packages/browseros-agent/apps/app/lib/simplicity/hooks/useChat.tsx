@@ -55,6 +55,8 @@ type ChatContext = {
   messageAppeared: boolean
   isReady: boolean
   hasError: boolean
+  connectionErrorMessage: string | null
+  retryConnection: () => void
   chatModelProvider: ChatModelProvider
   embeddingModelProvider: EmbeddingModelProvider
   researchEnded: boolean
@@ -97,7 +99,14 @@ const checkConfig = async (
   setEmbeddingModelProvider: (provider: EmbeddingModelProvider) => void,
   setIsConfigReady: (ready: boolean) => void,
   setHasError: (hasError: boolean) => void,
+  setConnectionErrorMessage: (message: string | null) => void,
 ) => {
+  /* Cleared up front, not just left false-by-default: this also runs from
+     the "Retry" button (ChatWindow's hasError screen), and without this
+     reset a retry that fails with no message (network error has none) would
+     keep showing the previous attempt's message under a fresh spinner. */
+  setHasError(false)
+  setConnectionErrorMessage(null)
   try {
     let chatModelKey = localStorage.getItem('chatModelKey')
     let chatModelProviderId = localStorage.getItem('chatModelProviderId')
@@ -205,9 +214,29 @@ const checkConfig = async (
 
     setIsConfigReady(true)
   } catch (err: any) {
-    toast.error(err.message)
+    /* The toast is easy to miss (auto-dismisses, and this runs before the
+       user has seen any UI to look at) — ChatWindow's error screen shows
+       the same message so it's still there once the toast is gone.
+       A plain "fetch failed" TypeError (nothing is listening on the port
+       yet) and McpPortError/ProxyPortError (the browser hasn't reported a
+       port at all — the server never started or died before it could)
+       both mean the same thing to a user: the local agent server isn't
+       reachable. Neither has a message worth showing verbatim, so give
+       that whole class of failure one clear explanation instead of an
+       empty or internals-flavored one. Anything else (e.g. "No chat model
+       providers found...") is already written for a user and passes
+       through unchanged. */
+    const isUnreachable =
+      err instanceof TypeError ||
+      err?.name === 'McpPortError' ||
+      err?.name === 'ProxyPortError'
+    const message = isUnreachable
+      ? "Can't reach the local Astro server. It may still be starting, or it may have failed to start — try again in a moment."
+      : (err?.message ?? 'Something went wrong connecting to the server.')
+    toast.error(message)
     setIsConfigReady(false)
     setHasError(true)
+    setConnectionErrorMessage(message)
   }
 }
 
@@ -283,6 +312,8 @@ export const chatContext = createContext<ChatContext>({
   files: [],
   sources: [],
   hasError: false,
+  connectionErrorMessage: null,
+  retryConnection: () => {},
   isMessagesLoaded: false,
   isReady: false,
   loading: false,
@@ -359,6 +390,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   const [isConfigReady, setIsConfigReady] = useState(false)
   const [hasError, setHasError] = useState(false)
+  const [connectionErrorMessage, setConnectionErrorMessage] = useState<
+    string | null
+  >(null)
   const [isReady, setIsReady] = useState(false)
 
   const messagesRef = useRef<Message[]>([])
@@ -506,13 +540,18 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  useEffect(() => {
+  const retryConnection = () => {
     checkConfig(
       setChatModelProvider,
       setEmbeddingModelProvider,
       setIsConfigReady,
       setHasError,
+      setConnectionErrorMessage,
     )
+  }
+
+  useEffect(() => {
+    retryConnection()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -932,6 +971,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         sources,
         chatId,
         hasError,
+        connectionErrorMessage,
+        retryConnection,
         isMessagesLoaded,
         isReady,
         loading,

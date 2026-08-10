@@ -34,7 +34,8 @@ export interface Widget {
 }
 
 const ChatWindow = () => {
-  const { hasError, notFound, messages, isReady } = useChat()
+  const { hasError, connectionErrorMessage, retryConnection, notFound, messages, isReady } =
+    useChat()
 
   if (hasError) {
     return (
@@ -42,10 +43,18 @@ const ChatWindow = () => {
         <div className="absolute mt-5 mr-5 flex w-full flex-row items-center justify-end">
           <SettingsButtonMobile />
         </div>
-        <div className="flex min-h-screen flex-col items-center justify-center">
-          <p className="text-black/70 text-sm dark:text-white/70">
-            Failed to connect to the server. Please try again later.
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+          <p className="max-w-sm text-black/70 text-sm dark:text-white/70">
+            {connectionErrorMessage ??
+              "Can't reach the local Astro server. It may still be starting, or it may have failed to start."}
           </p>
+          <button
+            type="button"
+            onClick={retryConnection}
+            className="cursor-pointer rounded-full bg-light-200 px-4 py-2 font-medium text-black/70 text-sm transition duration-200 hover:opacity-70 active:scale-95 dark:bg-dark-200 dark:text-white/70"
+          >
+            Retry
+          </button>
         </div>
       </div>
     )
