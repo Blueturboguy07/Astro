@@ -1,5 +1,14 @@
 tmp-shot-*/
 tmp-upload-*/
 .devtools
-db/
+# Anchored to apps/server/db/ only — a bare `db/` matches at ANY depth, which
+# silently swallowed apps/server/src/company/db/ (see cd0c7ac91) and then
+# apps/server/src/lib/simplicity/db/ (this fork's Simplicity port): git never
+# shows gitignored files as untracked, so `git add .`/`git status` gave no
+# signal that source had gone missing, and a clean checkout crash-looped on
+# "Cannot find module .../db" until someone noticed. No apps/server/db/
+# runtime directory currently exists — everything routes through
+# getBrowserosDir() outside the repo — so this may not even be needed
+# anymore, but keeping it anchored costs nothing and can't repeat that bug.
+/db/
 identity/

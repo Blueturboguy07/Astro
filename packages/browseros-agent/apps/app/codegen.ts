@@ -6,8 +6,16 @@ import type { CodegenConfig } from '@graphql-codegen/cli'
 // biome-ignore lint/style/noProcessEnv: env needed for codegen config
 const env = process.env
 
+/* `??` only falls back on null/undefined, not on ''. .env.development.example
+   ships GRAPHQL_SCHEMA_PATH as a present-but-empty line (a fill-in-if-needed
+   placeholder), so a `cp .env.development.example .env.development` with no
+   further edits set this to '' rather than leaving it unset — silently
+   turning "use the default schema" into "No schema found", and failing
+   `bun run dev:setup` on step 3 of SETUP.md. Trim + `||` treats blank the
+   same as unset. */
 const schemaPath =
-  env.GRAPHQL_SCHEMA_PATH ?? path.resolve(__dirname, 'schema/schema.graphql')
+  env.GRAPHQL_SCHEMA_PATH?.trim() ||
+  path.resolve(__dirname, 'schema/schema.graphql')
 if (!existsSync(schemaPath)) {
   throw new Error(
     'No schema found. Either set GRAPHQL_SCHEMA_PATH in .env.development ' +
