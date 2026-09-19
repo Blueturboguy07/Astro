@@ -1,0 +1,94 @@
+name: bugfix-lab-wsl
+
+# Controlled environment for cluster astro-wsl-simplicity-db-module-not-found.
+# windows-latest + a REAL WSL distro, with the Astro clone living on the
+# Windows drive at C:\Users\<user>\Astro and driven from WSL as
+# /mnt/c/Users/<user>/Astro -- the reporter's exact configuration.
+
+on:
+  workflow_dispatch:
+    inputs:
+      astro_ref:
+        description: "Astro commit to check out (guide sourceCommit, or the older pin for a negative control)"
+        required: true
+        default: "32eb1dc7bb8ed29d8eb5aeac049c4f7972f1c257"
+      wsl_version:
+        description: "WSL version to run the distro under (1 or 2)"
+        required: false
+        default: "1"
+      distribution:
+        description: "WSL distribution"
+        required: false
+        default: "Ubuntu-24.04"
+
+jobs:
+  wsl-repro:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout harness branch
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/bugfix-lab
+          sparse-checkout-cone-mode: true
+
+      - name: Runner facts
+        shell: pwsh
+        run: |
+          Write-Host "whoami: $(whoami)"
+          Write-Host "USERPROFILE: $env:USERPROFILE"
+          (Get-CimInstance Win32_OperatingSystem) | Select-Object Caption, Version, BuildNumber | Format-List
+          Write-Host "--- wsl --status ---"
+          wsl.exe --status
+          Write-Host "(exit $LASTEXITCODE)"
+          Write-Host "--- wsl --list --verbose ---"
+          wsl.exe --list --verbose
+          Write-Host "(exit $LASTEXITCODE)"
+          exit 0
+
+      - name: Set up WSL
+        uses: Vampire/setup-wsl@v3
+        with:
+          distribution: ${{ inputs.distribution }}
+          wsl-version: ${{ inputs.wsl_version }}
+          set-as-default: "true"
+          update: "false"
+          additional-packages: curl unzip ca-certificates coreutils
+
+      - name: WSL sanity
+        shell: wsl-bash {0}
+        run: |
+          set -x
+          uname -a
+          head -3 /etc/os-release
+          ls /mnt/c >/dev/null && echo "/mnt/c is mounted"
+          mount | grep -E ' /mnt/c ' || true
+
+      - name: Guide step 7 -- clone Astro into the Windows home folder (PowerShell, as the guide says)
+        shell: pwsh
+        run: |
+          Set-Location $env:USERPROFILE
+          if (-not (Test-Path Astro/.git)) {
+            git clone https://github.com/Blueturboguy07/Astro.git
+          }
+          Set-Location Astro
+          git checkout ${{ inputs.astro_ref }}
+          git rev-parse HEAD
+          $win = (Get-Location).Path
+          Write-Host "windows path: $win"
+          $wsl = $win -replace '^([A-Za-z]):', '/mnt/$1' -replace '\\', '/'
+          $wsl = $wsl.Substring(0,5) + $wsl.Substring(5,1).ToLower() + $wsl.Substring(6)
+          Write-Host "wsl path: $wsl"
+          [System.IO.File]::WriteAllText("C:\astro-wsl-path.txt", $wsl)
+
+      - name: Copy probe script onto the Windows drive
+        shell: pwsh
+        run: |
+          Copy-Item "scripts/bugfix-lab/astro-wsl-simplicity-db-module-not-found.sh" "C:\bugfix-lab-probe.sh"
+          Get-Content "C:\astro-wsl-path.txt"
+
+      - name: Run the probe inside WSL
+        shell: wsl-bash {0}
+        run: |
+          sed -i 's/\r$//' /mnt/c/bugfix-lab-probe.sh
+          bash /mnt/c/bugfix-lab-probe.sh
