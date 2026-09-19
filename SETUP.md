@@ -23,6 +23,7 @@ warning and no right-click trick.
 > extension from it. Use one or the other for now.
 
 Everything below is for **Windows, Linux, and anyone working on Astro itself.**
+Cutting a release of that dmg is its own ritual — see [RELEASING.md](RELEASING.md).
 
 ---
 
