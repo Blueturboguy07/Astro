@@ -20,23 +20,51 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DIR = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 
-// Probes whether `cmd` can be launched at all (i.e. is on PATH), the same
-// question run.sh asked with `command -v go &>/dev/null`. Any exit code
-// (including nonzero, e.g. a bare `--version` some tools reject) still
-// proves the binary was found and started; only a failed *spawn* (ENOENT)
-// means it is missing.
-function commandExists(cmd) {
-  const result = spawnSync(cmd, ["--version"], { stdio: "ignore" });
-  return !(result.error && result.error.code === "ENOENT");
+// Resolves `cmd` to an absolute executable path by walking process.env.PATH
+// ourselves, the same search `command -v go` (run.sh's original check) does
+// on POSIX -- instead of handing the bare name to spawnSync and trusting its
+// own PATH/extension resolution.
+//
+// This matters specifically on native Windows: a real windows-latest CI run
+// (fix/astro-windows-native-run-unix-only cycle 2, run
+// https://github.com/Blueturboguy07/Astro/actions/runs/35431616535) showed
+// `spawnSync("go", ["--version"], { stdio: "ignore" })` reporting ENOENT
+// (commandExists() false, "Go is required... but is not installed") even
+// though `go version` succeeded moments earlier in the same job/PATH
+// (go1.24.13 windows/amd64) -- i.e. bun's bare-name child_process resolution
+// does not reliably find a real go.exe on PATH on Windows the way invoking
+// through a shell does. Resolving the full path ourselves and handing
+// spawnSync that absolute path sidesteps whatever internal resolution gap
+// caused that, on every platform, without depending on it.
+function resolveExecutable(cmd) {
+  const pathDirs = (process.env.PATH ?? process.env.Path ?? "")
+    .split(delimiter)
+    .filter(Boolean);
+  // POSIX: the bare name is the executable itself (no extension). Windows:
+  // try PATHEXT's extensions (.EXE, .CMD, .BAT, ...) in order, the same set
+  // cmd.exe / CreateProcess would; also try the bare name last in case `cmd`
+  // already includes its extension.
+  const exts =
+    process.platform === "win32"
+      ? [...(process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean), ""]
+      : [""];
+  for (const dir of pathDirs) {
+    for (const ext of exts) {
+      const candidate = join(dir, cmd + ext);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+  return null;
 }
 
-if (!commandExists("go")) {
+const goPath = resolveExecutable("go");
+if (!goPath) {
   console.error("");
   console.error("  Go is required to build browseros-dev but is not installed.");
   console.error("  macOS/Linux (Homebrew): brew install go");
@@ -51,7 +79,7 @@ if (!commandExists("go")) {
 const needsCargo =
   args[0] === "watch" && args.includes("--claw") && args.includes("--rust");
 
-if (needsCargo && !commandExists("cargo")) {
+if (needsCargo && !resolveExecutable("cargo")) {
   console.error("");
   console.error("  Cargo is required for dev:claw-rust:watch but is not installed.");
   console.error("  Install Rust with:  brew install rustup && rustup-init");
@@ -66,7 +94,7 @@ if (needsCargo && !commandExists("cargo")) {
 // skips recompiling when nothing under DIR changed, so this stays fast
 // without a Makefile's mtime check.
 const binName = process.platform === "win32" ? "browseros-dev.exe" : "browseros-dev";
-const build = spawnSync("go", ["build", "-o", binName, "."], {
+const build = spawnSync(goPath, ["build", "-o", binName, "."], {
   cwd: DIR,
   stdio: "inherit",
 });
