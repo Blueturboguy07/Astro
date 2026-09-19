@@ -275,7 +275,7 @@ func (l *WatchRunLock) Close() error {
 	// Keep the lock file path stable. Unlinking it during handoff can let
 	// another opener lock a different inode while an owner still holds this one.
 	removeErr := os.Remove(l.statePath)
-	unlockErr := syscall.Flock(int(l.file.Fd()), syscall.LOCK_UN)
+	unlockErr := unlockFile(l.file)
 	closeErr := l.file.Close()
 	l.file = nil
 	if removeErr != nil && !os.IsNotExist(removeErr) {
@@ -362,16 +362,14 @@ func processGroupLive(pgid int) bool {
 	if pgid <= 0 {
 		return false
 	}
-	err := syscall.Kill(-pgid, 0)
-	return err == nil || err == syscall.EPERM
+	return groupAlive(pgid)
 }
 
 func processLive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
-	err := syscall.Kill(pid, 0)
-	return err == nil || err == syscall.EPERM
+	return pidAlive(pid)
 }
 
 func currentBrowserProfilePIDs(userDataDirs []string, includeDevTempProfiles bool) ([]int, error) {
@@ -464,9 +462,9 @@ func tryAcquireWatchRunLock(lockPath string, statePath string) (*WatchRunLock, e
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := lockFileExclusiveNonBlocking(file); err != nil {
 		file.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+		if errors.Is(err, errWatchRunLocked) {
 			return nil, errWatchRunLocked
 		}
 		return nil, err
@@ -475,7 +473,7 @@ func tryAcquireWatchRunLock(lockPath string, statePath string) (*WatchRunLock, e
 }
 
 func (l *WatchRunLock) writeState(identity WatchRunIdentity) error {
-	pgid, err := syscall.Getpgid(0)
+	pgid, err := currentProcessGroupID()
 	if err != nil {
 		return fmt.Errorf("reading current process group: %w", err)
 	}
@@ -539,7 +537,7 @@ func signalProcessGroup(pgid int, signal syscall.Signal) error {
 	if pgid <= 0 {
 		return fmt.Errorf("invalid process group %d", pgid)
 	}
-	if err := syscall.Kill(-pgid, signal); err != nil && err != syscall.ESRCH {
+	if err := killGroup(pgid, signal); err != nil && err != syscall.ESRCH {
 		return fmt.Errorf("signaling process group %d: %w", pgid, err)
 	}
 	return nil
@@ -549,7 +547,7 @@ func signalProcess(pid int, signal syscall.Signal) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid process %d", pid)
 	}
-	if err := syscall.Kill(pid, signal); err != nil && err != syscall.ESRCH {
+	if err := killOne(pid, signal); err != nil && err != syscall.ESRCH {
 		return fmt.Errorf("signaling process %d: %w", pid, err)
 	}
 	return nil
