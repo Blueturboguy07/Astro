@@ -14,8 +14,6 @@ import (
 
 const dogfoodStopTimeout = 10 * time.Second
 
-var errDogfoodLockHeld = errors.New("dogfood lock is held by another process")
-
 type dogfoodRunState struct {
 	PID        int    `json:"pid"`
 	Mode       string `json:"mode"`
@@ -151,13 +149,13 @@ func dogfoodRunActive(lockPath string) (bool, error) {
 		return false, err
 	}
 	defer file.Close()
-	if err := lockFileExclusiveNonBlocking(file); err != nil {
-		if errors.Is(err, errDogfoodLockHeld) {
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
 			return true, nil
 		}
 		return false, err
 	}
-	return false, unlockFile(file)
+	return false, syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
 }
 
 func readDogfoodRunState(path string) (dogfoodRunState, error) {
@@ -176,7 +174,7 @@ func signalDogfoodPID(pid int, sig syscall.Signal) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid dogfood pid %d", pid)
 	}
-	if err := killPID(pid, sig); err != nil && err != syscall.ESRCH {
+	if err := syscall.Kill(pid, sig); err != nil && err != syscall.ESRCH {
 		return err
 	}
 	return nil

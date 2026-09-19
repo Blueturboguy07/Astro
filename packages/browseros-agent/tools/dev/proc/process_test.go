@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -173,7 +174,7 @@ func TestAcquireWatchRunLockStopsExistingOwnerByStatePGID(t *testing.T) {
 		"BROWSEROS_DEV_WATCH_LOCK_READY="+readyPath,
 		"BROWSEROS_DEV_WATCH_LOCK_IDENTITY="+string(identityJSON),
 	)
-	cmd.SysProcAttr = newProcessGroupSysProcAttr()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("starting helper: %v", err)
 	}
@@ -223,7 +224,7 @@ func TestAcquireWatchRunLockStopsExistingOwnerWithDifferentPorts(t *testing.T) {
 		"BROWSEROS_DEV_WATCH_LOCK_READY="+readyPath,
 		"BROWSEROS_DEV_WATCH_LOCK_IDENTITY="+string(identityJSON),
 	)
-	cmd.SysProcAttr = newProcessGroupSysProcAttr()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("starting helper: %v", err)
 	}
@@ -276,7 +277,7 @@ func TestAcquireWatchRunLockStopsLegacyPortKeyedOwner(t *testing.T) {
 		"BROWSEROS_DEV_WATCH_LOCK_READY="+readyPath,
 		"BROWSEROS_DEV_WATCH_LOCK_IDENTITY="+string(identityJSON),
 	)
-	cmd.SysProcAttr = newProcessGroupSysProcAttr()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("starting legacy owner: %v", err)
 	}
