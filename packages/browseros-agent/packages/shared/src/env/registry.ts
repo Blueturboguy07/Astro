@@ -127,6 +127,27 @@ export const ENV_REGISTRY: readonly EnvKeySpec[] = [
     modes: { development: { value: 'true' } },
   },
   {
+    key: 'VITE_PUBLIK_APP_TOKEN',
+    section: 'app',
+    description:
+      "publik API app token (pat_astro_…) baked into the packaged extension; it lets a fresh install mint its own key on first run. Leave empty for dev and source builds — every publik surface then hides itself. Minted once with publik's scripts/mint-app-token.mts astro.",
+    secret: true,
+    schema: stringSchema,
+    modes: { development: { value: '' }, production: { value: '' } },
+  },
+  {
+    key: 'VITE_PUBLIK_API_BASE_URL',
+    section: 'app',
+    description:
+      'Optional publik API base URL override for the packaged extension; defaults to https://publikhq.com/api/v1.',
+    secret: false,
+    schema: urlSchema,
+    modes: {
+      development: { value: 'https://publikhq.com/api/v1', commented: true },
+      production: { value: 'https://publikhq.com/api/v1', commented: true },
+    },
+  },
+  {
     key: 'GRAPHQL_SCHEMA_PATH',
     section: 'app',
     description:

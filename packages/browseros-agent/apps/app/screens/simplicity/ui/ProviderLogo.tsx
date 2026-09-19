@@ -24,6 +24,8 @@ const brands: Record<string, { icon?: IconType; letters?: string }> = {
   groq: { letters: 'G' },
   lemonade: { letters: 'L' },
   xai: { letters: 'X' },
+  /* publik API — the metered default the packaged build ships with. */
+  publik: { letters: 'pk' },
 }
 
 const ProviderLogo = ({
