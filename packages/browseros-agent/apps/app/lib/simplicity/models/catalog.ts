@@ -37,7 +37,27 @@ export type CatalogRow = {
   candidates: CatalogCandidate[]
 }
 
+/* publik API (lib/publik): the packaged build's default. It is registered
+   as an `openai`-type connection at the publik gateway, and only the three
+   tier aliases are ever listed for it, so matching on the alias key is
+   exact — a real OpenAI key never lists `publik-*`. Copy rule (CONTRACT
+   §1): the rows say "publik", never the vendor behind the alias. */
+const publikRow = (
+  id: string,
+  name: string,
+  extra?: boolean,
+): CatalogRow => ({
+  id,
+  name,
+  icon: 'publik',
+  ...(extra ? { extra } : {}),
+  candidates: [{ providerType: 'openai', key: id }],
+})
+
 export const CATALOG_ROWS: CatalogRow[] = [
+  publikRow('publik-balanced', 'publik Balanced'),
+  publikRow('publik-fast', 'publik Fast', true),
+  publikRow('publik-smart', 'publik Smart', true),
   {
     id: 'local',
     name: 'Local (Ollama)',
@@ -165,6 +185,9 @@ export const BEST_KEY = '__best__'
    of truth for "what's good" instead of a second hand-maintained list. */
 export const BEST_ORDER: Array<{ providerType: string; key: string }> = [
   { providerType: 'claudecode', key: 'sonnet' },
+  /* The packaged default: a fresh install has nothing else, and a user's
+     own Claude plan (above) still wins when they have one. */
+  { providerType: 'openai', key: 'publik-balanced' },
   { providerType: 'groq', key: 'openai/gpt-oss-120b' },
   { providerType: 'openai', key: 'gpt-5.1' },
   { providerType: 'openai', key: 'gpt-4o' },
