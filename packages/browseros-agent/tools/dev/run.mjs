@@ -76,13 +76,12 @@ if (!goPath) {
   for (const key of Object.keys(process.env)) {
     if (/^path$/i.test(key)) {
       console.error(
-        `DIAGNOSTIC: process.env[${JSON.stringify(key)}] length =`,
-        process.env[key]?.length,
-        "first 300 chars =",
-        JSON.stringify(process.env[key]?.slice(0, 300)),
+        `DIAGNOSTIC: process.env[${JSON.stringify(key)}] FULL =`,
+        JSON.stringify(process.env[key]),
       );
     }
   }
+  console.error("DIAGNOSTIC: process.env.GITHUB_PATH =", JSON.stringify(process.env.GITHUB_PATH));
   console.error(
     "DIAGNOSTIC: all env key names containing 'path' (case-insensitive) =",
     JSON.stringify(Object.keys(process.env).filter((k) => /path/i.test(k))),
