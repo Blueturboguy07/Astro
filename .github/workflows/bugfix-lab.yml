@@ -2,6 +2,9 @@ name: bugfix-lab
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/astro-windows-native-run-unix-only
 
 jobs:
   windows-oracle:
