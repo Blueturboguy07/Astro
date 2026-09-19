@@ -1,0 +1,20 @@
+name: bugfix-lab
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bugfix-lab-check/astro-windows-native-run-unix-only-main
+
+jobs:
+  windows-oracle:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Go version (pre-installed on windows-latest)
+        run: go version
+
+      - name: Run oracle
+        shell: pwsh
+        run: ./scripts/bugfix-lab/astro-windows-native-run-unix-only.ps1
