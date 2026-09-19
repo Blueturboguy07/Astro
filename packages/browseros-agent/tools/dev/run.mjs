@@ -18,13 +18,13 @@
 // is left in place, unchanged, for anyone invoking it manually from a
 // POSIX shell.
 
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { delimiter, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { delimiter, dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const DIR = dirname(fileURLToPath(import.meta.url));
-const args = process.argv.slice(2);
+const DIR = dirname(fileURLToPath(import.meta.url))
+const args = process.argv.slice(2)
 
 // On native Windows, `bun run <script>` builds a NEW, minimal PATH for the
 // spawned script process instead of simply inheriting the parent shell's
@@ -47,27 +47,31 @@ const args = process.argv.slice(2);
 // into the search. This is additive: the inherited process PATH is still
 // tried first; the registry read only matters when that PATH turns out to
 // be missing something a plain shell on the same machine would have found.
-let _winRegistryPathDirs;
+let _winRegistryPathDirs
 function windowsRegistryPathDirs() {
-  if (process.platform !== "win32") return [];
-  if (_winRegistryPathDirs) return _winRegistryPathDirs;
-  const regExe = "C:\\Windows\\System32\\reg.exe";
-  const dirs = [];
+  if (process.platform !== 'win32') return []
+  if (_winRegistryPathDirs) return _winRegistryPathDirs
+  const regExe = 'C:\\Windows\\System32\\reg.exe'
+  const dirs = []
   if (existsSync(regExe)) {
     for (const key of [
-      "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
-      "HKCU\\Environment",
+      'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment',
+      'HKCU\\Environment',
     ]) {
-      const result = spawnSync(regExe, ["query", key, "/v", "Path"], { encoding: "utf8" });
-      if (result.status !== 0 || !result.stdout) continue;
-      const match = result.stdout.match(/Path\s+REG_(?:EXPAND_)?SZ\s+(.+)/i);
-      if (!match) continue;
-      const expanded = match[1].trim().replace(/%([^%]+)%/g, (_, name) => process.env[name] ?? "");
-      dirs.push(...expanded.split(";").filter(Boolean));
+      const result = spawnSync(regExe, ['query', key, '/v', 'Path'], {
+        encoding: 'utf8',
+      })
+      if (result.status !== 0 || !result.stdout) continue
+      const match = result.stdout.match(/Path\s+REG_(?:EXPAND_)?SZ\s+(.+)/i)
+      if (!match) continue
+      const expanded = match[1]
+        .trim()
+        .replace(/%([^%]+)%/g, (_, name) => process.env[name] ?? '')
+      dirs.push(...expanded.split(';').filter(Boolean))
     }
   }
-  _winRegistryPathDirs = dirs;
-  return dirs;
+  _winRegistryPathDirs = dirs
+  return dirs
 }
 
 // Resolves `cmd` to an absolute executable path by walking candidate PATH
@@ -86,50 +90,57 @@ function windowsRegistryPathDirs() {
 // sidesteps whatever internal resolution gap caused that, on every
 // platform, without depending on it.
 function resolveExecutable(cmd) {
-  const envPathDirs = (process.env.PATH ?? process.env.Path ?? "")
+  const envPathDirs = (process.env.PATH ?? process.env.Path ?? '')
     .split(delimiter)
-    .filter(Boolean);
-  const pathDirs = [...new Set([...envPathDirs, ...windowsRegistryPathDirs()])];
+    .filter(Boolean)
+  const pathDirs = [...new Set([...envPathDirs, ...windowsRegistryPathDirs()])]
   // POSIX: the bare name is the executable itself (no extension). Windows:
   // try PATHEXT's extensions (.EXE, .CMD, .BAT, ...) in order, the same set
   // cmd.exe / CreateProcess would; also try the bare name last in case `cmd`
   // already includes its extension.
   const exts =
-    process.platform === "win32"
-      ? [...(process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean), ""]
-      : [""];
+    process.platform === 'win32'
+      ? [
+          ...(process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
+            .split(';')
+            .filter(Boolean),
+          '',
+        ]
+      : ['']
   for (const dir of pathDirs) {
     for (const ext of exts) {
-      const candidate = join(dir, cmd + ext);
-      if (existsSync(candidate)) return candidate;
+      const candidate = join(dir, cmd + ext)
+      if (existsSync(candidate)) return candidate
     }
   }
-  return null;
+  return null
 }
 
-const goPath = resolveExecutable("go");
+const goPath = resolveExecutable('go')
 if (!goPath) {
-  console.error("");
-  console.error("  Go is required to build browseros-dev but is not installed.");
-  console.error("  macOS/Linux (Homebrew): brew install go");
-  console.error("  Windows (winget):       winget install GoLang.Go");
-  console.error("  Any platform:           https://go.dev/dl/");
-  console.error("");
-  process.exit(1);
+  console.error('')
+  console.error('  Go is required to build browseros-dev but is not installed.')
+  console.error('  macOS/Linux (Homebrew): brew install go')
+  console.error('  Windows (winget):       winget install GoLang.Go')
+  console.error('  Any platform:           https://go.dev/dl/')
+  console.error('')
+  process.exit(1)
 }
 
 // Mirrors run.sh's needs_cargo logic: only dev:claw-rust:watch (watch with
 // both --claw and --rust) needs Cargo.
 const needsCargo =
-  args[0] === "watch" && args.includes("--claw") && args.includes("--rust");
+  args[0] === 'watch' && args.includes('--claw') && args.includes('--rust')
 
-if (needsCargo && !resolveExecutable("cargo")) {
-  console.error("");
-  console.error("  Cargo is required for dev:claw-rust:watch but is not installed.");
-  console.error("  Install Rust with:  brew install rustup && rustup-init");
-  console.error("  Or download from: https://rustup.rs/");
-  console.error("");
-  process.exit(1);
+if (needsCargo && !resolveExecutable('cargo')) {
+  console.error('')
+  console.error(
+    '  Cargo is required for dev:claw-rust:watch but is not installed.',
+  )
+  console.error('  Install Rust with:  brew install rustup && rustup-init')
+  console.error('  Or download from: https://rustup.rs/')
+  console.error('')
+  process.exit(1)
 }
 
 // Built directly with `go build` rather than `make` -- `make` was an
@@ -137,30 +148,31 @@ if (needsCargo && !resolveExecutable("cargo")) {
 // it isn't installed by default on Windows). Go's own build cache already
 // skips recompiling when nothing under DIR changed, so this stays fast
 // without a Makefile's mtime check.
-const binName = process.platform === "win32" ? "browseros-dev.exe" : "browseros-dev";
-const build = spawnSync(goPath, ["build", "-o", binName, "."], {
+const binName =
+  process.platform === 'win32' ? 'browseros-dev.exe' : 'browseros-dev'
+const build = spawnSync(goPath, ['build', '-o', binName, '.'], {
   cwd: DIR,
-  stdio: "inherit",
-});
+  stdio: 'inherit',
+})
 if (build.error) {
-  console.error(`Failed to run "go build": ${build.error.message}`);
-  process.exit(1);
+  console.error(`Failed to run "go build": ${build.error.message}`)
+  process.exit(1)
 }
 if (build.status !== 0) {
-  process.exit(build.status ?? 1);
+  process.exit(build.status ?? 1)
 }
 
-const binPath = join(DIR, binName);
+const binPath = join(DIR, binName)
 if (!existsSync(binPath)) {
-  console.error(`"go build" reported success but ${binPath} does not exist`);
-  process.exit(1);
+  console.error(`"go build" reported success but ${binPath} does not exist`)
+  process.exit(1)
 }
 
-const run = spawnSync(binPath, args, { stdio: "inherit" });
+const run = spawnSync(binPath, args, { stdio: 'inherit' })
 if (run.error) {
-  console.error(`Failed to run ${binPath}: ${run.error.message}`);
-  process.exit(1);
+  console.error(`Failed to run ${binPath}: ${run.error.message}`)
+  process.exit(1)
 }
 // A negative status means the child was killed by a signal (POSIX only);
 // mirror the shell convention of exiting 128+signal in that case.
-process.exit(run.status ?? (run.signal ? 128 : 1));
+process.exit(run.status ?? (run.signal ? 128 : 1))
