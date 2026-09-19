@@ -235,6 +235,11 @@ export async function ensureAnswerEngineProvider(
       []
     let provider = listed.find((p) => isPublikServerProvider(p, state))
 
+    /* A provider the server knows about but did not list — GET /providers
+       drops any connection whose model list failed to load — must not be
+       created a second time, or every card mount adds another copy. */
+    if (!provider && state.serverProviderId) return state.serverProviderId
+
     if (!provider) {
       const res = await call('/api/providers', {
         method: 'POST',

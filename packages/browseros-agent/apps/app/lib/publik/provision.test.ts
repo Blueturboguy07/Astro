@@ -317,6 +317,25 @@ describe('ensureProvisioned', () => {
     expect(up.providers[0].chatModels).toHaveLength(3)
   })
 
+  it('does not add a second connection when the server stops listing ours', async () => {
+    /* GET /providers drops any connection whose model list failed to load
+       (registry.getActiveProviders filters key === 'error'), so "not in
+       the list" cannot mean "create another one" — the card mounts often. */
+    const server = fakeServer()
+    const fetch = fetchMock(() => json(201, install201()))
+    await provision.acceptDisclosure(deps(server, fetch))
+    expect(server.providers).toHaveLength(1)
+    expect((await stateMod.readState())?.serverProviderId).toBe('srv-1')
+
+    server.providers.length = 0
+    const id = await provision.ensureAnswerEngineProvider(deps(server, fetch))
+    expect(id).toBe('srv-1')
+    expect(server.providers).toHaveLength(0)
+    expect(
+      server.calls.filter((c) => c === 'POST /api/providers'),
+    ).toHaveLength(1)
+  })
+
   it('never overwrites an active connection', async () => {
     const server = fakeServer()
     const fetch = fetchMock(() => json(201, install201()))
