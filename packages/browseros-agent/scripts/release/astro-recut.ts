@@ -231,17 +231,63 @@ export function plutilArgs(plistPath: string, op: PlistOp): string[] {
 /**
  * Sign inside-out: nested code before the code that contains it, or the
  * outer signature seals a bundle whose contents change underneath it.
+ *
+ * `--entitlements` is not optional in practice — see `readEntitlements`.
+ * It is optional here only so a target that genuinely carries none signs
+ * without an empty plist.
  */
-export function codesignArgs(target: string, identity: string): string[] {
+export function codesignArgs(
+  target: string,
+  identity: string,
+  entitlements?: string,
+): string[] {
   return [
     '--force',
     '--timestamp',
     '--options',
     'runtime',
+    ...(entitlements ? ['--entitlements', entitlements] : []),
     '--sign',
     identity,
     target,
   ]
+}
+
+/**
+ * The entitlements a path carries in the bundle we copied from, as the XML
+ * plist `codesign --entitlements` wants back.
+ *
+ * `codesign --sign` writes the entitlements it is given and **no others**:
+ * re-signing without `--entitlements` silently produces a binary with an
+ * empty entitlement set. Under `--options runtime` that is fatal for a
+ * Chromium. The shipped v0.1.0 browser carries seven
+ * (`cs.allow-jit`, `cs.allow-unsigned-executable-memory`,
+ * `cs.disable-library-validation`, `cs.allow-dyld-environment-variables`,
+ * `device.camera`, `device.audio-input`, `personal-information.location`)
+ * and each helper four; without `allow-jit` V8 dies on its first code
+ * allocation and without `disable-library-validation` the app cannot even
+ * load its own framework. Nothing in `spctl`, `stapler` or notarization
+ * catches this — an entitlement-stripped bundle notarizes happily and then
+ * fails to launch, which is why the re-cut carries them across explicitly
+ * and asserts afterwards that it did.
+ *
+ * Returns undefined when the target has no entitlements (or is not signed).
+ */
+export function readEntitlements(target: string): string | undefined {
+  const res = spawnSync(
+    'codesign',
+    ['-d', '--entitlements', '-', '--xml', target],
+    { encoding: 'utf8' },
+  )
+  const out = res.stdout?.trim()
+  if (!out || !out.startsWith('<?xml')) return undefined
+  return out
+}
+
+/** The entitlement keys in a `codesign --xml` dump, sorted, for comparison. */
+export function entitlementKeys(xml: string | undefined): string[] {
+  if (!xml) return []
+  return [...xml.matchAll(/<key>([^<]+)<\/key>/g)].map((m) => m[1]).sort()
 }
 
 export function notarizeCommands(dmgPath: string): string[] {
@@ -450,9 +496,42 @@ export async function recut(opts: RecutOptions): Promise<string> {
       .filter((p) => p !== appOut)
       /* Deepest first. */
       .sort((a, b) => b.split('/').length - a.split('/').length)
-    for (const target of nested)
-      run('codesign', codesignArgs(target, opts.identity))
-    run('codesign', codesignArgs(appOut, opts.identity))
+
+    /* Entitlements come from the source bundle's twin of each path: the
+       output is a `ditto` of it, so the paths line up exactly. See
+       `readEntitlements` for why signing without them ships a browser that
+       cannot launch. */
+    const entDir = fs.mkdtempSync(path.join(os.tmpdir(), 'astro-ent-'))
+    let carried = 0
+    const signPreservingEntitlements = (target: string) => {
+      const rel = path.relative(appOut, target)
+      const twin = rel ? path.join(opts.source, rel) : opts.source
+      const xml = fs.existsSync(twin) ? readEntitlements(twin) : undefined
+      let entFile: string | undefined
+      if (xml) {
+        entFile = path.join(entDir, `ent-${carried++}.plist`)
+        fs.writeFileSync(entFile, xml)
+      }
+      run('codesign', codesignArgs(target, opts.identity, entFile))
+    }
+
+    for (const target of nested) signPreservingEntitlements(target)
+    signPreservingEntitlements(appOut)
+    fs.rmSync(entDir, { recursive: true, force: true })
+    console.log(`      entitlements carried across on ${carried} target(s)`)
+
+    /* Assert, rather than trust: an entitlement-stripped bundle passes
+       codesign --verify, spctl and notarization, and only fails when a user
+       double-clicks it. */
+    const wanted = entitlementKeys(readEntitlements(opts.source))
+    const got = entitlementKeys(readEntitlements(appOut))
+    if (wanted.join(',') !== got.join(',')) {
+      throw new Error(
+        `Entitlements did not survive signing.\n  source: ${wanted.join(', ') || '(none)'}\n  signed: ${got.join(', ') || '(none)'}`,
+      )
+    }
+    console.log(`      ok: ${got.length} entitlement(s) on Astro.app`)
+
     run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appOut])
   } else {
     console.log('      skipped (--sign not given)')
@@ -461,11 +540,15 @@ export async function recut(opts: RecutOptions): Promise<string> {
   console.log('[6/6] Next steps (credentials required — not run here):')
   const dmg = path.join(opts.out, 'Astro.dmg')
   for (const line of [
-    `codesign ${codesignArgs(appOut, opts.identity).join(' ')}`,
+    /* Notarize and staple the APP first, then build the dmg around the
+       already-stapled app: a stapled dmg holding an unstapled app fails
+       Gatekeeper on a machine that is offline (`iris-signing-two-bugs`). */
+    `ditto -c -k --keepParent "${appOut}" "${appOut}.zip"`,
+    `xcrun notarytool submit "${appOut}.zip" --keychain-profile ${NOTARY_PROFILE} --wait`,
+    `xcrun stapler staple "${appOut}"`,
     `hdiutil create -volname Astro -srcfolder "${appOut}" -ov -format UDZO "${dmg}"`,
     `codesign --force --timestamp --sign "${opts.identity}" "${dmg}"`,
     ...notarizeCommands(dmg),
-    `xcrun stapler staple "${appOut}"`,
   ]) {
     console.log(`      ${line}`)
   }

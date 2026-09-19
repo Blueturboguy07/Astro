@@ -10,6 +10,7 @@ import {
   crxManifestVersion,
   crxZipOffset,
   DEVELOPER_ID,
+  entitlementKeys,
   NOTARY_PROFILE,
   notarizeCommands,
   PUBLIK_APPCAST_URL,
@@ -225,6 +226,33 @@ describe('signing and notarization', () => {
     expect(args).toContain('--timestamp')
     expect(args).toContain('runtime')
     expect(args.at(-1)).toBe('/out/Astro.app')
+  })
+
+  it('passes the entitlements plist through when one is given', () => {
+    const args = codesignArgs('/out/Astro.app', DEVELOPER_ID, '/tmp/ent.plist')
+    expect(args).toContain('--entitlements')
+    expect(args[args.indexOf('--entitlements') + 1]).toBe('/tmp/ent.plist')
+    /* --entitlements has to precede --sign/target or codesign ignores it. */
+    expect(args.indexOf('--entitlements')).toBeLessThan(args.indexOf('--sign'))
+  })
+
+  it('omits --entitlements for a target that carries none', () => {
+    expect(codesignArgs('/out/x.dylib', DEVELOPER_ID)).not.toContain(
+      '--entitlements',
+    )
+  })
+
+  it('reads entitlement keys out of a codesign --xml dump', () => {
+    const xml =
+      '<?xml version="1.0"?><plist version="1.0"><dict>' +
+      '<key>com.apple.security.cs.allow-jit</key><true/>' +
+      '<key>com.apple.security.cs.disable-library-validation</key><true/>' +
+      '</dict></plist>'
+    expect(entitlementKeys(xml)).toEqual([
+      'com.apple.security.cs.allow-jit',
+      'com.apple.security.cs.disable-library-validation',
+    ])
+    expect(entitlementKeys(undefined)).toEqual([])
   })
 
   it('notarizes through the keychain profile the other publik apps use', () => {
