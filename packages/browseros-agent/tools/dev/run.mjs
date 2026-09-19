@@ -65,6 +65,28 @@ function resolveExecutable(cmd) {
 
 const goPath = resolveExecutable("go");
 if (!goPath) {
+  // DIAGNOSTIC (bugfix-lab cycle 3): cycle 2's PATH+PATHEXT walk still
+  // reported "not found" on a real windows-latest run even though `go
+  // version` succeeded in an earlier step of the same job. Dump exactly
+  // what this process sees instead of guessing again -- see
+  // fix/astro-windows-native-run-unix-only fix-log.md cycle 3.
+  console.error("DIAGNOSTIC: process.platform =", JSON.stringify(process.platform));
+  console.error("DIAGNOSTIC: path.delimiter =", JSON.stringify(delimiter));
+  console.error("DIAGNOSTIC: process.env.PATHEXT =", JSON.stringify(process.env.PATHEXT));
+  for (const key of Object.keys(process.env)) {
+    if (/^path$/i.test(key)) {
+      console.error(
+        `DIAGNOSTIC: process.env[${JSON.stringify(key)}] length =`,
+        process.env[key]?.length,
+        "first 300 chars =",
+        JSON.stringify(process.env[key]?.slice(0, 300)),
+      );
+    }
+  }
+  console.error(
+    "DIAGNOSTIC: all env key names containing 'path' (case-insensitive) =",
+    JSON.stringify(Object.keys(process.env).filter((k) => /path/i.test(k))),
+  );
   console.error("");
   console.error("  Go is required to build browseros-dev but is not installed.");
   console.error("  macOS/Linux (Homebrew): brew install go");
