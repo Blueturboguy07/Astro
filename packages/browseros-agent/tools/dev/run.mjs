@@ -26,26 +26,70 @@ import { fileURLToPath } from "node:url";
 const DIR = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 
-// Resolves `cmd` to an absolute executable path by walking process.env.PATH
-// ourselves, the same search `command -v go` (run.sh's original check) does
-// on POSIX -- instead of handing the bare name to spawnSync and trusting its
-// own PATH/extension resolution.
+// On native Windows, `bun run <script>` builds a NEW, minimal PATH for the
+// spawned script process instead of simply inheriting the parent shell's
+// PATH -- confirmed on a real windows-latest CI run (fix/astro-windows-
+// native-run-unix-only cycle 3b, run
+// https://github.com/Blueturboguy07/Astro/actions/runs/35432662931): this
+// process's own inherited `Path` is a ~491-char string containing ONLY
+// bun's own node_modules/.bin prefix chain plus a handful of fixed
+// directories (.bun/bin, .dotnet/tools, .cargo/bin, WindowsApps) -- no
+// System32, no Go's install directory -- even though `go version` succeeds
+// moments earlier via a plain, unmodified pwsh step in the exact same job
+// (go1.24.13 windows/amd64). No amount of PATH-walking logic running
+// INSIDE this process can find an executable whose directory was never
+// included in the PATH this process was handed in the first place.
+//
+// Work around it by additionally reading the OS's own persisted PATH
+// (Machine + User, straight from the registry) via reg.exe -- always at a
+// fixed OS location (C:\Windows\System32\reg.exe) regardless of what PATH
+// this process itself was spawned with -- and unioning those directories
+// into the search. This is additive: the inherited process PATH is still
+// tried first; the registry read only matters when that PATH turns out to
+// be missing something a plain shell on the same machine would have found.
+let _winRegistryPathDirs;
+function windowsRegistryPathDirs() {
+  if (process.platform !== "win32") return [];
+  if (_winRegistryPathDirs) return _winRegistryPathDirs;
+  const regExe = "C:\\Windows\\System32\\reg.exe";
+  const dirs = [];
+  if (existsSync(regExe)) {
+    for (const key of [
+      "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+      "HKCU\\Environment",
+    ]) {
+      const result = spawnSync(regExe, ["query", key, "/v", "Path"], { encoding: "utf8" });
+      if (result.status !== 0 || !result.stdout) continue;
+      const match = result.stdout.match(/Path\s+REG_(?:EXPAND_)?SZ\s+(.+)/i);
+      if (!match) continue;
+      const expanded = match[1].trim().replace(/%([^%]+)%/g, (_, name) => process.env[name] ?? "");
+      dirs.push(...expanded.split(";").filter(Boolean));
+    }
+  }
+  _winRegistryPathDirs = dirs;
+  return dirs;
+}
+
+// Resolves `cmd` to an absolute executable path by walking candidate PATH
+// directories ourselves, the same search `command -v go` (run.sh's original
+// check) does on POSIX -- instead of handing the bare name to spawnSync and
+// trusting its own PATH/extension resolution.
 //
 // This matters specifically on native Windows: a real windows-latest CI run
 // (fix/astro-windows-native-run-unix-only cycle 2, run
 // https://github.com/Blueturboguy07/Astro/actions/runs/35431616535) showed
 // `spawnSync("go", ["--version"], { stdio: "ignore" })` reporting ENOENT
-// (commandExists() false, "Go is required... but is not installed") even
-// though `go version` succeeded moments earlier in the same job/PATH
-// (go1.24.13 windows/amd64) -- i.e. bun's bare-name child_process resolution
-// does not reliably find a real go.exe on PATH on Windows the way invoking
-// through a shell does. Resolving the full path ourselves and handing
-// spawnSync that absolute path sidesteps whatever internal resolution gap
-// caused that, on every platform, without depending on it.
+// even though `go version` succeeded moments earlier in the same job -- i.e.
+// bun's bare-name child_process resolution does not reliably find a real
+// go.exe on PATH on Windows the way invoking through a shell does. Resolving
+// the full path ourselves and handing spawnSync that absolute path
+// sidesteps whatever internal resolution gap caused that, on every
+// platform, without depending on it.
 function resolveExecutable(cmd) {
-  const pathDirs = (process.env.PATH ?? process.env.Path ?? "")
+  const envPathDirs = (process.env.PATH ?? process.env.Path ?? "")
     .split(delimiter)
     .filter(Boolean);
+  const pathDirs = [...new Set([...envPathDirs, ...windowsRegistryPathDirs()])];
   // POSIX: the bare name is the executable itself (no extension). Windows:
   // try PATHEXT's extensions (.EXE, .CMD, .BAT, ...) in order, the same set
   // cmd.exe / CreateProcess would; also try the bare name last in case `cmd`
@@ -65,27 +109,6 @@ function resolveExecutable(cmd) {
 
 const goPath = resolveExecutable("go");
 if (!goPath) {
-  // DIAGNOSTIC (bugfix-lab cycle 3): cycle 2's PATH+PATHEXT walk still
-  // reported "not found" on a real windows-latest run even though `go
-  // version` succeeded in an earlier step of the same job. Dump exactly
-  // what this process sees instead of guessing again -- see
-  // fix/astro-windows-native-run-unix-only fix-log.md cycle 3.
-  console.error("DIAGNOSTIC: process.platform =", JSON.stringify(process.platform));
-  console.error("DIAGNOSTIC: path.delimiter =", JSON.stringify(delimiter));
-  console.error("DIAGNOSTIC: process.env.PATHEXT =", JSON.stringify(process.env.PATHEXT));
-  for (const key of Object.keys(process.env)) {
-    if (/^path$/i.test(key)) {
-      console.error(
-        `DIAGNOSTIC: process.env[${JSON.stringify(key)}] FULL =`,
-        JSON.stringify(process.env[key]),
-      );
-    }
-  }
-  console.error("DIAGNOSTIC: process.env.GITHUB_PATH =", JSON.stringify(process.env.GITHUB_PATH));
-  console.error(
-    "DIAGNOSTIC: all env key names containing 'path' (case-insensitive) =",
-    JSON.stringify(Object.keys(process.env).filter((k) => /path/i.test(k))),
-  );
   console.error("");
   console.error("  Go is required to build browseros-dev but is not installed.");
   console.error("  macOS/Linux (Homebrew): brew install go");
