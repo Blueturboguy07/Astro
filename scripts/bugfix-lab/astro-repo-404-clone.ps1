@@ -40,11 +40,12 @@ Invoke-Expression $guideCommand
 $cloneExit = $LASTEXITCODE
 Write-Host "clone-block exit=$cloneExit"
 
-if (Test-Path "Astro/.git") {
-  Write-Host "RESULT: clone succeeded, .git present"
+Write-Host "cwd after guide command: $(Get-Location)"
+if (Test-Path ".git") {
+  Write-Host "RESULT: clone succeeded, .git present in $(Get-Location)"
   $cloneOk = $true
 } else {
-  Write-Host "RESULT: clone FAILED, .git absent"
+  Write-Host "RESULT: clone FAILED, .git absent in $(Get-Location)"
   $cloneOk = $false
 }
 
