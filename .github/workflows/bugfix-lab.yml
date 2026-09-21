@@ -1,0 +1,10 @@
+name: bugfix-lab
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: run oracle probe
+        shell: pwsh
+        run: pwsh -File scripts/bugfix-lab/astro-repo-404-clone.ps1
