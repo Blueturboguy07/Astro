@@ -214,6 +214,21 @@ Keep the asset named `Astro.dmg` — the publik install guide links
 `SETUP.md` does the same. On a fork clone, `gh release` needs the explicit `-R`
 (session note `lidless-fork-notch-bug`).
 
+**Every `--notes` must end with a `## Windows and Linux` section**, even when
+the rest of the notes are about something else (a v0.1.1 release dropped it
+while rewriting the notes for the publik-API-default-provider change, and a
+Windows visitor landing on the bare Releases page — the repo's own README
+link and GitHub's Releases sidebar both go there — saw only a macOS `.dmg`
+with no Windows signpost at all). This asset is macOS-only; mirror README.md's
+`### Windows and Linux` section and point at the install guide:
+
+```markdown
+## Windows and Linux
+
+This asset (`Astro.dmg`) is macOS (Apple silicon) only. Windows and Linux run
+Astro through Iris's install guide instead: https://publikhq.com/astro/install/windows
+```
+
 ---
 
 ## Publik side, not this repo
