@@ -62,6 +62,11 @@ UninstPage instfiles
 
 Section "Astro" SecMain
   SectionIn RO
+  ; All-users context: the app installs to Program Files (per-machine), so its
+  ; Start-menu and Desktop shortcuts belong in the all-users locations
+  ; ($SMPROGRAMS -> %ProgramData%\...\Start Menu, $DESKTOP -> %Public%\Desktop),
+  ; not the installing user's. Without this NSIS defaults to the current user.
+  SetShellVarContext all
   SetOutPath "$INSTDIR"
   ; The whole patched Chrome-bin tree: chrome.exe, chrome_proxy.exe and the
   ; versioned payload dir (chrome.dll, browseros_extensions, etc.).
@@ -95,6 +100,8 @@ Section "Astro" SecMain
 SectionEnd
 
 Section "Uninstall"
+  ; Match the install context so the all-users shortcuts are the ones removed.
+  SetShellVarContext all
   Delete "$SMPROGRAMS\Astro\Astro.lnk"
   RMDir  "$SMPROGRAMS\Astro"
   Delete "$DESKTOP\Astro.lnk"
