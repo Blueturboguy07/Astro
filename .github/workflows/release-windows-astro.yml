@@ -25,13 +25,18 @@ on:
         required: false
         type: string
         default: "https://files.browseros.com/download/BrowserOS_installer.exe"
+      release_tag:
+        description: "If set, upload the tested installer to this GitHub release as Astro-Setup.exe."
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: release-windows-astro
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-and-test:
@@ -294,3 +299,17 @@ jobs:
           name: Astro-Setup-${{ inputs.version }}
           path: ${{ env.SETUP_EXE }}
           if-no-files-found: error
+
+      - name: Publish installer to the release
+        if: success() && inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Fixed asset name so the publik guide's
+          # releases/latest/download/Astro-Setup.exe link resolves across
+          # versions. --clobber replaces any prior upload of the same name.
+          Copy-Item "$env:SETUP_EXE" "Astro-Setup.exe" -Force
+          gh release upload "$env:TAG" "Astro-Setup.exe" --clobber -R "$env:GITHUB_REPOSITORY"
+          Write-Host "Uploaded Astro-Setup.exe to release $env:TAG"
