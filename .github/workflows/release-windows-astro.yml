@@ -138,24 +138,41 @@ jobs:
           Write-Host "Installed OK; ARP DisplayName = $((Get-ItemProperty $reg).DisplayName)"
           "ASTRO_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Launch Astro with remote debugging
+      - name: Launch Astro and read its managed ports
         run: |
           $ErrorActionPreference = "Stop"
           $profile = Join-Path $env:RUNNER_TEMP "astro-cdp-profile"
           Remove-Item -Recurse -Force $profile -ErrorAction SilentlyContinue
+          # Do NOT pass --remote-debugging-port: BrowserOS runs its own managed
+          # CDP endpoint and the local server connects to THAT port. Forcing a
+          # debugging port makes the browser expose a second endpoint the server
+          # never connects to, so /health never goes green (a test artifact, not
+          # a product bug). Instead let the managed server come up and read the
+          # ports it wrote to <profile>\.browseros\config.json.
           $args = @(
-            "--remote-debugging-port=9222",
-            "--remote-allow-origins=http://127.0.0.1:9222",
             "--user-data-dir=$profile",
             "--no-first-run",
             "--no-default-browser-check",
-            "--disable-sync",
-            "about:blank"
+            "--disable-sync"
           )
           $proc = Start-Process -FilePath "$env:ASTRO_EXE" -ArgumentList $args -PassThru
           "ASTRO_PID=$($proc.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
           "ASTRO_PROFILE=$profile" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Launched Astro pid $($proc.Id)"
+
+          $cfgPath = Join-Path $profile ".browseros\config.json"
+          $cfg = $null
+          for ($i = 0; $i -lt 60; $i++) {
+            if (Test-Path $cfgPath) {
+              try { $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json } catch { }
+              if ($cfg.ports.cdp -and $cfg.ports.server) { break }
+            }
+            Start-Sleep -Seconds 2
+          }
+          if (-not ($cfg.ports.cdp -and $cfg.ports.server)) { throw "managed ports never written to $cfgPath" }
+          "ASTRO_CDP=$($cfg.ports.cdp)"       | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ASTRO_SERVER=$($cfg.ports.server)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "managed cdp=$($cfg.ports.cdp) server=$($cfg.ports.server)"
 
       - name: Assert installed extension set on disk (authoritative)
         run: |
@@ -185,15 +202,16 @@ jobs:
           $bugId    = "adlpneommgkgeanpaekgoaolcpncohkf"
           $upstream = "bflpfmnmnokmjhmgnolecpppdbdophmk"
 
+          $cdp = $env:ASTRO_CDP
           $targets = $null
           for ($i = 0; $i -lt 60; $i++) {
             try {
-              $targets = Invoke-RestMethod -Uri "http://127.0.0.1:9222/json/list" -TimeoutSec 5
+              $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$cdp/json/list" -TimeoutSec 5
               if ($targets) { break }
             } catch { }
             Start-Sleep -Seconds 2
           }
-          if (-not $targets) { throw "CDP never came up on :9222" }
+          if (-not $targets) { throw "CDP never came up on managed port $cdp" }
 
           $urls = $targets | ForEach-Object { $_.url }
           Write-Host "---- CDP targets ----"
@@ -204,7 +222,7 @@ jobs:
           if (-not ($urls -match $astroId)) {
             # The MV3 service worker can be lazy; poke it, then re-check once.
             Start-Sleep -Seconds 10
-            $targets = Invoke-RestMethod -Uri "http://127.0.0.1:9222/json/list" -TimeoutSec 5
+            $targets = Invoke-RestMethod -Uri "http://127.0.0.1:$cdp/json/list" -TimeoutSec 5
             $urls = $targets | ForEach-Object { $_.url }
           }
           if (-not ($urls -match $astroId)) { throw "Astro agent ($astroId) not found among CDP targets" }
@@ -219,29 +237,22 @@ jobs:
       - name: Assert local server /health
         run: |
           $ErrorActionPreference = "Stop"
-          $pids = @()
-          $pids += (Get-Process chrome -ErrorAction SilentlyContinue).Id
-          $pids += (Get-Process browseros_server -ErrorAction SilentlyContinue).Id
-          $pids = $pids | Where-Object { $_ } | Select-Object -Unique
-
+          # The managed server writes its own port to config.json (read at
+          # launch). Poll /health there — the server needs a moment to connect
+          # to the managed CDP endpoint and come up.
+          $srv = $env:ASTRO_SERVER
           $ok = $false
-          for ($i = 0; $i -lt 45 -and -not $ok; $i++) {
-            $ports = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-              Where-Object { $pids -contains $_.OwningProcess -and $_.LocalAddress -match '127\.0\.0\.1|0\.0\.0\.0|::1' } |
-              Select-Object -ExpandProperty LocalPort -Unique
-            foreach ($port in $ports) {
-              if ($port -eq 9222) { continue }  # the CDP port, not the server
-              try {
-                $r = Invoke-WebRequest -Uri "http://127.0.0.1:$port/health" -TimeoutSec 3 -UseBasicParsing
-                if ($r.StatusCode -eq 200) {
-                  Write-Host "PASS: /health 200 on port $port"
-                  $ok = $true; break
-                }
-              } catch { }
-            }
-            if (-not $ok) { Start-Sleep -Seconds 2 }
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:$srv/health" -TimeoutSec 4 -UseBasicParsing
+              if ($r.StatusCode -eq 200) {
+                Write-Host "PASS: /health 200 on server port $srv -> $($r.Content)"
+                $ok = $true; break
+              }
+            } catch { }
+            Start-Sleep -Seconds 3
           }
-          if (-not $ok) { throw "local server /health did not answer on any chrome-owned port" }
+          if (-not $ok) { throw "local server /health did not answer on managed port $srv" }
 
       - name: Stop Astro
         if: always()
