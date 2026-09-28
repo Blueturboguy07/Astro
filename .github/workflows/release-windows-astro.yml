@@ -1,0 +1,251 @@
+name: "Release: Windows Astro (recut)"
+
+# Builds the Windows Astro installer WITHOUT compiling Chromium. It downloads
+# upstream BrowserOS's prebuilt Windows installer, extracts the Chrome-bin tree,
+# swaps in Astro's agent CRX, byte-patches chrome.dll (agent id + every
+# phone-home url) and drops the bug reporter, then wraps the result in an NSIS
+# installer -- and TESTS that installer end to end over CDP before uploading it.
+#
+# Unsigned by design (no Windows cert; upstream is unsigned too).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Astro agent version stamped into the build (matches the CRX, e.g. 0.0.101)"
+        required: true
+        type: string
+      agent_crx_url:
+        description: "Direct download URL for the Astro-keyed agent CRX (kofbmbng...). Defaults to the latest ext-agent release asset."
+        required: false
+        type: string
+        default: "https://github.com/Blueturboguy07/Astro/releases/latest/download/astro-agent.crx"
+      installer_url:
+        description: "Upstream BrowserOS Windows installer to recut."
+        required: false
+        type: string
+        default: "https://files.browseros.com/download/BrowserOS_installer.exe"
+
+concurrency:
+  group: release-windows-astro
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.6"
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Download upstream installer
+        env:
+          INSTALLER_URL: ${{ inputs.installer_url }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path work | Out-Null
+          Write-Host "Downloading $env:INSTALLER_URL"
+          Invoke-WebRequest -Uri $env:INSTALLER_URL -OutFile work\installer.exe
+          "installer size: {0:N0} bytes" -f (Get-Item work\installer.exe).Length | Write-Host
+
+      - name: Extract Chrome-bin tree
+        run: |
+          $ErrorActionPreference = "Stop"
+          $sevenZip = "C:\Program Files\7-Zip\7z.exe"
+          if (-not (Test-Path $sevenZip)) { $sevenZip = "7z" }
+
+          # Pass 1: crack the mini_installer self-extractor to reach chrome.7z.
+          & $sevenZip x work\installer.exe "-owork\stage1" -y | Out-Null
+          $chrome7z = Get-ChildItem -Path work\stage1 -Recurse -Filter chrome.7z -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $chrome7z) {
+            # Some builds nest one more level; retry from the largest extracted blob.
+            $blob = Get-ChildItem -Path work\stage1 -Recurse -File | Sort-Object Length -Descending | Select-Object -First 1
+            & $sevenZip x $blob.FullName "-owork\stage1b" -y | Out-Null
+            $chrome7z = Get-ChildItem -Path work\stage1b -Recurse -Filter chrome.7z | Select-Object -First 1
+          }
+          if (-not $chrome7z) { throw "chrome.7z not found inside the installer" }
+          Write-Host "Found $($chrome7z.FullName)"
+
+          # Pass 2: expand chrome.7z into the Chrome-bin tree.
+          & $sevenZip x $chrome7z.FullName "-owork\payload" -y | Out-Null
+          $chromeBin = Get-ChildItem -Path work\payload -Recurse -Directory -Filter Chrome-bin | Select-Object -First 1
+          if (-not $chromeBin) { throw "Chrome-bin not found after extraction" }
+          "CHROME_BIN=$($chromeBin.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Chrome-bin at $($chromeBin.FullName)"
+          Get-ChildItem $chromeBin.FullName | Select-Object Name | Format-Table
+
+      - name: Download Astro agent CRX
+        env:
+          CRX_URL: ${{ inputs.agent_crx_url }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          Invoke-WebRequest -Uri $env:CRX_URL -OutFile work\astro-agent.crx
+          $head = [System.IO.File]::ReadAllBytes("work\astro-agent.crx")[0..3]
+          $magic = -join ($head | ForEach-Object { [char]$_ })
+          if ($magic -ne "Cr24") { throw "Downloaded CRX is not a CRX (magic '$magic')" }
+          "crx size: {0:N0} bytes" -f (Get-Item work\astro-agent.crx).Length | Write-Host
+
+      - name: Recut + package (NSIS)
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) { $makensis = "makensis" }
+          bun packages/browseros-agent/scripts/release/astro-recut-win.ts `
+            --tree "$env:CHROME_BIN" `
+            --crx work\astro-agent.crx `
+            --version "$env:VERSION" `
+            --out dist\win `
+            --package nsis `
+            --nsi packages/browseros-agent/scripts/release/astro-win.nsi `
+            --makensis "$makensis"
+          if ($LASTEXITCODE -ne 0) { throw "recut failed ($LASTEXITCODE)" }
+          $setup = Get-ChildItem dist\win -Filter "Astro-Setup-*.exe" | Select-Object -First 1
+          if (-not $setup) { throw "installer not produced" }
+          "SETUP_EXE=$($setup.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Installer: $($setup.FullName)"
+
+      # ---------------- TEST: install -> drive -> uninstall ----------------
+
+      - name: Silent install
+        run: |
+          $ErrorActionPreference = "Stop"
+          Write-Host "Installing $env:SETUP_EXE /S"
+          $p = Start-Process -FilePath "$env:SETUP_EXE" -ArgumentList "/S" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          $exe = "$env:ProgramFiles\Astro\chrome.exe"
+          if (-not (Test-Path $exe)) { throw "chrome.exe not installed at $exe" }
+          if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk")) {
+            throw "Start-menu shortcut missing"
+          }
+          $reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro"
+          if (-not (Test-Path $reg)) { throw "Add/Remove Programs entry missing" }
+          Write-Host "Installed OK; ARP DisplayName = $((Get-ItemProperty $reg).DisplayName)"
+          "ASTRO_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Launch Astro with remote debugging
+        run: |
+          $ErrorActionPreference = "Stop"
+          $profile = Join-Path $env:RUNNER_TEMP "astro-cdp-profile"
+          Remove-Item -Recurse -Force $profile -ErrorAction SilentlyContinue
+          $args = @(
+            "--remote-debugging-port=9222",
+            "--remote-allow-origins=http://127.0.0.1:9222",
+            "--user-data-dir=$profile",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-sync",
+            "about:blank"
+          )
+          $proc = Start-Process -FilePath "$env:ASTRO_EXE" -ArgumentList $args -PassThru
+          "ASTRO_PID=$($proc.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "Launched Astro pid $($proc.Id)"
+
+      - name: Assert extensions via CDP
+        run: |
+          $ErrorActionPreference = "Stop"
+          $astroId  = "kofbmbngmnnpmopgbhpbajhnnnoflolg"
+          $bugId    = "adlpneommgkgeanpaekgoaolcpncohkf"
+          $upstream = "bflpfmnmnokmjhmgnolecpppdbdophmk"
+
+          $targets = $null
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              $targets = Invoke-RestMethod -Uri "http://127.0.0.1:9222/json/list" -TimeoutSec 5
+              if ($targets) { break }
+            } catch { }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $targets) { throw "CDP never came up on :9222" }
+
+          $urls = $targets | ForEach-Object { $_.url }
+          Write-Host "---- CDP targets ----"
+          $targets | ForEach-Object { Write-Host ("{0,-16} {1}" -f $_.type, $_.url) }
+          Write-Host "---------------------"
+
+          # Astro agent must be present.
+          if (-not ($urls -match $astroId)) {
+            # The MV3 service worker can be lazy; poke it, then re-check once.
+            Start-Sleep -Seconds 10
+            $targets = Invoke-RestMethod -Uri "http://127.0.0.1:9222/json/list" -TimeoutSec 5
+            $urls = $targets | ForEach-Object { $_.url }
+          }
+          if (-not ($urls -match $astroId)) { throw "Astro agent ($astroId) not found among CDP targets" }
+          Write-Host "PASS: Astro agent present"
+
+          # Bug reporter, upstream id, and BrowserOS onboarding must all be absent.
+          if ($urls -match $bugId)    { throw "FAIL: bug reporter ($bugId) is installed" }
+          if ($urls -match $upstream) { throw "FAIL: upstream agent id ($upstream) present" }
+          if ($urls -match "chrome://browseros") { throw "FAIL: chrome://browseros onboarding page present" }
+          Write-Host "PASS: no bug reporter, no upstream id, no browseros onboarding"
+
+      - name: Assert local server /health
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pids = @()
+          $pids += (Get-Process chrome -ErrorAction SilentlyContinue).Id
+          $pids += (Get-Process browseros_server -ErrorAction SilentlyContinue).Id
+          $pids = $pids | Where-Object { $_ } | Select-Object -Unique
+
+          $ok = $false
+          for ($i = 0; $i -lt 45 -and -not $ok; $i++) {
+            $ports = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+              Where-Object { $pids -contains $_.OwningProcess -and $_.LocalAddress -match '127\.0\.0\.1|0\.0\.0\.0|::1' } |
+              Select-Object -ExpandProperty LocalPort -Unique
+            foreach ($port in $ports) {
+              if ($port -eq 9222) { continue }  # the CDP port, not the server
+              try {
+                $r = Invoke-WebRequest -Uri "http://127.0.0.1:$port/health" -TimeoutSec 3 -UseBasicParsing
+                if ($r.StatusCode -eq 200) {
+                  Write-Host "PASS: /health 200 on port $port"
+                  $ok = $true; break
+                }
+              } catch { }
+            }
+            if (-not $ok) { Start-Sleep -Seconds 2 }
+          }
+          if (-not $ok) { throw "local server /health did not answer on any chrome-owned port" }
+
+      - name: Stop Astro
+        if: always()
+        run: |
+          Get-Process chrome,browseros_server,chrome_proxy -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 3
+
+      - name: Silent uninstall + assert removal
+        run: |
+          $ErrorActionPreference = "Stop"
+          $uninst = "$env:ProgramFiles\Astro\Uninstall.exe"
+          if (-not (Test-Path $uninst)) { throw "uninstaller missing" }
+          # NSIS uninstallers relaunch from %TEMP% under /S; wait on the copy.
+          $p = Start-Process -FilePath $uninst -ArgumentList "/S","_?=$env:ProgramFiles\Astro" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstaller exit $($p.ExitCode)" }
+          Start-Sleep -Seconds 5
+
+          if (Test-Path "$env:ProgramFiles\Astro\chrome.exe") { throw "FAIL: files remain after uninstall" }
+          if (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk") { throw "FAIL: shortcut remains" }
+          if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro") { throw "FAIL: ARP entry remains" }
+          Write-Host "PASS: uninstall left nothing behind"
+
+      - name: Upload installer
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Astro-Setup-${{ inputs.version }}
+          path: ${{ env.SETUP_EXE }}
+          if-no-files-found: error
