@@ -67,6 +67,10 @@ Section "Astro" SecMain
   ; ($SMPROGRAMS -> %ProgramData%\...\Start Menu, $DESKTOP -> %Public%\Desktop),
   ; not the installing user's. Without this NSIS defaults to the current user.
   SetShellVarContext all
+  ; NSIS is a 32-bit process; without this its HKLM writes are redirected to
+  ; WOW6432Node, so the Add/Remove Programs entry would be invisible to 64-bit
+  ; tools (and to the CI's registry check). Write the native 64-bit view.
+  SetRegView 64
   SetOutPath "$INSTDIR"
   ; The whole patched Chrome-bin tree: chrome.exe, chrome_proxy.exe and the
   ; versioned payload dir (chrome.dll, browseros_extensions, etc.).
@@ -102,6 +106,7 @@ SectionEnd
 Section "Uninstall"
   ; Match the install context so the all-users shortcuts are the ones removed.
   SetShellVarContext all
+  SetRegView 64
   Delete "$SMPROGRAMS\Astro\Astro.lnk"
   RMDir  "$SMPROGRAMS\Astro"
   Delete "$DESKTOP\Astro.lnk"
