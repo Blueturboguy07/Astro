@@ -64,7 +64,7 @@ export const SkillsPage: FC = () => (
   <NotBuiltPage
     title="Skills"
     what="Saved instruction sets that activate automatically on matching tasks."
-    status="Not built yet. BrowserOS shipped Skills in v0.43.0 and removed them in May 2026, so the prior implementation is recoverable from upstream git history."
+    status="Not built yet. This capability existed upstream and was removed in May 2026; the prior implementation is recoverable from git history."
   />
 )
 
@@ -72,6 +72,6 @@ export const MemoryPage: FC = () => (
   <NotBuiltPage
     title="Memory"
     what="Preferences and context carried across threads."
-    status="Not built yet. BrowserOS shipped Memory (plain markdown, fuzzy-searched, fully local) and removed it in May 2026 — recoverable from upstream history."
+    status="Not built yet. Memory (plain markdown, fuzzy-searched, fully local) existed upstream and was removed in May 2026 — recoverable from git history."
   />
 )

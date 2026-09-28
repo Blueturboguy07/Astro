@@ -1,7 +1,6 @@
 import { type FC, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import type { Provider } from '@/components/chat/chatComponentTypes'
-import { BrowserClawPromoBanner } from '@/components/promo/BrowserClawPromoBanner'
 import { Feature } from '@/lib/browseros/capabilities'
 import { createAstroAction } from '@/lib/chat-actions/types'
 import { openSidePanelWithSearch } from '@/lib/messaging/sidepanel/openSidepanelWithSearch'
@@ -174,7 +173,6 @@ export const AgentCommandHome: FC = () => {
 
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 pb-12">
           <RecentSites />
-          <BrowserClawPromoBanner />
           <ScheduleResults />
         </div>
       </div>

@@ -1,33 +1,33 @@
 /**
  * @public
  */
-export const docsUrl = 'https://docs.browseros.com/'
+export const docsUrl = 'https://publikhq.com/astro'
 
 /**
  * @public
  */
-export const productWebUrl = 'https://browseros.com'
+export const productWebUrl = 'https://publikhq.com/astro'
 
 /**
  * @public
  */
-export const productRepositoryUrl = 'https://github.com/browseros-ai/BrowserOS'
+export const productRepositoryUrl = 'https://github.com/Blueturboguy07/Astro'
 
 /**
  * @public
  */
-export const githubOrgUrl = 'https://github.com/browseros-ai'
+export const githubOrgUrl = 'https://github.com/Blueturboguy07'
 
 /**
  * @public
  */
-export const privacyPolicyUrl = 'https://browseros.com/privacy'
+export const privacyPolicyUrl = 'https://publikhq.com/privacy'
 
 /**
  * @public
  */
 export const contributorsUrl =
-  'https://github.com/browseros-ai/BrowserOS/graphs/contributors'
+  'https://github.com/Blueturboguy07/Astro/graphs/contributors'
 
 /**
  * @public

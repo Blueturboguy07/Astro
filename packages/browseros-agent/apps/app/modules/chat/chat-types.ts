@@ -27,15 +27,9 @@ export const CHAT_SUGGESTIONS: Suggestion[] = [
 
 export const AGENT_SUGGESTIONS: Suggestion[] = [
   {
-    display: 'Read about our vision and upvote',
-    prompt:
-      'Go to https://dub.sh/browseros-launch in current tab. Find and click the upvote button',
-    icon: '❤️',
-  },
-  {
     display: 'Support Astro on Github',
     prompt:
-      'Go to http://git.new/browseros in current tab and star the repository',
+      'Go to https://github.com/Blueturboguy07/Astro in current tab and star the repository',
     icon: '⭐',
   },
   {

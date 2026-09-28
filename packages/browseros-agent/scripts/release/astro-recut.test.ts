@@ -4,15 +4,19 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   ASTRO_EXTENSION_ID,
+  applyPhoneHomePatches,
+  BUG_REPORTER_EXTENSION_ID,
   bumpBundledExtension,
   codesignArgs,
   countAscii,
   crxManifestVersion,
   crxZipOffset,
   DEVELOPER_ID,
+  dropBundledExtension,
   entitlementKeys,
   NOTARY_PROFILE,
   notarizeCommands,
+  PHONE_HOME_PATCHES,
   PUBLIK_APPCAST_URL,
   parseArgs,
   patchAsciiInPlace,
@@ -20,6 +24,7 @@ import {
   sparklePlistOps,
   UPSTREAM_AGENT_EXTENSION_ID,
   UPSTREAM_APPCAST_URL,
+  VISIBLE_STRING_PATCHES,
   validateExtensionVersion,
 } from './astro-recut'
 
@@ -101,6 +106,34 @@ describe('bundled_extensions.json', () => {
     )
     /* Pure: the input is not mutated. */
     expect(manifest[ASTRO_EXTENSION_ID].external_version).toBe('0.0.100')
+  })
+
+  it('drops the bug reporter and returns its CRX name to delete', () => {
+    const { manifest: next, crxFileName } = dropBundledExtension(
+      manifest,
+      BUG_REPORTER_EXTENSION_ID,
+    )
+    expect(crxFileName).toBe('adlpn.crx')
+    expect(next[BUG_REPORTER_EXTENSION_ID]).toBeUndefined()
+    /* Only the Astro agent is left. */
+    expect(Object.keys(next)).toEqual([ASTRO_EXTENSION_ID])
+    /* Pure: the input is not mutated. */
+    expect(manifest[BUG_REPORTER_EXTENSION_ID]).toBeDefined()
+  })
+
+  it('fails loud when the extension to drop was never there', () => {
+    expect(() =>
+      dropBundledExtension(
+        { [ASTRO_EXTENSION_ID]: {} },
+        BUG_REPORTER_EXTENSION_ID,
+      ),
+    ).toThrow(/no entry for/)
+  })
+
+  it('the bug reporter id is upstream’s 32-character reporter', () => {
+    expect(BUG_REPORTER_EXTENSION_ID).toHaveLength(32)
+    expect(BUG_REPORTER_EXTENSION_ID).toBe('adlpneommgkgeanpaekgoaolcpncohkf')
+    expect(BUG_REPORTER_EXTENSION_ID).not.toBe(ASTRO_EXTENSION_ID)
   })
 
   it('refuses a bundle whose manifest never heard of Astro', () => {
@@ -216,6 +249,76 @@ describe('the Sparkle trap (R29 finding 5, D33)', () => {
       'NO',
       '/A.app/Contents/Info.plist',
     ])
+  })
+})
+
+describe('phone-home neutralization (the maintainer must not reach browseros.com)', () => {
+  it('every replacement is the exact byte length of the string it overwrites', () => {
+    for (const { from, to } of PHONE_HOME_PATCHES) {
+      expect(ascii(to).length, `${from} → ${to}`).toBe(ascii(from).length)
+    }
+  })
+
+  it('sends the extension config and update-manifest to a dead .invalid host', () => {
+    const config = PHONE_HOME_PATCHES.find((p) =>
+      p.from.endsWith('/extensions/extensions.json'),
+    )
+    expect(config?.to).toBe(
+      'https://cdn.astro.invalid/extensions/extensions.json',
+    )
+    const manifestUrl = PHONE_HOME_PATCHES.find((p) =>
+      p.from.endsWith('/extensions/update-manifest.xml'),
+    )
+    expect(new URL(manifestUrl!.to).hostname.endsWith('.invalid')).toBe(true)
+    /* The whole maintainer namespace and the OTA host leave browseros.com. */
+    for (const { to } of PHONE_HOME_PATCHES) {
+      expect(to).not.toContain('browseros.com')
+    }
+  })
+
+  it('repoints the server OTA channel to publik, not to a dead host', () => {
+    const ota = PHONE_HOME_PATCHES.find((p) =>
+      p.from.endsWith('/appcast-server.xml'),
+    )
+    expect(ota?.to).toBe('https://publikhq.com/astro/update-server.xml')
+  })
+
+  it('rewrites every phone-home url in place and leaves none on browseros.com', () => {
+    const blob = PHONE_HOME_PATCHES.map((p) => `<<${p.from}>>`).join('|')
+    const buf = ascii(blob)
+    const applied = applyPhoneHomePatches(buf)
+    expect(applied.every((p) => p.occurrences === 1)).toBe(true)
+    expect(buf.length).toBe(ascii(blob).length)
+    const out = new TextDecoder().decode(buf)
+    expect(countAscii(buf, 'cdn.browseros.com/extensions/')).toBe(0)
+    expect(countAscii(buf, 'cdn.browseros.com/appcast-server')).toBe(0)
+    for (const { to } of PHONE_HOME_PATCHES) expect(out).toContain(to)
+  })
+
+  it('tolerates a source that was already patched (a previous Astro.app)', () => {
+    /* RELEASING.md: the source may be a prior build, not only stock upstream.
+       Every `from` already gone must not throw. */
+    const buf = ascii('already-astro: cdn.astro.invalid + publikhq.com only')
+    expect(() => applyPhoneHomePatches(buf)).not.toThrow()
+  })
+
+  it('fails loud when an unknown browseros.com maintainer url survives', () => {
+    /* A source variant whose config path we did not know: no `from` matched,
+       but a browseros.com maintainer url is still in the binary. */
+    const buf = ascii('https://cdn.browseros.com/extensions/config-v2.json')
+    expect(() => applyPhoneHomePatches(buf)).toThrow(/survived/)
+  })
+})
+
+describe('visible-string swaps', () => {
+  it('is empty until the audit hands over verified pairs', () => {
+    expect(VISIBLE_STRING_PATCHES).toHaveLength(0)
+  })
+
+  it('any pair added must be equal length (patchAsciiInPlace enforces it)', () => {
+    for (const { from, to } of VISIBLE_STRING_PATCHES) {
+      expect(ascii(to).length, `${from} → ${to}`).toBe(ascii(from).length)
+    }
   })
 })
 

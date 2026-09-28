@@ -85,7 +85,7 @@ const primarySettingsSections: NavSection[] = [
 ]
 
 const helpItems: NavItem[] = [
-  { name: 'Docs', href: 'https://docs.browseros.com/', icon: BookOpen },
+  { name: 'Docs', href: 'https://publikhq.com/astro', icon: BookOpen },
 ]
 
 export const SettingsSidebar: FC = () => {

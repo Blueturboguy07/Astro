@@ -1,6 +1,6 @@
 {
   "name": "@browseros/app",
-  "description": "manifest.json description",
+  "description": "Astro — an open-source, privacy-first AI browser.",
   "private": true,
   "version": "0.0.101",
   "type": "module",

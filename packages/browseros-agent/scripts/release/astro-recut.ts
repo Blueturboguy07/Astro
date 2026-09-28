@@ -55,6 +55,73 @@ export const UPSTREAM_AGENT_EXTENSION_ID = 'bflpfmnmnokmjhmgnolecpppdbdophmk'
 export const UPSTREAM_APPCAST_URL = 'https://cdn.browseros.com/appcast'
 export const PUBLIK_APPCAST_URL = 'https://publikhq.com/astro/update'
 
+/* Upstream's bug reporter. Dropped from every re-cut: publik does not run the
+   BrowserOS bug service, and a bundled reporter that phones browseros.com is
+   one of the loudest BrowserOS tells left in the app. The compiled-in table
+   kBrowserOSExtensions still pins it (product = kAll) and the extension
+   maintainer re-installs anything the remote config lists, so removing the CRX
+   is durable only together with the phone-home patches below. */
+export const BUG_REPORTER_EXTENSION_ID = 'adlpneommgkgeanpaekgoaolcpncohkf'
+
+/**
+ * The browseros.com hosts the extension maintainer and the server updater
+ * phone home to, and the same-length swaps that neutralise them.
+ *
+ * The extension maintainer (browseros_extension_maintainer.cc) polls
+ * `kBrowserOSConfigUrl` (the extensions config) every cycle and installs
+ * whatever the remote config lists — so a bundle that can still reach it will
+ * re-add the bug reporter this recipe just dropped. The config and the update
+ * manifest are pointed at a guaranteed-dead host: `.invalid` is reserved by
+ * RFC 6761 and never resolves (Chromium itself uses `*.invalid` throughout).
+ * The server OTA channel is publik's to run, so it is repointed to publik
+ * rather than killed — this is what v0.1.1 shipped.
+ *
+ * Each `to` is the exact byte length of its `from`: a string inside the signed
+ * Mach-O can be overwritten but not resized. Asserted in the tests.
+ */
+export const PHONE_HOME_PATCHES: readonly { from: string; to: string }[] = [
+  {
+    from: 'https://cdn.browseros.com/extensions/extensions.json',
+    to: 'https://cdn.astro.invalid/extensions/extensions.json',
+  },
+  {
+    from: 'https://cdn.browseros.com/extensions/extensions.alpha.json',
+    to: 'https://cdn.astro.invalid/extensions/extensions.alpha.json',
+  },
+  {
+    from: 'https://cdn.browseros.com/extensions/update-manifest.xml',
+    to: 'https://cdn.astro.invalid/extensions/update-manifest.xml',
+  },
+  {
+    from: 'https://cdn.browseros.com/extensions/update-manifest.alpha.xml',
+    to: 'https://cdn.astro.invalid/extensions/update-manifest.alpha.xml',
+  },
+  {
+    from: 'https://cdn.browseros.com/appcast-server.xml',
+    to: 'https://publikhq.com/astro/update-server.xml',
+  },
+  {
+    from: 'https://cdn.browseros.com/appcast-server.alpha.xml',
+    to: 'https://publikhq.com/astro/update-server.alpha.xml',
+  },
+]
+
+/**
+ * Same-length swaps for user-visible BrowserOS strings baked into the
+ * framework binary (About box, version credits, copyright). Empty until the
+ * visible-string audit hands over verified pairs, and deliberately so: the
+ * bundle-visible name is already carried by Info.plist
+ * (CFBundleDisplayName / CFBundleName = "Astro"); the bare "BrowserOS" tokens
+ * in this binary are load-bearing identifiers (pref keys `browseros.*`, the
+ * `BrowserOS Framework` / `BrowserOS Helper` load paths, the
+ * `BrowserOS Safe Storage` Keychain label — renaming any of them orphans user
+ * data); and Chromium's product name for the About UI lives in the `.pak`
+ * resources, not here. Each pair added is applied fail-loud (occurrences > 0)
+ * during the re-cut and must be equal length; both are asserted.
+ */
+export const VISIBLE_STRING_PATCHES: readonly { from: string; to: string }[] =
+  []
+
 export const DEVELOPER_ID =
   'Developer ID Application: Mann Bellani (R5R3ZS54LV)'
 /* `xcrun notarytool store-credentials AC_PASSWORD` — the profile the other
@@ -128,6 +195,35 @@ export function bumpBundledExtension(
   return out
 }
 
+/**
+ * Remove one entry from the external-extensions manifest, returning the new
+ * manifest and the CRX file the entry named so the caller can delete it from
+ * disk. Fails loud when the entry is absent: a re-cut that "dropped" an
+ * extension that was never there has silently shipped it.
+ */
+export function dropBundledExtension(
+  manifest: unknown,
+  extensionId: string,
+): { manifest: Record<string, Record<string, unknown>>; crxFileName?: string } {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new Error(`${BUNDLED_MANIFEST} is not a JSON object`)
+  }
+  const out = { ...(manifest as Record<string, Record<string, unknown>>) }
+  const existing = out[extensionId]
+  if (!existing || typeof existing !== 'object') {
+    throw new Error(
+      `${BUNDLED_MANIFEST} has no entry for ${extensionId} — refusing to ` +
+        'report a drop that did nothing.',
+    )
+  }
+  const crxFileName =
+    typeof existing.external_crx === 'string'
+      ? (existing.external_crx as string)
+      : undefined
+  delete out[extensionId]
+  return { manifest: out, crxFileName }
+}
+
 export type BinaryPatch = { from: string; to: string; occurrences: number }
 
 /**
@@ -179,6 +275,38 @@ export function countAscii(buf: Uint8Array, needle: string): number {
     i += bytes.length - 1
   }
   return n
+}
+
+/**
+ * Apply the phone-home swaps to a framework buffer in place.
+ *
+ * Robust to a source that is a previous Astro.app, not only stock upstream
+ * (RELEASING.md: the source may be either): a `from` that is already gone is
+ * not an error. The fail-loud is the invariant that actually matters — after
+ * the pass NO browseros.com maintainer or OTA URL may survive, which also
+ * catches a source variant whose exact URL we did not know to patch. Returns
+ * the per-pair occurrence counts for logging.
+ */
+export function applyPhoneHomePatches(
+  buf: Uint8Array,
+  patches: readonly { from: string; to: string }[] = PHONE_HOME_PATCHES,
+): BinaryPatch[] {
+  const applied = patches.map((p) =>
+    patchAsciiInPlace(buf, p.from, p.to, { required: false }),
+  )
+  for (const marker of [
+    'cdn.browseros.com/extensions/',
+    'cdn.browseros.com/appcast-server',
+  ]) {
+    if (countAscii(buf, marker) > 0) {
+      throw new Error(
+        `A browseros.com phone-home URL survived the re-cut (${marker}…). ` +
+          'The extension maintainer could still reach browseros.com and ' +
+          're-add the bug reporter — patch the new URL before shipping.',
+      )
+    }
+  }
+  return applied
 }
 
 export type PlistOp = {
@@ -382,7 +510,7 @@ export async function recut(opts: RecutOptions): Promise<string> {
   const appOut = path.join(opts.out, 'Astro.app')
   if (fs.existsSync(appOut)) fs.rmSync(appOut, { recursive: true, force: true })
 
-  console.log(`[1/6] Copying ${opts.source} → ${appOut}`)
+  console.log(`[1/7] Copying ${opts.source} → ${appOut}`)
   /* ditto, not cp: it preserves extended attributes, symlinks and the
      resource forks a signed bundle depends on. */
   if (!opts.dryRun) run('ditto', [opts.source, appOut])
@@ -391,7 +519,7 @@ export async function recut(opts: RecutOptions): Promise<string> {
   const frameworkBinary = path.join(versionDir, 'BrowserOS Framework')
   const extDir = path.join(versionDir, EXTENSIONS_DIR)
 
-  console.log('[2/6] Framework extension id')
+  console.log('[2/7] Framework extension id')
   if (!opts.dryRun) {
     const fw = new Uint8Array(fs.readFileSync(frameworkBinary))
     let astro = countAscii(fw, ASTRO_EXTENSION_ID)
@@ -423,22 +551,71 @@ export async function recut(opts: RecutOptions): Promise<string> {
   }
 
   console.log(
-    `[3/6] Installing the CRX as ${ASTRO_EXTENSION_ID}.crx @ ${version}`,
+    `[3/7] Installing the CRX as ${ASTRO_EXTENSION_ID}.crx @ ${version}; ` +
+      `dropping the bug reporter ${BUG_REPORTER_EXTENSION_ID}`,
   )
   if (!opts.dryRun) {
     const crxName = `${ASTRO_EXTENSION_ID}.crx`
     fs.copyFileSync(opts.crx, path.join(extDir, crxName))
     const manifestPath = path.join(extDir, BUNDLED_MANIFEST)
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
-    const next = bumpBundledExtension(manifest, {
+    const bumped = bumpBundledExtension(manifest, {
       extensionId: ASTRO_EXTENSION_ID,
       crxFileName: crxName,
       version,
     })
+    /* Drop upstream's bug reporter: entry out of the manifest, CRX off disk.
+       Fails loud if it was not there — a re-cut that dropped nothing is a bug.
+       Durable only with the phone-home patches in step [4]. */
+    const { manifest: next, crxFileName } = dropBundledExtension(
+      bumped,
+      BUG_REPORTER_EXTENSION_ID,
+    )
     fs.writeFileSync(manifestPath, `${JSON.stringify(next, null, 2)}\n`)
+    const droppedCrx = crxFileName ?? `${BUG_REPORTER_EXTENSION_ID}.crx`
+    const crxPath = path.join(extDir, droppedCrx)
+    if (!fs.existsSync(crxPath)) {
+      throw new Error(
+        `Bug reporter CRX not found to delete: ${crxPath}. The manifest ` +
+          'listed it but the file is missing — refusing to ship a ' +
+          'half-dropped extension.',
+      )
+    }
+    fs.rmSync(crxPath)
+    const remaining = Object.keys(next)
+    if (remaining.length !== 1 || remaining[0] !== ASTRO_EXTENSION_ID) {
+      throw new Error(
+        'bundled_extensions.json must list only the Astro agent after the ' +
+          `drop, but lists: ${remaining.join(', ') || '(none)'}`,
+      )
+    }
+    console.log(
+      `      dropped ${droppedCrx}; bundled_extensions.json now lists only ` +
+        ASTRO_EXTENSION_ID,
+    )
   }
 
-  console.log(`[4/6] Sparkle: ${opts.sparkle}`)
+  console.log('[4/7] Neutralizing browseros.com phone-home URLs')
+  if (!opts.dryRun) {
+    /* The extension maintainer polls the config URL and reinstalls anything it
+       lists, so dropping the bug reporter above only sticks once the framework
+       can no longer reach browseros.com. Visible-string swaps (empty until the
+       audit lands) ride the same buffer read/write. */
+    const fw = new Uint8Array(fs.readFileSync(frameworkBinary))
+    const applied = applyPhoneHomePatches(fw)
+    for (const p of VISIBLE_STRING_PATCHES) {
+      const r = patchAsciiInPlace(fw, p.from, p.to)
+      console.log(`      visible "${p.from}" → "${p.to}" ×${r.occurrences}`)
+    }
+    fs.writeFileSync(frameworkBinary, fw)
+    const total = applied.reduce((n, p) => n + p.occurrences, 0)
+    console.log(
+      `      repointed ${total} phone-home string(s) off browseros.com ` +
+        '(config + update-manifest → dead host; server OTA → publik)',
+    )
+  }
+
+  console.log(`[5/7] Sparkle: ${opts.sparkle}`)
   if (opts.sparkle === 'disable' && !opts.dryRun) {
     const feed = opts.sparkleFeed ?? PUBLIK_APPCAST_URL
     const infoPlist = path.join(appOut, 'Contents/Info.plist')
@@ -467,7 +644,7 @@ export async function recut(opts: RecutOptions): Promise<string> {
     }
   }
 
-  console.log('[5/6] Signing')
+  console.log('[6/7] Signing')
   if (opts.sign && !opts.dryRun) {
     /* Inside-out: helpers and frameworks first, the .app last. */
     const nested = run('find', [
@@ -537,7 +714,7 @@ export async function recut(opts: RecutOptions): Promise<string> {
     console.log('      skipped (--sign not given)')
   }
 
-  console.log('[6/6] Next steps (credentials required — not run here):')
+  console.log('[7/7] Next steps (credentials required — not run here):')
   const dmg = path.join(opts.out, 'Astro.dmg')
   for (const line of [
     /* Notarize and staple the APP first, then build the dmg around the
