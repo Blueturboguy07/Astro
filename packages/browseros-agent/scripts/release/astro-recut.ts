@@ -41,6 +41,7 @@ import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { rebrandResourcePaks } from './pak-rebrand'
 
 /* Astro's extension id: the fork packs the agent with its own key
    (8b92acb0e), so the id differs from upstream's and the framework has to
@@ -559,6 +560,26 @@ export async function recut(opts: RecutOptions): Promise<string> {
     fs.copyFileSync(opts.crx, path.join(extDir, crxName))
     const manifestPath = path.join(extDir, BUNDLED_MANIFEST)
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+    /* From a stock upstream bundle (the --patch-id path), the manifest still
+       keys the UPSTREAM agent id, not Astro's — the same rename the framework
+       byte-patch just did in step [2]. Move that entry onto the Astro id and
+       delete the orphaned upstream CRX, so the bump below finds an Astro entry
+       to update. A re-cut from a previous Astro bundle already has the Astro
+       key, so this is a no-op there. */
+    if (
+      manifest &&
+      typeof manifest === 'object' &&
+      !manifest[ASTRO_EXTENSION_ID] &&
+      manifest[UPSTREAM_AGENT_EXTENSION_ID]
+    ) {
+      manifest[ASTRO_EXTENSION_ID] = manifest[UPSTREAM_AGENT_EXTENSION_ID]
+      delete manifest[UPSTREAM_AGENT_EXTENSION_ID]
+      const staleCrx = path.join(extDir, `${UPSTREAM_AGENT_EXTENSION_ID}.crx`)
+      if (fs.existsSync(staleCrx)) fs.rmSync(staleCrx)
+      console.log(
+        `      renamed the bundled manifest's agent entry ${UPSTREAM_AGENT_EXTENSION_ID} → ${ASTRO_EXTENSION_ID}`,
+      )
+    }
     const bumped = bumpBundledExtension(manifest, {
       extensionId: ASTRO_EXTENSION_ID,
       crxFileName: crxName,
@@ -615,6 +636,40 @@ export async function recut(opts: RecutOptions): Promise<string> {
     )
   }
 
+  console.log('[4b/7] Rebranding visible "BrowserOS" text in the paks')
+  if (!opts.dryRun) {
+    /* The About box, app menus, chrome://browseros-onboarding and the
+       chrome://version fragment are not in the Mach-O — they are DataPack
+       entries in Resources/*.lproj/locale.pak and Resources/resources.pak.
+       rebrandResourcePaks rewrites "BrowserOS" → "Astro" inside decoded text
+       entries only, rebuilds each index, and self-tests every pak (aborts
+       loud on any structural or residual-brand failure). Verified end-to-end:
+       the rebuilt browser launches and reads "Astro Onboarding" where the base
+       read "BrowserOS Onboarding". */
+    const resourcesDir = path.join(versionDir, 'Resources')
+    const changed = rebrandResourcePaks(resourcesDir)
+    const files = Object.keys(changed)
+    const strings = files.reduce((n, f) => n + changed[f], 0)
+    console.log(
+      `      rebranded ${strings} visible string(s) across ${files.length} pak file(s)`,
+    )
+  }
+
+  console.log('[4c/7] App display name → Astro')
+  if (!opts.dryRun) {
+    /* CFBundleName / CFBundleDisplayName drive the Finder name, the Dock label
+       and the app menu title ("Astro" / "About Astro" / "Quit Astro"). A
+       re-cut from a prior Astro bundle already carries these; a stock upstream
+       source reads "BrowserOS", so set them. CFBundleExecutable stays
+       "BrowserOS" (the binary path) and CFBundleIdentifier stays
+       com.browseros.BrowserOS (changing it orphans the profile). */
+    const infoPlist = path.join(appOut, 'Contents/Info.plist')
+    for (const key of ['CFBundleName', 'CFBundleDisplayName']) {
+      run('plutil', ['-replace', key, '-string', 'Astro', infoPlist])
+    }
+    console.log('      CFBundleName / CFBundleDisplayName = Astro')
+  }
+
   console.log(`[5/7] Sparkle: ${opts.sparkle}`)
   if (opts.sparkle === 'disable' && !opts.dryRun) {
     const feed = opts.sparkleFeed ?? PUBLIK_APPCAST_URL
@@ -627,9 +682,20 @@ export async function recut(opts: RecutOptions): Promise<string> {
       run('plutil', plutilArgs(infoPlist, op))
     }
     /* The compiled-in default, for a Sparkle that never reads SUFeedURL.
-       Same length or the binary moves. */
+       Same length or the binary moves. required:false because a re-cut from a
+       previous Astro bundle already carries the publik feed here — that is not
+       an error, but the framework must end up pointing at `feed` either way. */
     const fw = new Uint8Array(fs.readFileSync(frameworkBinary))
-    const patch = patchAsciiInPlace(fw, UPSTREAM_APPCAST_URL, feed)
+    const patch = patchAsciiInPlace(fw, UPSTREAM_APPCAST_URL, feed, {
+      required: false,
+    })
+    if (patch.occurrences === 0 && countAscii(fw, feed) === 0) {
+      throw new Error(
+        `Sparkle appcast: neither "${UPSTREAM_APPCAST_URL}" nor "${feed}" is in ` +
+          'the framework — the compiled-in feed is something unexpected. Refusing ' +
+          'to ship a bundle whose update feed is unknown.',
+      )
+    }
     fs.writeFileSync(frameworkBinary, fw)
     console.log(
       `      appcast repointed ×${patch.occurrences} → ${feed}; automatic checks off`,
@@ -644,8 +710,33 @@ export async function recut(opts: RecutOptions): Promise<string> {
     }
   }
 
+  /* Host-scoped survivor guard: after phone-home (step 4) AND the appcast
+     repoint (step 5), no cdn.browseros.com string may remain anywhere in the
+     framework — otherwise a maintainer poll or update check still reaches
+     upstream and can reinstate the bug reporter. Fails loud rather than ship a
+     bundle that phones home. */
+  if (opts.sparkle === 'disable' && !opts.dryRun) {
+    const fw = new Uint8Array(fs.readFileSync(frameworkBinary))
+    const survivors = countAscii(fw, 'cdn.browseros.com')
+    if (survivors > 0) {
+      throw new Error(
+        `${survivors} cdn.browseros.com string(s) survive in the framework ` +
+          'after patching — a phone-home URL was missed. Add it to ' +
+          'PHONE_HOME_PATCHES (same length) before shipping.',
+      )
+    }
+    console.log(
+      '      ok: zero cdn.browseros.com strings survive in the framework',
+    )
+  }
+
   console.log('[6/7] Signing')
   if (opts.sign && !opts.dryRun) {
+    /* Strip extended attributes first. ditto preserves resource forks and
+       Finder info, and codesign refuses to sign a nested bundle that carries
+       them ("resource fork, Finder information, or similar detritus not
+       allowed") — it fails on Sparkle's XPC services otherwise. */
+    run('xattr', ['-cr', appOut])
     /* Inside-out: helpers and frameworks first, the .app last. */
     const nested = run('find', [
       appOut,

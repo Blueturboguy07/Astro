@@ -154,7 +154,29 @@ jobs:
           )
           $proc = Start-Process -FilePath "$env:ASTRO_EXE" -ArgumentList $args -PassThru
           "ASTRO_PID=$($proc.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ASTRO_PROFILE=$profile" | Out-File -FilePath $env:GITHUB_ENV -Append
           Write-Host "Launched Astro pid $($proc.Id)"
+
+      - name: Assert installed extension set on disk (authoritative)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $astroId = "kofbmbngmnnpmopgbhpbajhnnnoflolg"
+          $bugId   = "adlpneommgkgeanpaekgoaolcpncohkf"
+          # The profile's Extensions dir lists every INSTALLED extension,
+          # active or not — unlike CDP /json/list, which only shows live
+          # targets. This is the authoritative "what is installed" check.
+          $extDir = Join-Path $env:ASTRO_PROFILE "Default\Extensions"
+          for ($i = 0; $i -lt 30 -and -not (Test-Path (Join-Path $extDir $astroId)); $i++) {
+            Start-Sleep -Seconds 2
+          }
+          if (-not (Test-Path (Join-Path $extDir $astroId))) {
+            throw "Astro extension not installed under $extDir"
+          }
+          if (Test-Path (Join-Path $extDir $bugId)) {
+            throw "FAIL: bug reporter is installed on disk under $extDir"
+          }
+          $dirs = (Get-ChildItem -Directory $extDir -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }) -join ", "
+          Write-Host "PASS: installed extensions on disk = [$dirs] (Astro only, no bug reporter)"
 
       - name: Assert extensions via CDP
         run: |
@@ -230,14 +252,26 @@ jobs:
       - name: Silent uninstall + assert removal
         run: |
           $ErrorActionPreference = "Stop"
-          $uninst = "$env:ProgramFiles\Astro\Uninstall.exe"
-          if (-not (Test-Path $uninst)) { throw "uninstaller missing" }
-          # NSIS uninstallers relaunch from %TEMP% under /S; wait on the copy.
-          $p = Start-Process -FilePath $uninst -ArgumentList "/S","_?=$env:ProgramFiles\Astro" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "uninstaller exit $($p.ExitCode)" }
-          Start-Sleep -Seconds 5
-
-          if (Test-Path "$env:ProgramFiles\Astro\chrome.exe") { throw "FAIL: files remain after uninstall" }
+          # Exercise the REAL Add/Remove Programs path: QuietUninstallString,
+          # WITHOUT _?=. With _?= NSIS runs in place and deliberately does NOT
+          # remove its own directory, so the old "_?=" test could never observe
+          # a clean removal. Without it, NSIS copies itself to %TEMP%,
+          # relaunches, and returns immediately — so poll for the dir to vanish.
+          $reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro"
+          $quiet = (Get-ItemProperty $reg -ErrorAction SilentlyContinue).QuietUninstallString
+          if (-not $quiet) {
+            $u = "$env:ProgramFiles\Astro\Uninstall.exe"
+            if (-not (Test-Path $u)) { throw "uninstaller missing and no QuietUninstallString" }
+            $quiet = "`"$u`" /S"
+          }
+          Write-Host "Uninstalling via: $quiet"
+          cmd /c $quiet
+          $gone = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            if (-not (Test-Path "$env:ProgramFiles\Astro\chrome.exe")) { $gone = $true; break }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $gone) { throw "FAIL: files remain after uninstall (waited 60s)" }
           if (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk") { throw "FAIL: shortcut remains" }
           if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro") { throw "FAIL: ARP entry remains" }
           Write-Host "PASS: uninstall left nothing behind"

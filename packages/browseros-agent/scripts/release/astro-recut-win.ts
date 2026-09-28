@@ -68,6 +68,7 @@ import {
   UPSTREAM_AGENT_EXTENSION_ID,
   validateExtensionVersion,
 } from './astro-recut'
+import { rebrandResourcePaks } from './pak-rebrand'
 
 /** The bundled bug reporter. Dropped from Astro: no upstream reporting UI. */
 export const BUGREPORTER_EXTENSION_ID = 'adlpneommgkgeanpaekgoaolcpncohkf'
@@ -353,6 +354,20 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
       )
     }
     console.log('      ok: no adlpneom... crx, not in bundled_extensions.json')
+  }
+
+  console.log('[4b/5] rebrand visible "BrowserOS" text in the paks')
+  if (!opts.dryRun) {
+    /* The About box, menus, chrome://browseros-onboarding and chrome://version
+       text live in <version>/Locales/*.pak and <version>/resources.pak, not in
+       chrome.dll. rebrandResourcePaks rewrites "BrowserOS" → "Astro" in decoded
+       text entries only and self-tests each pak (aborts loud on failure). */
+    const changed = rebrandResourcePaks(versionDir)
+    const files = Object.keys(changed)
+    const strings = files.reduce((n, f) => n + changed[f], 0)
+    console.log(
+      `      rebranded ${strings} visible string(s) across ${files.length} pak file(s)`,
+    )
   }
 
   console.log(`[5/5] package: ${opts.pkg}`)
