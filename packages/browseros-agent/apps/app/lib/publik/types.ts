@@ -13,9 +13,20 @@ export const PUBLIK_PRICING_URL = 'https://publikhq.com/developers#plans'
 export const PUBLIK_TERMS_URL = 'https://publikhq.com/terms#api'
 
 /* Bump when the disclosure copy changes so an existing install is shown
-   the new text once. The server records the value and never rejects on it
-   (CONTRACT §3.2 [S18]). */
-export const DISCLOSURE_VERSION = 1
+   the new text once (the card's compact disclosure, until "Later" or the
+   plan button acknowledges it). The server records the value and never
+   rejects on it (CONTRACT §3.2 [S18]).
+     1 — the launch text, which promised a starter on every new computer
+     2 — publik migration 0059 (2026-09-28): a new computer starts at $0.00,
+         and linking it to a publik account gives $0.05 of free use, once */
+export const DISCLOSURE_VERSION = 2
+
+/* The one free thing publik API gives (migration 0059, founder
+   2026-09-28): $0.05 of use, once per publik account, when a computer is
+   first linked to it. Mirrors the site's LINK_STARTER_SENTENCE
+   (lib/publik-api/why-it-costs.ts). Only copy reads it; the balance itself
+   always comes from the server. */
+export const LINK_STARTER_MICROS = 50_000
 
 /* Key format the gateway mints (CONTRACT §1). The parser is strict so a
    gateway that ships a different shape fails to `pending` + BYO, never to a
@@ -65,7 +76,9 @@ export type PublikState = {
   topUpUrl?: string
   claimState?: 'anonymous' | 'claimed'
   models?: Partial<Record<PublikTier, string>>
-  /* What the mint granted — the low-starter banner is measured against it. */
+  /* What the mint granted — the low-starter banner is measured against it.
+     0 on an unlinked mint since migration 0059; $0.05 only when the mint
+     is already bound to a signed-in account that has not had it yet. */
   starterMicros?: number
   /* Live wallet, from the mint response and then GET /wallet. */
   balanceMicros?: number

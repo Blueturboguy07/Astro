@@ -72,6 +72,8 @@ const KEY2 = 'pk_live_zyxwvutsrqpo_abcdefghijklmnopqrstuvwxyz012345'
 const TOKEN = 'pat_astro_abcdefghijklmnopqrstuvwxyz012345'
 const env = { token: TOKEN, baseUrl: 'https://publikhq.com/api/v1' }
 
+/* Since publik migration 0059 every unlinked mint is $0.00: the only free
+   thing is $0.05 of use when the computer is first linked to an account. */
 const install201 = (key = KEY) => ({
   install_id: 'srv',
   key,
@@ -79,9 +81,13 @@ const install201 = (key = KEY) => ({
   claim_code: 'HK7F-2QWD',
   claim_url: 'https://publikhq.com/claim/HK7F-2QWD',
   claim_state: 'anonymous',
-  starter_micros: 250_000,
-  balance_micros: 250_000,
+  starter_micros: 0,
+  balance_micros: 0,
 })
+
+/* The gateway's 402 insufficient_credit message while anonymous. */
+const SERVER_402 =
+  'Your publik balance is too low for this request. Link this computer to your publik account at the link below for $0.05 of free use, pick a plan there, or use your own key.'
 
 const json = (
   status: number,
@@ -197,7 +203,7 @@ describe('ensureProvisioned', () => {
       expect(body.app_slug).toBe('astro')
       expect(body.os).toBe('macos')
       expect(body.install_id).toBe('inst-1')
-      expect(body.disclosure_version).toBe(1)
+      expect(body.disclosure_version).toBe(2)
       expect(init?.headers).toMatchObject({ Authorization: `Bearer ${TOKEN}` })
       return json(201, install201())
     })
@@ -238,8 +244,9 @@ describe('ensureProvisioned', () => {
       serverProviderId: 'srv-1',
       claimUrl: 'https://publikhq.com/claim/HK7F-2QWD',
       claimState: 'anonymous',
-      starterMicros: 250_000,
-      balanceMicros: 250_000,
+      starterMicros: 0,
+      balanceMicros: 0,
+      starterRemainingMicros: 0,
     })
     /* The key is never in publik-state. */
     expect(JSON.stringify(state)).not.toContain(KEY)
@@ -247,6 +254,43 @@ describe('ensureProvisioned', () => {
     const status = stateMod.toStatus(state, true)
     expect(status.connected).toBe(true)
     expect(status.ctaSeen).toBe(false)
+  })
+
+  it('a $0.00 mint is still a working connection, not a failure (0059)', async () => {
+    const server = fakeServer()
+    const fetch = fetchMock(() => json(201, install201()))
+    expect(await provision.acceptDisclosure(deps(server, fetch))).toBe('active')
+    const status = stateMod.toStatus(await stateMod.readState(), true)
+    expect(status).toMatchObject({
+      state: 'active',
+      connected: true,
+      claimState: 'anonymous',
+      balanceMicros: 0,
+      starterRemainingMicros: 0,
+      starterGrantMicros: 0,
+      lastError: null,
+    })
+    expect(agentProviders()[0]?.apiKey).toBe(KEY)
+  })
+
+  it('a mint already bound to the account stores its one $0.05', async () => {
+    const server = fakeServer()
+    const fetch = fetchMock(() =>
+      json(201, {
+        ...install201(),
+        claim_state: 'claimed',
+        starter_micros: 50_000,
+        balance_micros: 50_000,
+      }),
+    )
+    await provision.acceptDisclosure(deps(server, fetch))
+    expect(await stateMod.readState()).toMatchObject({
+      state: 'active',
+      claimState: 'claimed',
+      starterMicros: 50_000,
+      balanceMicros: 50_000,
+      starterRemainingMicros: 50_000,
+    })
   })
 
   it('honours the response base_url and model names over the defaults', async () => {
@@ -492,10 +536,38 @@ describe('decline / reconnect / revoked', () => {
     expect(state?.state).toBe('active')
     expect(agentProviders()[0]?.apiKey).toBe(KEY)
   })
+
+  it('an install on the older disclosure sees the new text once', async () => {
+    const { server, fetch } = await connect()
+    await stateMod.writeState({ disclosureVersion: 1 })
+    expect(
+      stateMod.toStatus(await stateMod.readState(), true).disclosureCurrent,
+    ).toBe(false)
+    /* The key stays: an active connection is never re-minted over it. */
+    expect(await provision.ensureProvisioned(deps(server, fetch))).toBe(
+      'active',
+    )
+    await provision.acknowledgeCta(deps(server, fetch))
+    const state = await stateMod.readState()
+    expect(state?.disclosureVersion).toBe(2)
+    expect(stateMod.toStatus(state, true).disclosureCurrent).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('key_revoked reprovision:true on the older disclosure asks again first', async () => {
+    const { server } = await connect()
+    await stateMod.writeState({ disclosureVersion: 1 })
+    const fetch = fetchMock(() => json(201, install201(KEY2)))
+    expect(await provision.handleKeyRevoked(true, deps(server, fetch))).toBe(
+      'consent-required',
+    )
+    expect(fetch).not.toHaveBeenCalled()
+    expect((await stateMod.readState())?.state).toBe('pending')
+  })
 })
 
 describe('wallet', () => {
-  it('refreshWallet updates the balance line from GET /wallet', async () => {
+  it("refreshWallet shows the first link's $0.05 from GET /wallet", async () => {
     const server = fakeServer()
     await provision.acceptDisclosure(
       deps(
@@ -507,18 +579,19 @@ describe('wallet', () => {
       expect(url).toBe('https://publikhq.com/api/v1/wallet')
       expect(init?.headers).toMatchObject({ Authorization: `Bearer ${KEY}` })
       return json(200, {
-        balance_micros: 180_000,
-        claim_state: 'anonymous',
-        starter: { remaining_micros: 180_000 },
-        week: { used_micros: 70_000, budget_micros: null, resets_at: 'r' },
-        claim_url: 'https://publikhq.com/claim/HK7F-2QWD',
+        balance_micros: 50_000,
+        claim_state: 'claimed',
+        starter: { remaining_micros: 50_000 },
+        week: { used_micros: 0, budget_micros: null, resets_at: 'r' },
+        add_credit_url: 'https://publikhq.com/dashboard/api/add',
       })
     })
     await wallet.refreshWallet({ ...deps(server, fetch), force: true })
     const status = stateMod.toStatus(await stateMod.readState(), true)
-    expect(status.balanceMicros).toBe(180_000)
-    expect(status.starterRemainingMicros).toBe(180_000)
-    expect(status.week.usedMicros).toBe(70_000)
+    expect(status.claimState).toBe('claimed')
+    expect(status.balanceMicros).toBe(50_000)
+    expect(status.starterRemainingMicros).toBe(50_000)
+    expect(status.week.usedMicros).toBe(0)
     /* Throttled: a second call inside a minute does not hit the network. */
     await wallet.refreshWallet(deps(server, fetch))
     expect(fetch).toHaveBeenCalledTimes(1)
@@ -558,15 +631,11 @@ describe('wallet', () => {
       ),
     ).toBe(false)
     expect(
-      await wallet.noteChatError(
-        '402 Not enough publik credit for this request. Link this computer and pick a plan at the link below.',
-        deps(server, fetch),
-      ),
+      await wallet.noteChatError(`402 ${SERVER_402}`, deps(server, fetch)),
     ).toBe(true)
     const status = stateMod.toStatus(await stateMod.readState(), true)
     expect(status.creditError).toEqual({
-      message:
-        'Not enough publik credit for this request. Link this computer and pick a plan at the link below.',
+      message: SERVER_402,
       topUpUrl: 'https://publikhq.com/claim/HK7F-2QWD',
     })
     expect(status.balanceMicros).toBe(0)

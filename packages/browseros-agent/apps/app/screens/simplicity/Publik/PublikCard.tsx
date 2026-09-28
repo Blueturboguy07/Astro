@@ -14,6 +14,7 @@ import {
 import type { PublikAction, UsePublikStatus } from '@/lib/publik/status'
 import {
   formatMicros,
+  LINK_STARTER_MICROS,
   PUBLIK_TERMS_URL,
   type PublikStatus,
 } from '@/lib/publik/types'
@@ -27,12 +28,16 @@ import ProviderLogo from '@/screens/simplicity/ui/ProviderLogo'
  *                  (a) the balance line from the response, (b) the
  *                  one-sentence justification, (c) the primary "Link this
  *                  computer & pick a plan" opening claim_url, with "Later"
- *                  keeping the free starter. Never a silent starter (§12.4).
+ *                  leaving the connection as it is. An unlinked computer
+ *                  starts at $0.00 (publik migration 0059), so the balance
+ *                  line says what linking gives. Never a silent starter
+ *                  (§12.4).
  *   failed /     — unreachable, or this computer was removed from the
  *   disconnected   account; Retry / Reconnect, and always "use my own key"
  *
  * Copy rules (CONTRACT §1): "publik API" only; dollars, never tokens; the
- * free balance comes from the server, never a constant. Every link a
+ * balance comes from the server, and the only fixed amount is the $0.05 a
+ * first link gives (types.ts LINK_STARTER_MICROS). Every link a
  * publik button opens is publikhq.com (cta.ts planCta / topUpCta).
  */
 
@@ -50,7 +55,8 @@ export const Disclosure = ({ compact = false }: { compact?: boolean }) => (
         <span className="font-medium text-black/80 dark:text-white/80">
           publik API
         </span>
-        , so you can start right away without an account or a key.
+        , so there is no key to paste. Linking this computer to your publik
+        account gives {formatMicros(LINK_STARTER_MICROS)} of free use, once.
       </p>
     )}
     <p>
@@ -137,7 +143,7 @@ export const StatusLine = ({ status }: { status: PublikStatus }) => {
     <p className="mt-0.5 text-[10px] text-black/50 tabular-nums sm:text-xs dark:text-white/50">
       {status.claimState === 'claimed'
         ? 'Linked to your publik account'
-        : 'Ready · this computer is not linked to an account yet'}
+        : 'This computer is not linked to a publik account yet'}
       {week && ` · ${week}`}
     </p>
   )
@@ -306,7 +312,7 @@ const PublikCard = ({ publik, onProvisioned, className }: CardProps) => {
                 ? 'This computer was removed from your publik account.'
                 : failed
                   ? 'publik API is unreachable right now. Nothing is being charged.'
-                  : 'Nothing to paste. Ready in one click.'}
+                  : 'Nothing to paste. Connects in one click.'}
             </p>
           )}
         </div>
@@ -329,7 +335,9 @@ const PublikCard = ({ publik, onProvisioned, className }: CardProps) => {
         {active ? (
           <div className="flex flex-row flex-wrap items-center gap-x-3 gap-y-2">
             <PlanCtaLink status={status} onOpen={() => run('later')} />
-            {!status.ctaSeen && (
+            {/* Also offered while an older disclosure is on the card, so
+                the new text can be acknowledged and shown once. */}
+            {(!status.ctaSeen || !status.disclosureCurrent) && (
               <Button action="later">{CTA_LATER_LABEL}</Button>
             )}
           </div>

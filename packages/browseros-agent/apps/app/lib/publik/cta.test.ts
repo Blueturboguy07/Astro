@@ -11,8 +11,15 @@ import {
   topUpCta,
   WHY_IT_COSTS,
 } from './cta'
-import { PUBLIK_ACCOUNT_URL, type PublikStatus } from './types'
+import {
+  formatMicros,
+  LINK_STARTER_MICROS,
+  PUBLIK_ACCOUNT_URL,
+  type PublikStatus,
+} from './types'
 
+/* A fresh, unlinked install since publik migration 0059: the mint grants
+   $0.00 and every metered call answers 402 until the computer is linked. */
 const base: PublikStatus = {
   available: true,
   state: 'active',
@@ -22,14 +29,29 @@ const base: PublikStatus = {
   addCreditUrl: 'https://publikhq.com/dashboard/api/add',
   topUpUrl: null,
   claimState: 'anonymous',
-  balanceMicros: 250_000,
-  starterRemainingMicros: 250_000,
-  starterGrantMicros: 250_000,
+  balanceMicros: 0,
+  starterRemainingMicros: 0,
+  starterGrantMicros: 0,
   creditError: null,
   ctaSeen: false,
   week: { usedMicros: null, budgetMicros: null, resetsAt: null },
   lastError: null,
 }
+
+/* A mint already bound to the signed-in account: its one $0.05 of free
+   use, once per account. */
+const linked: PublikStatus = {
+  ...base,
+  claimState: 'claimed',
+  balanceMicros: LINK_STARTER_MICROS,
+  starterRemainingMicros: LINK_STARTER_MICROS,
+  starterGrantMicros: LINK_STARTER_MICROS,
+}
+
+/* The gateway's 402 insufficient_credit message while anonymous (the
+   site's insufficientCreditMessage("anonymous")). */
+const SERVER_402 =
+  'Your publik balance is too low for this request. Link this computer to your publik account at the link below for $0.05 of free use, pick a plan there, or use your own key.'
 
 describe('copy rule (CONTRACT §1, §12.5)', () => {
   const surfaces = [
@@ -37,6 +59,8 @@ describe('copy rule (CONTRACT §1, §12.5)', () => {
     DISCLOSURE_COST,
     CTA_LINK_LABEL,
     CTA_ADD_LABEL,
+    balanceLine(base) ?? '',
+    balanceLine(linked) ?? '',
   ]
   it('never names the vendor, tokens or credits as a unit', () => {
     for (const s of surfaces) {
@@ -44,6 +68,18 @@ describe('copy rule (CONTRACT §1, §12.5)', () => {
       expect(s).not.toMatch(/\btokens?\b/i)
       expect(s).not.toMatch(/\bcredits\b/i)
     }
+  })
+  it('never promises free use to a computer that is not linked (0059)', () => {
+    for (const s of surfaces) {
+      expect(s).not.toMatch(/starts with free|free usage|free starter/i)
+      expect(s).not.toMatch(/\$0\.25/)
+    }
+  })
+  it("carries the site's link-starter sentence in the disclosure", () => {
+    expect(formatMicros(LINK_STARTER_MICROS)).toBe('$0.05')
+    expect(DISCLOSURE_COST).toContain(
+      'A new computer starts at $0.00 and no card is asked for: linking this computer to your publik account gives $0.05 of free use, once, and a plan, a pack or your own key takes it from there; nothing is charged behind your back',
+    )
   })
   it('carries the justification verbatim from why-it-costs.ts', () => {
     expect(WHY_IT_COSTS).toBe(
@@ -90,8 +126,22 @@ describe('planCta (§12.1 (c), §12.2)', () => {
 })
 
 describe('balanceLine (§12.1 (a))', () => {
-  it('shows the starter in dollars while anonymous', () => {
-    expect(balanceLine(base)).toBe('$0.25 of free starter usage')
+  it('says what linking gives while an unlinked computer is at $0.00', () => {
+    expect(balanceLine(base)).toBe(
+      '$0.00 · link this computer for $0.05 of free use',
+    )
+  })
+  it('shows what is left of an older unlinked starter in dollars', () => {
+    expect(
+      balanceLine({
+        ...base,
+        balanceMicros: 180_000,
+        starterRemainingMicros: 180_000,
+      }),
+    ).toBe('$0.18 of free use left')
+  })
+  it('shows the $0.05 once the computer is linked', () => {
+    expect(balanceLine(linked)).toBe('$0.05 of usage available')
   })
   it('shows the balance once claimed', () => {
     expect(
@@ -124,35 +174,40 @@ describe('topUpCta (§1: exactly one link)', () => {
 
 describe('bannerFor', () => {
   it('is silent when nothing is wrong', () => {
+    expect(bannerFor(linked)).toBeNull()
+  })
+  it('never calls a $0.00 unlinked mint a low starter (no grant to measure)', () => {
     expect(bannerFor(base)).toBeNull()
   })
   it('shows the 402 message with its one link', () => {
     const b = bannerFor({
       ...base,
       creditError: {
-        message: 'Not enough publik credit for this request.',
+        message: SERVER_402,
         topUpUrl: 'https://publikhq.com/claim/HK7F-2QWD',
       },
     })
     expect(b?.kind).toBe('credit')
+    expect(b?.message).toBe(SERVER_402)
     expect(b?.link.href).toBe('https://publikhq.com/claim/HK7F-2QWD')
     expect(b?.link.label).toBe(CTA_LINK_LABEL)
   })
-  it('warns under 20% of the starter with nothing else to draw on', () => {
+  it('warns under 20% of the $0.05 with nothing else to draw on', () => {
     const b = bannerFor({
-      ...base,
-      balanceMicros: 40_000,
-      starterRemainingMicros: 40_000,
+      ...linked,
+      balanceMicros: 8_000,
+      starterRemainingMicros: 8_000,
     })
     expect(b?.kind).toBe('low-starter')
-    expect(b?.message).toStartWith('$0.04 of free starter usage left.')
+    expect(b?.message).toStartWith('$0.01 of free use left.')
+    expect(b?.link.label).toBe(CTA_ADD_LABEL)
   })
   it('stays quiet when a plan or pack covers it', () => {
     expect(
       bannerFor({
-        ...base,
+        ...linked,
         balanceMicros: 2_000_000,
-        starterRemainingMicros: 40_000,
+        starterRemainingMicros: 8_000,
       }),
     ).toBeNull()
   })
@@ -163,9 +218,12 @@ describe('bannerFor', () => {
 
 describe('creditErrorFrom', () => {
   it('recognises the SDK-shaped 402 and strips the status prefix', () => {
-    expect(
-      creditErrorFrom('402 Not enough publik credit for this request. X'),
-    ).toEqual({ message: 'Not enough publik credit for this request. X' })
+    expect(creditErrorFrom(`402 ${SERVER_402}`)).toEqual({
+      message: SERVER_402,
+    })
+  })
+  it("recognises the gateway's sentence without the status prefix", () => {
+    expect(creditErrorFrom(SERVER_402)).toEqual({ message: SERVER_402 })
   })
   it('ignores every other failure', () => {
     expect(creditErrorFrom('That model failed to answer.')).toBeNull()

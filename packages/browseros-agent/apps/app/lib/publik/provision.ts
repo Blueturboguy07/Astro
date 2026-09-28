@@ -509,12 +509,19 @@ export async function acceptDisclosure(deps: ProvisionDeps = {}) {
 
 /* The first-run card's "Later" (and its plan button): records that the
    balance line, the justification and the CTA were shown (CONTRACT §12.4,
-   "never a silent starter"). Touches nothing else — the key stays, the
-   starter stays, and the button stays in Settings. */
+   "never a silent starter"). An active install that accepted an older
+   disclosure sees the current text on the same card (compact), so this is
+   also where that text counts as shown, once, as types.ts
+   DISCLOSURE_VERSION says. Touches nothing else — the key stays, the
+   balance stays, and the button stays in Settings. */
 export async function acknowledgeCta(deps: ProvisionDeps = {}) {
-  if (!(await readState())) return
+  const state = await readState()
+  if (!state) return
   await writeState({
     ctaSeenAt: (deps.now ?? (() => new Date()))().toISOString(),
+    ...(state.state === 'active'
+      ? { disclosureVersion: DISCLOSURE_VERSION }
+      : {}),
   })
 }
 

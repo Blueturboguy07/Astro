@@ -195,12 +195,20 @@ Then a real launch on a clean profile:
 
 1. Move the app to `/Applications`, launch it, and let it reach the answer
    engine. A fresh install has no connection, so the chat shows the publik card.
-2. **Continue with publik API** → the card should show the starter balance in
-   dollars, the one-sentence justification, and **Link this computer & pick a
-   plan**. Nothing may be spent before that card has been seen.
+2. **Continue with publik API** → the card should show
+   **$0.00 · link this computer for $0.05 of free use**, the one-sentence
+   justification, and **Link this computer & pick a plan**. A new computer
+   starts at $0.00 (publik migration 0059). Nothing may be spent before that
+   card has been seen.
 3. Settings → Models shows the same card; the model picker offers
    *publik Balanced / Fast / Smart*.
-4. Ask one question. It should answer, and the balance line should go down.
+4. Ask one question while the computer is not linked. It must not answer:
+   expect the gateway's "Your publik balance is too low for this request."
+   message with one link to publikhq.com, never a silent success.
+5. Open **Link this computer & pick a plan**, sign in and link the computer.
+   An account that never had it gets its one $0.05 of free use. Back in
+   Astro the balance line should read **$0.05 of usage available**, the same
+   question should now answer, and the balance line should go down.
 
 ## 8. Publish
 
