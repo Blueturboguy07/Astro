@@ -12,9 +12,17 @@ name: "publik build: Astro with usage counts"
 #                   notarizes (RELEASING.md, "Usage counts")
 #   windows         takes Astro-Setup.exe of the base release, unpacks it, adds
 #                   the launcher, packs the installer again and tests it:
-#                   install, start, app_opened arrives, opt-out, uninstall
+#                   install, start, app_opened arrives one time, --version passes
+#                   through, opt-out, uninstall
 #
 # Everything is uploaded as workflow artifacts. Nothing is published.
+#
+# GitHub disabled Actions on this fork. Until the owner turns them on again, the
+# same jobs run in the private repo Blueturboguy07/astro-telemetry-build. Its
+# workflow is a copy of this file with three differences: it runs on any push and
+# on workflow_dispatch (input `astro_ref`), each checkout reads this repo at
+# `astro_ref`, and the base installer comes from this repo's releases. Change
+# this file first, then make the copy again.
 
 on:
   push:
@@ -303,6 +311,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           for ($i = 0; $i -lt 30 -and -not ((Test-Path $env:MOCK_LOG) -and (Get-Item $env:MOCK_LOG).Length -gt 0); $i++) { Start-Sleep -Seconds 2 }
+          Start-Sleep -Seconds 5  # a second request, if one is on its way, arrives in this time
           $lines = @(Get-Content $env:MOCK_LOG | Where-Object { $_.Trim() })
           if ($lines.Count -lt 1) { throw "FAIL: no request arrived at the local telemetry endpoint" }
           Write-Host "requests: $($lines.Count)"
@@ -323,10 +332,37 @@ jobs:
           if ($body.arch -ne "x64") { $bad += "arch is $($body.arch)" }
           if ($body.install_id -notmatch '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') { $bad += "install_id is not a UUID v4" }
           $opened = @($lines | Where-Object { ($_ | ConvertFrom-Json).body -match '"app_opened"' }).Count
-          if ($opened -ne 1) { Write-Host "::warning::app_opened arrived $opened times: the browser started its server more than one time" }
+          if ($opened -ne 1) { $bad += "app_opened arrived $opened times for one start of the browser" }
           if ($bad.Count) { $bad | ForEach-Object { Write-Host "FAIL: $_" }; throw "the telemetry request does not match the spec" }
           Copy-Item $env:MOCK_LOG work\telemetry-windows.jsonl
           Write-Host "PASS: one app_opened for astro $($body.app_version) on windows/x64"
+
+      - name: A --version call goes to the real server and sends no count
+        run: |
+          $ErrorActionPreference = "Stop"
+          # The browser asks the server for its version at each start (browseros_server_updater.cc).
+          # That call must pass through the launcher as it is. It is not a start of the app.
+          $bin = "$env:ProgramFiles\Astro\$env:CHROMIUM_VERSION\BrowserOSServer\default\resources\bin"
+          $env:PUBLIK_TELEMETRY_URL = $env:MOCK_URL
+          $env:PUBLIK_TELEMETRY_DEBUG = "1"
+          function Get-ServerVersion([string]$exe) {
+            $file = Join-Path $env:RUNNER_TEMP ("version-" + [IO.Path]::GetFileNameWithoutExtension($exe))
+            $p = Start-Process -FilePath $exe -ArgumentList "--version" -RedirectStandardOutput "$file.out" -RedirectStandardError "$file.err" -PassThru
+            $null = $p.Handle  # keeps the exit code readable
+            if (-not $p.WaitForExit(30000)) { $p.Kill(); throw "$exe --version did not end in 30 seconds" }
+            return [pscustomobject]@{ Code = $p.ExitCode; Out = "$(Get-Content "$file.out" -Raw)".Trim(); Err = "$(Get-Content "$file.err" -Raw)".Trim() }
+          }
+          $before = @(Get-Content $env:MOCK_LOG | Where-Object { $_.Trim() }).Count
+          $real = Get-ServerVersion "$bin\browseros_server_real.exe"
+          $through = Get-ServerVersion "$bin\browseros_server.exe"
+          Write-Host "real server:          exit $($real.Code), output '$($real.Out)', error output '$($real.Err)'"
+          Write-Host "through the launcher: exit $($through.Code), output '$($through.Out)', error output '$($through.Err)'"
+          if ($through.Code -ne $real.Code -or $through.Out -ne $real.Out) { throw "FAIL: the launcher changes the answer of --version" }
+          if ($through.Err -match "publik-telemetry") { throw "FAIL: the launcher wrote a usage-count line to the output of --version" }
+          Start-Sleep -Seconds 6
+          $after = @(Get-Content $env:MOCK_LOG | Where-Object { $_.Trim() }).Count
+          if ($after -ne $before) { throw "FAIL: a --version call sent $($after - $before) request(s)" }
+          Write-Host "PASS: --version passes through the launcher (exit $($through.Code), '$($through.Out)') and sends no count"
 
       - name: Stop Astro. The real server stops with the launcher
         run: |

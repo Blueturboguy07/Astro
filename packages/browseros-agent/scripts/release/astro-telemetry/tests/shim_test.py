@@ -4,8 +4,9 @@
 
 It checks that the launcher: becomes the real server (same process ID, same arguments), sends
 app_opened and active_session with the fields of telemetry v1 and no others, sends the publik key
-of the "publik API" connection and never a different key, sends nothing after an opt-out, and
-that the sidecar ends when the server ends.
+of the "publik API" connection and never a different key, sends nothing after an opt-out, that
+the sidecar ends when the server ends, and that a `--version` call goes to the real server with
+no count and no wait.
 """
 import json
 import os
@@ -26,11 +27,13 @@ VERSION = re.search(r'^version = "([^"]+)"', open(MANIFEST).read(), re.M).group(
 OS_NAME = "macos" if sys.platform == "darwin" else "linux"
 PUBLIK_KEY = "pk_test_abcdefghijkl_0123456789abcdef0123456789abcdef"
 OWN_KEY = "sk-own-provider-key-that-must-never-leave"
+FAKE_VERSION = "0.0.127"
 FAKE_SERVER = """#!/bin/sh
+if [ "$1" = "--version" ]; then echo "FAKE_VERSION"; exit 0; fi
 echo "$$" > "$FAKE_OUT/server.pid"
 for arg in "$@"; do printf '%s\\n' "$arg"; done > "$FAKE_OUT/server.args"
 exec sleep 120
-"""
+""".replace("FAKE_VERSION", FAKE_VERSION)
 failures = []
 
 
@@ -57,7 +60,7 @@ def sidecars(server_pid):
 class Run:
     """One launch of the launcher in a fresh folder with a fresh home."""
 
-    def __init__(self, env=None, config=None, real_server=True, args=("--config=/tmp/a b/config.json", "second")):
+    def __init__(self, env=None, config=None, real_server=True, args=("--config=/tmp/a b/config.json", "second"), stdout=subprocess.DEVNULL):
         self.work = tempfile.mkdtemp(prefix="astro-shim-test-")
         self.home = os.path.join(self.work, "home")
         self.bin = os.path.join(self.work, "bin")
@@ -84,7 +87,7 @@ class Run:
         }
         full_env.update(env or {})
         self.args = list(args)
-        self.process = subprocess.Popen([os.path.join(self.bin, "browseros_server")] + self.args, env=full_env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        self.process = subprocess.Popen([os.path.join(self.bin, "browseros_server")] + self.args, env=full_env, stdout=stdout, stderr=subprocess.PIPE)
 
     def read(self, name):
         path = os.path.join(self.work, name)
@@ -175,6 +178,25 @@ run = Run(real_server=False)
 check(wait_for(lambda: run.process.poll() is not None, 10) and run.process.returncode == 1, "without the real server the launcher returns 1")
 check(b"astro-telemetry-shim/1: cannot start" in run.process.stderr.read(), "and it says why")
 check(len(run.endpoint.requests) == 0, "and it sends nothing")
+run.close()
+
+# 6. `--version`: the browser asks the server for its version at each start, and it reads the output
+#    until the last holder of the pipe closes it. The call must go to the real server as it is.
+started = time.time()
+run = Run(args=("--version",), stdout=subprocess.PIPE)
+try:
+    out, err = run.process.communicate(timeout=10)  # ends when the pipes close, not only when the process ends
+except subprocess.TimeoutExpired:
+    run.process.kill()
+    out, err = run.process.communicate()
+elapsed = time.time() - started
+check(run.process.returncode == 0 and out == (FAKE_VERSION + "\n").encode(), "--version: the output and the exit code of the real server pass through: %r" % out)
+check(err == b"", "--version: nothing more is written to the output that the browser reads: %r" % err)
+check(elapsed < 2, "--version: the call ends at once (%.1f s): no sidecar holds the output open" % elapsed)
+check(run.read("server.pid") is None, "--version: the server does not start")
+time.sleep(2)
+check(len(run.endpoint.requests) == 0, "--version: no count is sent (it is not a start of the app)")
+check(not os.path.exists(run.publik_dir()), "--version: no publik folder is made")
 run.close()
 
 print("RESULT: " + ("PASS" if not failures else "FAIL (%d)" % len(failures)), flush=True)

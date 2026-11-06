@@ -14,6 +14,11 @@
 //!
 //! The usage counts are publik telemetry v1 (publik_telemetry.rs): `app_opened` one time, then
 //! `active_session` every 30 minutes. No content is sent. Turn it off with DO_NOT_TRACK=1.
+//!
+//! The browser calls this file name in two ways. `--config=<file>` starts the server: one time for
+//! each start of the browser. `--version` only asks the server for its version (the browser does
+//! that at each start, too). Only a start of the server sends counts. Each other call goes to the
+//! real server with no count and no sidecar: same output, same exit code, no wait.
 //! Docs: https://publikhq.com/skills/telemetry.md
 
 mod publik_telemetry;
@@ -35,6 +40,15 @@ const REAL_SERVER: &str = if cfg!(windows) { "browseros_server_real.exe" } else 
 fn real_server() -> PathBuf {
     let launcher = std::env::current_exe().ok().or_else(|| std::env::args_os().next().map(PathBuf::from));
     launcher.unwrap_or_default().with_file_name(REAL_SERVER)
+}
+
+/// True when the browser starts the local server (`--config=<file>`). False for a short question
+/// such as `--version`: that is not a start of the app, so it sends no count.
+fn starts_the_server(args: &[OsString]) -> bool {
+    args.iter().any(|arg| {
+        let arg = arg.to_string_lossy();
+        arg == "--config" || arg.starts_with("--config=")
+    })
 }
 
 fn cannot_start(real: &std::path::Path, error: &std::io::Error) -> ! {
@@ -92,7 +106,7 @@ fn main() {
     let args: Vec<OsString> = args.collect();
     let real = real_server();
     // A sidecar that does not start must not stop the server: the result is ignored.
-    if let (true, Ok(launcher)) = (real.is_file(), std::env::current_exe()) {
+    if let (true, true, Ok(launcher)) = (starts_the_server(&args), real.is_file(), std::env::current_exe()) {
         let mut sidecar = Command::new(launcher);
         sidecar.arg(SIDECAR).arg(std::process::id().to_string()).current_dir("/").stdin(Stdio::null()).stdout(Stdio::null());
         let _ = sidecar.spawn();
@@ -114,7 +128,9 @@ fn main() {
         Err(error) => cannot_start(&real, &error),
     };
     stop_with_this_process(server.as_raw_handle() as *mut core::ffi::c_void);
-    publik_telemetry::start(SLUG, VERSION, Some(Box::new(publik_key)));
+    if starts_the_server(&args) {
+        publik_telemetry::start(SLUG, VERSION, Some(Box::new(publik_key)));
+    }
     let code = server.wait().ok().and_then(|status| status.code()).unwrap_or(1);
     std::process::exit(code)
 }

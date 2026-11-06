@@ -132,7 +132,9 @@ name of the local server
 (`…/BrowserOSServer/default/resources/bin/browseros_server`); the real server
 moves to `browseros_server_real` next to it, byte for byte unchanged. The
 launcher starts the counts and runs the real server (`src/main.rs` says how on
-each platform).
+each platform). Only a start of the server (`--config=<file>`) sends counts.
+The browser also calls the same file with `--version` at each start; that call
+goes to the real server with no count.
 
 The counts are in a launcher, and not in the server, on purpose: the bundled
 server is not rebuilt per release. The one in the bundle keeps chats in
@@ -144,7 +146,9 @@ carries upstream's server, which is not built here at all.
 goes out as `app_version`. For every release: bump it, push, and run the
 `publik-build.yml` workflow. That builds the launcher for macOS (artifact
 `astro-telemetry-shim-macos-arm64`) and builds and tests the Windows installer
-with the launcher in it.
+with the launcher in it. While GitHub Actions are off on this fork, run the
+copy of that workflow in the private repo `Blueturboguy07/astro-telemetry-build`
+(`gh workflow run publik-build.yml -R Blueturboguy07/astro-telemetry-build -f astro_ref=<commit>`).
 
 A re-cut from a previous Astro bundle already carries a launcher, with the
 previous version inside. Replace it and stamp the version after §4 and before
