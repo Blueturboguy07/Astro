@@ -1,0 +1,422 @@
+name: "publik build: Astro with usage counts"
+
+# Builds the files of an Astro release that carries the publik usage counts
+# (telemetry v1), WITHOUT compiling Chromium and without a release.
+#
+# Astro is a re-cut of a prebuilt browser. The only native code that is built
+# here is the launcher in packages/browseros-agent/scripts/release/astro-telemetry.
+#
+#   launcher-check  builds the launcher on Linux and runs its end-to-end test
+#   macos           builds the launcher for Apple silicon (unsigned). The Mac that
+#                   holds the Developer ID puts it into Astro.app, signs and
+#                   notarizes (RELEASING.md, "Usage counts")
+#   windows         takes Astro-Setup.exe of the base release, unpacks it, adds
+#                   the launcher, packs the installer again and tests it:
+#                   install, start, app_opened arrives, opt-out, uninstall
+#
+# Everything is uploaded as workflow artifacts. Nothing is published.
+
+on:
+  push:
+    branches:
+      - "telemetry/**"
+  workflow_dispatch:
+    inputs:
+      base_tag:
+        description: "Astro release whose Astro-Setup.exe is the base of the Windows installer"
+        required: false
+        type: string
+        default: "v0.2.1"
+
+concurrency:
+  group: publik-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SHIM_DIR: packages/browseros-agent/scripts/release/astro-telemetry
+  RELEASE_DIR: packages/browseros-agent/scripts/release
+  BASE_TAG: ${{ inputs.base_tag || 'v0.2.1' }}
+
+jobs:
+  launcher-check:
+    name: Launcher test (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github
+            packages/browseros-agent/scripts/release
+
+      - name: Build the launcher
+        run: cargo build --release --locked --manifest-path "$SHIM_DIR/Cargo.toml"
+
+      - name: End-to-end test with a fake server
+        run: python3 "$SHIM_DIR/tests/shim_test.py" "$SHIM_DIR/target/release/astro-telemetry-shim"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.6"
+
+      - name: Install-script tests
+        run: bun test "./$RELEASE_DIR/astro-telemetry-shim.test.ts"
+
+  macos:
+    name: Launcher for macOS (arm64, unsigned)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github
+            packages/browseros-agent/scripts/release
+
+      - name: Build the launcher
+        run: |
+          rustup target add aarch64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin --manifest-path "$SHIM_DIR/Cargo.toml"
+          BIN="$SHIM_DIR/target/aarch64-apple-darwin/release/astro-telemetry-shim"
+          test "$(lipo -archs "$BIN")" = "arm64"
+          grep -q "astro-telemetry-shim/1" "$BIN"
+          ls -l "$BIN"
+          shasum -a 256 "$BIN"
+
+      - name: End-to-end test with a fake server
+        if: runner.arch == 'ARM64'
+        run: python3 "$SHIM_DIR/tests/shim_test.py" "$SHIM_DIR/target/aarch64-apple-darwin/release/astro-telemetry-shim"
+
+      - name: Pack (tar keeps the executable bit)
+        run: tar -czf astro-telemetry-shim-macos-arm64.tar.gz -C "$SHIM_DIR/target/aarch64-apple-darwin/release" astro-telemetry-shim
+
+      - name: Upload the launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: astro-telemetry-shim-macos-arm64
+          path: astro-telemetry-shim-macos-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Windows installer (x64, unsigned)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github
+            packages/browseros-agent/scripts/release
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.6"
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Build the launcher
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo build --release --locked --manifest-path "$env:SHIM_DIR/Cargo.toml"
+          if ($LASTEXITCODE -ne 0) { throw "cargo build failed ($LASTEXITCODE)" }
+          $shim = (Resolve-Path "$env:SHIM_DIR/target/release/astro-telemetry-shim.exe").Path
+          $version = (Select-String -Path "$env:SHIM_DIR/Cargo.toml" -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
+          "SHIM_EXE=$shim" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "launcher: {0:N0} bytes, sha256 {1}, Astro version {2}" -f (Get-Item $shim).Length, (Get-FileHash $shim -Algorithm SHA256).Hash, $version | Write-Host
+
+      - name: Download the base installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path work | Out-Null
+          gh release download "$env:BASE_TAG" -R "$env:GITHUB_REPOSITORY" -p "Astro-Setup.exe" -D work
+          if ($LASTEXITCODE -ne 0) { throw "could not download Astro-Setup.exe of $env:BASE_TAG" }
+          "base {0}: {1:N0} bytes, sha256 {2}" -f $env:BASE_TAG, (Get-Item work\Astro-Setup.exe).Length, (Get-FileHash work\Astro-Setup.exe -Algorithm SHA256).Hash | Write-Host
+
+      - name: Unpack the base installer
+        run: |
+          $ErrorActionPreference = "Stop"
+          $sevenZip = "C:\Program Files\7-Zip\7z.exe"
+          if (-not (Test-Path $sevenZip)) { $sevenZip = "7z" }
+          & $sevenZip x work\Astro-Setup.exe "-owork\tree" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7z failed ($LASTEXITCODE)" }
+          Remove-Item work\Astro-Setup.exe -Force
+          # 7-Zip also unpacks the installer's own helper files. They are not part of the app.
+          Remove-Item -Recurse -Force -LiteralPath 'work\tree\$PLUGINSDIR' -ErrorAction SilentlyContinue
+          Remove-Item -Force -LiteralPath 'work\tree\Uninstall.exe' -ErrorAction SilentlyContinue
+          $odd = Get-ChildItem work\tree -Force | Where-Object { $_.Name.StartsWith('$') }
+          if ($odd) { throw "unexpected installer entries: $($odd.Name -join ', ')" }
+          $tree = (Resolve-Path work\tree).Path
+          if (-not (Test-Path "$tree\chrome.exe")) { throw "chrome.exe not found in the unpacked tree" }
+          $versionDir = Get-ChildItem $tree -Directory | Where-Object { $_.Name -match '^\d+(\.\d+){1,3}$' }
+          if (@($versionDir).Count -ne 1) { throw "expected one versioned dir, found: $($versionDir.Name -join ', ')" }
+          $manifest = Get-Content "$($versionDir.FullName)\browseros_extensions\bundled_extensions.json" -Raw | ConvertFrom-Json
+          $extVersion = $manifest.kofbmbngmnnpmopgbhpbajhnnnoflolg.external_version
+          if (-not $extVersion) { throw "no Astro agent in bundled_extensions.json" }
+          "TREE=$tree" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CHROMIUM_VERSION=$($versionDir.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "EXT_VERSION=$extVersion" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # The hash of each base file: after the install each file must be the same.
+          $hashes = @{}
+          Get-ChildItem $tree -Recurse -File | ForEach-Object { $hashes[$_.FullName.Substring($tree.Length + 1)] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
+          $hashes | ConvertTo-Json | Out-File work\base-hashes.json -Encoding utf8
+          Write-Host "base tree: $($hashes.Count) files, Chromium $($versionDir.Name), agent $extVersion"
+
+      - name: Add the launcher
+        run: |
+          $ErrorActionPreference = "Stop"
+          bun "$env:RELEASE_DIR/astro-telemetry-shim.ts" --tree "$env:TREE" --shim "$env:SHIM_EXE"
+          if ($LASTEXITCODE -ne 0) { throw "astro-telemetry-shim.ts failed ($LASTEXITCODE)" }
+
+      - name: Pack the installer (NSIS)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) { $makensis = "makensis" }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $out = Join-Path (Resolve-Path dist).Path "Astro-Setup.exe"
+          & $makensis /V2 "/DSRCDIR=$env:TREE" "/DOUTFILE=$out" "/DVERSION=$env:EXT_VERSION" "$env:RELEASE_DIR/astro-win.nsi"
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed ($LASTEXITCODE)" }
+          "SETUP_EXE=$out" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "installer: {0:N0} bytes, sha256 {1}" -f (Get-Item $out).Length, (Get-FileHash $out -Algorithm SHA256).Hash | Write-Host
+
+      # ---------------- TEST: install -> compare -> run -> opt-out -> uninstall ----------------
+
+      - name: Silent install
+        run: |
+          $ErrorActionPreference = "Stop"
+          $p = Start-Process -FilePath "$env:SETUP_EXE" -ArgumentList "/S" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          $exe = "$env:ProgramFiles\Astro\chrome.exe"
+          if (-not (Test-Path $exe)) { throw "chrome.exe not installed at $exe" }
+          if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk")) { throw "Start-menu shortcut missing" }
+          if (-not (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro")) { throw "Add/Remove Programs entry missing" }
+          "ASTRO_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Installed files = base files + the launcher
+        run: |
+          $ErrorActionPreference = "Stop"
+          $inst = "$env:ProgramFiles\Astro"
+          $base = Get-Content work\base-hashes.json -Raw | ConvertFrom-Json -AsHashtable
+          $now = @{}
+          Get-ChildItem $inst -Recurse -File | ForEach-Object { $now[$_.FullName.Substring($inst.Length + 1)] = (Get-FileHash $_.FullName -Algorithm SHA256).Hash }
+          $bin = "$env:CHROMIUM_VERSION\BrowserOSServer\default\resources\bin"
+          $server = "$bin\browseros_server.exe"
+          $real = "$bin\browseros_server_real.exe"
+          $bad = @()
+          foreach ($file in $base.Keys) {
+            if ($file -eq $server) { continue }
+            if (-not $now.ContainsKey($file)) { $bad += "missing: $file" }
+            elseif ($now[$file] -ne $base[$file]) { $bad += "changed: $file" }
+          }
+          $realBefore = if ($base.ContainsKey($real)) { $base[$real] } else { $base[$server] }
+          if ($now[$real] -ne $realBefore) { $bad += "the real server is not the server of the base release" }
+          if ($now[$server] -ne (Get-FileHash $env:SHIM_EXE -Algorithm SHA256).Hash) { $bad += "browseros_server.exe is not the launcher" }
+          foreach ($file in $now.Keys) {
+            if (-not $base.ContainsKey($file) -and $file -ne $real -and $file -ne "Uninstall.exe") { $bad += "extra: $file" }
+          }
+          if ($bad.Count) { $bad | ForEach-Object { Write-Host "FAIL: $_" }; throw "the installed tree differs from the base release" }
+          Write-Host "PASS: $($now.Count) installed files. All $($base.Count) base files are byte-identical; the real server is the base server ($realBefore); new: the launcher and Uninstall.exe"
+
+      - name: Start Astro with a local telemetry endpoint
+        run: |
+          $ErrorActionPreference = "Stop"
+          $port = Join-Path $env:RUNNER_TEMP "mock.port"
+          $log = Join-Path $env:RUNNER_TEMP "requests.jsonl"
+          Remove-Item $port, $log -ErrorAction SilentlyContinue
+          $mock = Start-Process python -ArgumentList "`"$env:SHIM_DIR\tests\mock_endpoint.py`"", "`"$port`"", "`"$log`"" -PassThru -WindowStyle Hidden
+          for ($i = 0; $i -lt 50 -and -not (Test-Path $port); $i++) { Start-Sleep -Milliseconds 200 }
+          if (-not (Test-Path $port)) { throw "the mock endpoint did not start" }
+          $url = "http://127.0.0.1:$((Get-Content $port -Raw).Trim())/api/v1/telemetry"
+          "MOCK_PID=$($mock.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "MOCK_URL=$url" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "MOCK_LOG=$log" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          # The browser gives its environment to the server it starts.
+          $env:PUBLIK_TELEMETRY_URL = $url
+          $env:PUBLIK_TELEMETRY_DEBUG = "1"
+          $profile = Join-Path $env:RUNNER_TEMP "astro-profile"
+          Remove-Item -Recurse -Force $profile -ErrorAction SilentlyContinue
+          # No --remote-debugging-port: the browser runs its own managed ports
+          # (see release-windows-astro.yml).
+          $proc = Start-Process -FilePath "$env:ASTRO_EXE" -ArgumentList "--user-data-dir=$profile", "--no-first-run", "--no-default-browser-check", "--disable-sync" -PassThru
+          "ASTRO_PID=$($proc.Id)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "ASTRO_PROFILE=$profile" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $cfgPath = Join-Path $profile ".browseros\config.json"
+          $cfg = $null
+          for ($i = 0; $i -lt 60; $i++) {
+            if (Test-Path $cfgPath) {
+              try { $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json } catch { }
+              if ($cfg.ports.cdp -and $cfg.ports.server) { break }
+            }
+            Start-Sleep -Seconds 2
+          }
+          if (-not ($cfg.ports.cdp -and $cfg.ports.server)) { throw "managed ports never written to $cfgPath" }
+          "ASTRO_SERVER=$($cfg.ports.server)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "managed cdp=$($cfg.ports.cdp) server=$($cfg.ports.server)"
+
+      - name: The local server answers /health through the launcher
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:$env:ASTRO_SERVER/health" -TimeoutSec 4 -UseBasicParsing
+              if ($r.StatusCode -eq 200) { Write-Host "PASS: /health 200 on port $env:ASTRO_SERVER -> $($r.Content)"; $ok = $true; break }
+            } catch { }
+            Start-Sleep -Seconds 3
+          }
+          if (-not $ok) { throw "local server /health did not answer on managed port $env:ASTRO_SERVER" }
+          $procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -in @("browseros_server.exe", "browseros_server_real.exe") }
+          $procs | ForEach-Object { Write-Host ("{0,-28} pid {1,-6} parent {2}" -f $_.Name, $_.ProcessId, $_.ParentProcessId) }
+          $shim = @($procs | Where-Object { $_.Name -eq "browseros_server.exe" })
+          $real = @($procs | Where-Object { $_.Name -eq "browseros_server_real.exe" })
+          if ($shim.Count -lt 1 -or $real.Count -lt 1) { throw "expected the launcher and the real server to run" }
+          if (-not ($real | Where-Object { $_.ParentProcessId -in $shim.ProcessId })) { throw "the real server is not a child of the launcher" }
+          Write-Host "PASS: the launcher runs the real server"
+
+      - name: The extension is installed (as in the base release)
+        run: |
+          $ErrorActionPreference = "Stop"
+          $astroId = "kofbmbngmnnpmopgbhpbajhnnnoflolg"
+          $extDir = Join-Path $env:ASTRO_PROFILE "Default\Extensions"
+          for ($i = 0; $i -lt 30 -and -not (Test-Path (Join-Path $extDir $astroId)); $i++) { Start-Sleep -Seconds 2 }
+          if (-not (Test-Path (Join-Path $extDir $astroId))) { throw "Astro extension not installed under $extDir" }
+          Write-Host "PASS: Astro agent extension installed"
+
+      - name: app_opened arrived
+        run: |
+          $ErrorActionPreference = "Stop"
+          for ($i = 0; $i -lt 30 -and -not ((Test-Path $env:MOCK_LOG) -and (Get-Item $env:MOCK_LOG).Length -gt 0); $i++) { Start-Sleep -Seconds 2 }
+          $lines = @(Get-Content $env:MOCK_LOG | Where-Object { $_.Trim() })
+          if ($lines.Count -lt 1) { throw "FAIL: no request arrived at the local telemetry endpoint" }
+          Write-Host "requests: $($lines.Count)"
+          $lines | ForEach-Object { Write-Host $_ }
+          $request = $lines[0] | ConvertFrom-Json
+          $body = $request.body | ConvertFrom-Json
+          $fields = ($body.PSObject.Properties.Name | Sort-Object) -join ","
+          $bad = @()
+          if ($request.method -ne "POST" -or $request.path -ne "/api/v1/telemetry") { $bad += "not POST /api/v1/telemetry" }
+          if ($request.headers.PSObject.Properties.Name -contains "origin") { $bad += "an Origin header was sent" }
+          if ($request.headers.PSObject.Properties.Name -contains "authorization") { $bad += "an Authorization header was sent on a signed-out computer" }
+          if ($fields -ne "app,app_version,arch,event,install_id,os,v") { $bad += "fields are $fields" }
+          if ($body.v -ne 1) { $bad += "v is $($body.v)" }
+          if ($body.app -ne "astro") { $bad += "app is $($body.app)" }
+          if ($body.event -ne "app_opened") { $bad += "event is $($body.event)" }
+          if ($body.app_version -ne $env:APP_VERSION) { $bad += "app_version is $($body.app_version), expected $env:APP_VERSION" }
+          if ($body.os -ne "windows") { $bad += "os is $($body.os)" }
+          if ($body.arch -ne "x64") { $bad += "arch is $($body.arch)" }
+          if ($body.install_id -notmatch '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$') { $bad += "install_id is not a UUID v4" }
+          $opened = @($lines | Where-Object { ($_ | ConvertFrom-Json).body -match '"app_opened"' }).Count
+          if ($opened -ne 1) { Write-Host "::warning::app_opened arrived $opened times: the browser started its server more than one time" }
+          if ($bad.Count) { $bad | ForEach-Object { Write-Host "FAIL: $_" }; throw "the telemetry request does not match the spec" }
+          Copy-Item $env:MOCK_LOG work\telemetry-windows.jsonl
+          Write-Host "PASS: one app_opened for astro $($body.app_version) on windows/x64"
+
+      - name: Stop Astro. The real server stops with the launcher
+        run: |
+          $ErrorActionPreference = "Stop"
+          $names = @("browseros_server.exe", "browseros_server_real.exe")
+          # 1. Close the window: the browser then stops its server by itself.
+          $browser = Get-Process -Id $env:ASTRO_PID -ErrorAction SilentlyContinue
+          if ($browser) { $null = $browser.CloseMainWindow() }
+          for ($i = 0; $i -lt 15 -and (Get-Process chrome -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Seconds 2 }
+          $left = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -in $names })
+          Write-Host "after a normal close: chrome running = $([bool](Get-Process chrome -ErrorAction SilentlyContinue)); server processes left = $($left.Count)"
+          # 2. Whatever is left: stop the browser hard, then stop only the launcher.
+          Get-Process chrome, chrome_proxy -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          Get-Process browseros_server -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          $gone = $false
+          for ($i = 0; $i -lt 10; $i++) {
+            if (-not (Get-CimInstance Win32_Process | Where-Object { $_.Name -in $names })) { $gone = $true; break }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $gone) {
+            Get-Process browseros_server_real -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            throw "FAIL: the real server still runs 10 seconds after the launcher stopped"
+          }
+          Write-Host "PASS: no launcher and no real server is left"
+
+      - name: Opt-out. With DO_NOT_TRACK=1 nothing is sent
+        run: |
+          $ErrorActionPreference = "Stop"
+          $before = @(Get-Content $env:MOCK_LOG | Where-Object { $_.Trim() }).Count
+          $env:PUBLIK_TELEMETRY_URL = $env:MOCK_URL
+          $env:PUBLIK_TELEMETRY_DEBUG = "1"
+          $env:DO_NOT_TRACK = "1"
+          $profile = Join-Path $env:RUNNER_TEMP "astro-profile-optout"
+          Remove-Item -Recurse -Force $profile -ErrorAction SilentlyContinue
+          $proc = Start-Process -FilePath "$env:ASTRO_EXE" -ArgumentList "--user-data-dir=$profile", "--no-first-run", "--no-default-browser-check", "--disable-sync" -PassThru
+          $cfgPath = Join-Path $profile ".browseros\config.json"
+          $cfg = $null
+          for ($i = 0; $i -lt 60; $i++) {
+            if (Test-Path $cfgPath) {
+              try { $cfg = Get-Content $cfgPath -Raw | ConvertFrom-Json } catch { }
+              if ($cfg.ports.server) { break }
+            }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $cfg.ports.server) { throw "managed ports never written to $cfgPath" }
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            try { if ((Invoke-WebRequest -Uri "http://127.0.0.1:$($cfg.ports.server)/health" -TimeoutSec 4 -UseBasicParsing).StatusCode -eq 200) { $ok = $true; break } } catch { }
+            Start-Sleep -Seconds 3
+          }
+          if (-not $ok) { throw "local server /health did not answer in the opt-out run" }
+          Start-Sleep -Seconds 15
+          $after = @(Get-Content $env:MOCK_LOG | Where-Object { $_.Trim() }).Count
+          Get-Process chrome, chrome_proxy, browseros_server -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 3
+          if ($after -ne $before) { throw "FAIL: $($after - $before) request(s) arrived with DO_NOT_TRACK=1" }
+          Write-Host "PASS: the server ran and no request arrived with DO_NOT_TRACK=1"
+
+      - name: Stop everything
+        if: always()
+        run: |
+          Get-Process chrome, chrome_proxy, browseros_server, browseros_server_real -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          if ($env:MOCK_PID) { Stop-Process -Id $env:MOCK_PID -Force -ErrorAction SilentlyContinue }
+          Start-Sleep -Seconds 3
+
+      - name: Silent uninstall + assert removal
+        run: |
+          $ErrorActionPreference = "Stop"
+          $reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro"
+          $quiet = (Get-ItemProperty $reg -ErrorAction SilentlyContinue).QuietUninstallString
+          if (-not $quiet) { throw "no QuietUninstallString" }
+          cmd /c $quiet
+          $gone = $false
+          for ($i = 0; $i -lt 30; $i++) {
+            if (-not (Test-Path "$env:ProgramFiles\Astro\chrome.exe")) { $gone = $true; break }
+            Start-Sleep -Seconds 2
+          }
+          if (-not $gone) { throw "FAIL: files remain after uninstall (waited 60s)" }
+          if (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk") { throw "FAIL: shortcut remains" }
+          if (Test-Path $reg) { throw "FAIL: ARP entry remains" }
+          Write-Host "PASS: uninstall left nothing behind"
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: astro-windows-x64
+          path: |
+            dist/Astro-Setup.exe
+            work/telemetry-windows.jsonl
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
