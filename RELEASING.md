@@ -168,6 +168,24 @@ helpers and the real server keep the signatures they carry. On Windows,
 `release-windows-astro.yml` builds the launcher and adds it to the tree before
 the re-cut.
 
+One file in a bundle that comes from upstream carries upstream's Developer ID,
+not ours: `…/BrowserOSServer/default/resources/bin/third_party/bun`. Apple
+accepts that (0.2.1 shipped it), but the publik release check wants every
+Mach-O in the app signed by our team. From 0.2.2 on the file carries our
+signature, so a re-cut from an Astro bundle of 0.2.2 or later needs nothing. A
+re-cut from a fresh upstream bundle must sign the file again, with the
+identifier and the entitlements it has, **before** the `--sign` step above
+(that step seals the app; a nested file that changes after the seal does not
+start):
+
+```bash
+BUN="dist/astro-recut/Astro.app/Contents/Resources/BrowserOSServer/default/resources/bin/third_party/bun"
+codesign -d --entitlements - --xml "$BUN" > /tmp/bun-entitlements.plist
+codesign --force --timestamp --options runtime \
+  --identifier com.browseros.BrowserOS.bun --entitlements /tmp/bun-entitlements.plist \
+  --sign "Developer ID Application: Mann Bellani (R5R3ZS54LV)" "$BUN"
+```
+
 ## 5. Sparkle — the trap this fixes
 
 The shipped v0.1.0 still carries `SUEnableAutomaticChecks = 1`, **upstream's**
