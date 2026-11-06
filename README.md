@@ -84,6 +84,17 @@ In short:
    ```
 5. **Add a model** in Settings. Search already works without one.
 
+## Usage counts
+
+The downloads above send two anonymous usage counts to publik: `app_opened`
+when Astro starts and `active_session` every 30 minutes while it runs. Each
+holds the app name, its version, the operating system, the CPU type and a
+random install ID. When publik API is connected, the count also carries your
+publik key, so it is tied to your publik account. No pages, prompts, file names
+or other content are sent. Turn it off with `DO_NOT_TRACK=1` (or
+`PUBLIK_TELEMETRY=0`) in the environment. A build from source sends nothing.
+Details: https://publikhq.com/skills/telemetry.md
+
 ## What is not built
 
 Stated plainly, because the navigation shows more than the code does:

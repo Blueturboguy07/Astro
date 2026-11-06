@@ -1,0 +1,22 @@
+# The launcher at the path of Astro's local server. It sends the publik usage counts.
+# Read src/main.rs first. This crate stands alone: it is not a member of the agent workspace.
+[package]
+name = "astro-telemetry-shim"
+# The Astro release version. It goes out as `app_version`. Change it for each Astro release.
+version = "0.2.2"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+publish = false
+description = "Launcher for Astro's local server that sends publik usage counts (telemetry v1)"
+
+[dependencies]
+serde_json = "1"
+ureq = "2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+[workspace]

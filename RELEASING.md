@@ -122,6 +122,48 @@ What it does, in order, failing loudly rather than shipping something wrong:
 
 Add `--dry-run` to see the plan without touching anything.
 
+## 4b. Usage counts — the launcher
+
+A release sends the publik usage counts (telemetry v1: `app_opened` and
+`active_session`, https://publikhq.com/skills/telemetry.md). Nothing in a
+re-cut is compiled, so the counts come from a small Rust launcher,
+`packages/browseros-agent/scripts/release/astro-telemetry`. It takes the file
+name of the local server
+(`…/BrowserOSServer/default/resources/bin/browseros_server`); the real server
+moves to `browseros_server_real` next to it, byte for byte unchanged. The
+launcher starts the counts and runs the real server (`src/main.rs` says how on
+each platform).
+
+The counts are in a launcher, and not in the server, on purpose: the bundled
+server is not rebuilt per release. The one in the bundle keeps chats in
+`~/.browseros/simplicity/db.sqlite`; a server built from this tree uses
+`simplicity.db` and would start every user with an empty history. Windows
+carries upstream's server, which is not built here at all.
+
+`version` in `astro-telemetry/Cargo.toml` **is the Astro release version** — it
+goes out as `app_version`. For every release: bump it, push, and run the
+`publik-build.yml` workflow. That builds the launcher for macOS (artifact
+`astro-telemetry-shim-macos-arm64`) and builds and tests the Windows installer
+with the launcher in it.
+
+A re-cut from a previous Astro bundle already carries a launcher, with the
+previous version inside. Replace it and stamp the version after §4 and before
+§6:
+
+```bash
+bun scripts/release/astro-telemetry-shim.ts \
+  --app dist/astro-recut/Astro.app \
+  --shim <astro-telemetry-shim from the artifact> \
+  --app-version 0.2.2 --sign
+```
+
+`--app-version` writes `CFBundleShortVersionString` (what Finder shows);
+`CFBundleVersion` stays the prebuilt browser's. `--sign` signs the launcher and
+re-seals the app with the entitlements it already has; the framework, the
+helpers and the real server keep the signatures they carry. On Windows,
+`release-windows-astro.yml` builds the launcher and adds it to the tree before
+the re-cut.
+
 ## 5. Sparkle — the trap this fixes
 
 The shipped v0.1.0 still carries `SUEnableAutomaticChecks = 1`, **upstream's**
