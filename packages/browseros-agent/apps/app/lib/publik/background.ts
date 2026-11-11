@@ -68,24 +68,34 @@ const ui: GateUI = {
 
 /* The gate is the first page at browser start: when a screen needs the
    person and no app tab is open, open one. Never re-focus an existing one:
-   the sign-in page the person just opened must keep the focus. */
+   the sign-in page the person just opened must keep the focus.
+
+   The first start of a fresh profile opens Chrome's own new-tab page before
+   the bundled extension is installed, so the new-tab override (app.html) has
+   not applied to that tab and it shows the stock page. That tab is navigated
+   to the gate, not left beside a second one. */
 async function ensureGateTab(): Promise<void> {
   if (tabEnsured) return
   tabEnsured = true
   try {
     const app = chrome.runtime.getURL('app.html')
+    const url = `${app}#/home`
     const tabs = await chrome.tabs.query({})
     if (
-      tabs.some(
-        (t) =>
-          t.url?.startsWith(app) ||
-          t.pendingUrl?.startsWith(app) ||
-          t.url?.startsWith('chrome://newtab'),
-      )
+      tabs.some((t) => t.url?.startsWith(app) || t.pendingUrl?.startsWith(app))
     ) {
       return
     }
-    await chrome.tabs.create({ url: `${app}#/home`, active: true })
+    const stockNewTab = tabs.find(
+      (t) =>
+        t.url?.startsWith('chrome://newtab') ||
+        t.pendingUrl?.startsWith('chrome://newtab'),
+    )
+    if (stockNewTab?.id !== undefined) {
+      await chrome.tabs.update(stockNewTab.id, { url, active: true })
+      return
+    }
+    await chrome.tabs.create({ url, active: true })
   } catch {
     /* No tabs API here: the next page the person opens shows the gate. */
   }
