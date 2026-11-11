@@ -1,6 +1,6 @@
 'use client'
 
-import { noteChatError } from '@/lib/publik/wallet'
+import { note402 } from '@/lib/publik/publik'
 import { randomHex } from '@/lib/simplicity/random-id'
 import {
   createContext,
@@ -648,9 +648,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       if (data.type === 'error') {
         /* A publik API 402 is a money message, not a bug: remember it so
            the chat's publik banner can show the gateway's own sentence
-           with the one link its body carried (CONTRACT §1, §12.3).
-           Anything else is ignored by noteChatError. */
-        void noteChatError(data.data)
+           with its one link. Anything else is ignored by note402. */
+        void note402(data.data)
         toast.error(data.data)
         setLoading(false)
         setResearchEnded(true)
@@ -909,7 +908,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
        spinner forever waiting for stream events that will never arrive. */
     if (!res.ok) {
       const body = await res.json().catch(() => null)
-      void noteChatError(body?.message)
+      void note402(body?.message)
       toast.error(body?.message ?? 'That request failed. Try again.')
       setLoading(false)
       setMessages((prev) => prev.filter((msg) => msg.messageId !== messageId))

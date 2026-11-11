@@ -144,3 +144,14 @@ The normal loop is `snapshot -> click/fill/press_key -> screenshot`. Element IDs
 ## When in doubt, read a sibling
 
 Most features are a vertical slice you can copy. The AI settings slice is the GraphQL template end to end: `entrypoints/app/ai-settings/graphql/aiSettingsDocument.ts` (documents) -> consumed via `lib/graphql` hooks in `ai-settings/BrowserOsAiPane.tsx` -> `ai-settings/NewProviderDialog.tsx` (the `zod` + shadcn `Form` dialog). For the REST lane plus optimistic mutations, `entrypoints/app/agents/useAgents.ts` is the worked example.
+
+## publik API
+- Base URL: https://publikhq.com/api/v1 (OpenAI Chat Completions, Responses, Anthropic Messages)
+- Models: publik-fast, publik-balanced, publik-smart only; never a vendor model name
+- Sign in with publik: the publik module's gate (`lib/publik/publik.ts`, run by `lib/publik/background.ts` in the service worker) runs at browser start, before the first screen; every page stays on `screens/simplicity/Publik/PublikGate.tsx` until the person is signed in; the module also sends usage telemetry (`app_opened`, `active_session`) with the install key
+- Key: per-install `pk_` from POST /installs, in extension storage (`local:publik-credential`), written by the background only; the chosen provider lands in the two provider stores through `lib/publik/providers.ts`
+- App token: `VITE_PUBLIK_APP_TOKEN` at build time (`lib/env.ts`); never committed, never printed
+- 402: show error.message plus error.top_up_url only (`note402`, `PublikMoneyBanner`)
+- Never print or log a key
+- Self-test: `app.html#/publik/self-test` prints `publik self-test: ok astro <version>` (RELEASING.md §4b)
+- Docs: https://publikhq.com/llms.txt, https://publikhq.com/developers, https://publikhq.com/skills/api.md

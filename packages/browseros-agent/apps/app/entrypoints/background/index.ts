@@ -26,6 +26,7 @@ import { onServerMessage } from '@/lib/messaging/server/serverMessages'
 import { onOpenSidePanelWithSearch } from '@/lib/messaging/sidepanel/openSidepanelWithSearch'
 import { authRedirectPathStorage } from '@/lib/onboarding/onboardingStorage'
 import { syncOnboardingProfile } from '@/lib/onboarding/syncOnboardingProfile'
+import { startPublik } from '@/lib/publik/background'
 import {
   setupScheduledJobsSyncToBackend,
   syncScheduledJobs,
@@ -50,6 +51,10 @@ const cleanupLegacyToolApprovalStorage = async () => {
 }
 
 export default defineBackground(() => {
+  /* Sign in with publik: the gate runs here, before any page is usable.
+     Every page shows the gate screen until it says "done". */
+  startPublik()
+
   registerSidePanelOpenStateListeners()
   ensureSidePanelRuntimeStateLoaded().catch(() => null)
 

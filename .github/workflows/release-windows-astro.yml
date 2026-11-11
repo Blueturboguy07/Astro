@@ -93,19 +93,8 @@ jobs:
           Write-Host "Chrome-bin at $($chromeBin.FullName)"
           Get-ChildItem $chromeBin.FullName | Select-Object Name | Format-Table
 
-      - name: Add the usage-count launcher
-        run: |
-          $ErrorActionPreference = "Stop"
-          # The publik usage counts (telemetry v1) come from a small launcher at
-          # the path of the local server. See RELEASING.md, "Usage counts".
-          $dir = "packages/browseros-agent/scripts/release/astro-telemetry"
-          cargo build --release --locked --manifest-path "$dir/Cargo.toml"
-          if ($LASTEXITCODE -ne 0) { throw "cargo build failed ($LASTEXITCODE)" }
-          bun packages/browseros-agent/scripts/release/astro-telemetry-shim.ts `
-            --tree "$env:CHROME_BIN" `
-            --shim "$dir/target/release/astro-telemetry-shim.exe"
-          if ($LASTEXITCODE -ne 0) { throw "astro-telemetry-shim.ts failed ($LASTEXITCODE)" }
-
+      # Sign in with publik and the usage counts ride in the agent CRX below
+      # (RELEASING.md §4b). Nothing else is added to the tree for them.
       - name: Download Astro agent CRX
         env:
           CRX_URL: ${{ inputs.agent_crx_url }}
