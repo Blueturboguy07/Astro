@@ -86,14 +86,13 @@ In short:
 
 ## Usage counts
 
-The downloads above send two anonymous usage counts to publik: `app_opened`
-when Astro starts and `active_session` every 30 minutes while it runs. Each
-holds the app name, its version, the operating system, the CPU type and a
-random install ID. When publik API is connected, the count also carries your
-publik key, so it is tied to your publik account. No pages, prompts, file names
-or other content are sent. Turn it off with `DO_NOT_TRACK=1` (or
-`PUBLIK_TELEMETRY=0`) in the environment. A build from source sends nothing.
-Details: https://publikhq.com/skills/telemetry.md
+Astro opens with Sign in with publik. After the sign-in it sends two small
+usage counts to publik: `app_opened` when Astro starts and `active_session`
+every 30 minutes while it runs. Each holds the app name, its version, the
+operating system, the CPU type, a random install ID and the publik key of this
+install, so publik counts you once, by your account. No pages, prompts, file
+names or other content are sent. Turn it off in Settings → Models → publik API
+("Count me as a user of Astro"). Details: https://publikhq.com/skills/telemetry.md
 
 ## What is not built
 

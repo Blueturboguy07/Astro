@@ -57,9 +57,10 @@ Commit the bump: `external_version` in the bundle is read from this.
 ## 2. Build the agent with the publik app token baked in
 
 The packaged build carries a **public** app token so a fresh install can mint
-its own `pk_live_` key on first run (CONTRACT §3.2, §7). Without the token every
-publik surface hides itself, which is exactly what you want in dev and source
-builds — so this variable is what separates a packaged Astro from a checkout.
+its own `pk_live_` key at the gate (`POST /installs`). Without the token the
+gate cannot get past "This build has no publik app token. Ask the developer
+for a new build." — there is no way past Sign in with publik by design, so a
+dev checkout sets `VITE_PUBLIK_APP_TOKEN` in `.env.development` too.
 
 ```bash
 cd packages/browseros-agent
@@ -122,51 +123,50 @@ What it does, in order, failing loudly rather than shipping something wrong:
 
 Add `--dry-run` to see the plan without touching anything.
 
-## 4b. Usage counts — the launcher
+## 4b. Sign in with publik, usage counts and the self-test — the publik module
 
-A release sends the publik usage counts (telemetry v1: `app_opened` and
-`active_session`, https://publikhq.com/skills/telemetry.md). Nothing in a
-re-cut is compiled, so the counts come from a small Rust launcher,
-`packages/browseros-agent/scripts/release/astro-telemetry`. It takes the file
-name of the local server
-(`…/BrowserOSServer/default/resources/bin/browseros_server`); the real server
-moves to `browseros_server_real` next to it, byte for byte unchanged. The
-launcher starts the counts and runs the real server (`src/main.rs` says how on
-each platform). Only a start of the server (`--config=<file>`) sends counts.
-The browser also calls the same file with `--version` at each start; that call
-goes to the real server with no count.
+Every app on publik opens with Sign in with publik, and the same module counts
+users (https://publikhq.com/skills/setup.md). In Astro that module is the
+extension's `apps/app/lib/publik/publik.ts`, copied from
+https://publikhq.com/sdk/publik.ts.md and adapted to a service worker:
 
-The counts are in a launcher, and not in the server, on purpose: the bundled
-server is not rebuilt per release. The one in the bundle keeps chats in
-`~/.browseros/simplicity/db.sqlite`; a server built from this tree uses
-`simplicity.db` and would start every user with an empty history. Windows
-carries upstream's server, which is not built here at all.
+- `lib/publik/background.ts` runs the gate at browser start. The background
+  owns the install key (`local:publik-credential`); it alone calls
+  `POST /installs`, `GET /wallet` and `POST /telemetry`.
+- Every page (`app.html`, the side panel) stays on the gate page
+  (`screens/simplicity/Publik/PublikGate.tsx`) until the person is signed in:
+  **Sign in with publik**; then **Get a plan** or **Connect your plan**, and
+  **Use my own key**. There is no way past the sign-in screen.
+- After the gate the module sends `app_opened` once per browser session and
+  `active_session` every 30 minutes (a `chrome.alarms` alarm), with the install
+  key (`Authorization: Bearer pk_…`), so a signed-in person is counted once.
+  `app_version` is the CRX version from `apps/app/package.json`.
+- The choice (publik plan or own key) lands in the two provider stores through
+  `lib/publik/providers.ts`; the person's own connections are never touched.
 
-`version` in `astro-telemetry/Cargo.toml` **is the Astro release version** — it
-goes out as `app_version`. For every release: bump it, push, and run the
-`publik-build.yml` workflow. That builds the launcher for macOS (artifact
-`astro-telemetry-shim-macos-arm64`) and builds and tests the Windows installer
-with the launcher in it. While GitHub Actions are off on this fork, run the
-copy of that workflow in the private repo `Blueturboguy07/astro-telemetry-build`
-(`gh workflow run publik-build.yml -R Blueturboguy07/astro-telemetry-build -f astro_ref=<commit>`).
+Nothing is added to the bundle for this: the CRX of §3 carries it. The old
+server-path launcher (`astro-telemetry`) is gone; do not add it back, or one
+computer counts twice.
 
-A re-cut from a previous Astro bundle already carries a launcher, with the
-previous version inside. Replace it and stamp the version after §4 and before
-§6:
+**The self-test** (setup.md step 6). An extension cannot read
+`PUBLIK_SELF_TEST=1`, so the switch is a URL. On the built app, with a fresh
+profile:
 
 ```bash
-bun scripts/release/astro-telemetry-shim.ts \
-  --app dist/astro-recut/Astro.app \
-  --shim <astro-telemetry-shim from the artifact> \
-  --app-version 0.2.2 --sign
+APP=dist/astro-recut/Astro.app
+PROFILE=$(mktemp -d)
+"$APP/Contents/MacOS/Astro" --user-data-dir="$PROFILE" --no-first-run \
+  --enable-logging=stderr --v=0 \
+  "chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg/app.html#/publik/self-test" \
+  2>&1 | grep -m1 -o 'publik self-test: [^"]*'
 ```
 
-`--app-version` writes `CFBundleShortVersionString` (what Finder shows);
-`CFBundleVersion` stays the prebuilt browser's. `--sign` signs the launcher and
-re-seals the app with the entitlements it already has; the framework, the
-helpers and the real server keep the signatures they carry. On Windows,
-`release-windows-astro.yml` builds the launcher and adds it to the tree before
-the re-cut.
+Expect `publik self-test: ok astro <CRX version>`. The page prints the same line
+in the tab and in the tab title; quit Astro after you read it. The module
+prints `ok` only after a real `POST /installs` and `GET /wallet` with this
+build's app token, so the line proves the gate is on the start-up path of that
+build. `publik self-test: failed: <message>` names what to fix. On Windows use
+`--enable-logging --v=0` and read `chrome_debug.log` in the profile folder.
 
 One file in a bundle that comes from upstream carries upstream's Developer ID,
 not ours: `…/BrowserOSServer/default/resources/bin/third_party/bun`. Apple
@@ -174,9 +174,8 @@ accepts that (0.2.1 shipped it), but the publik release check wants every
 Mach-O in the app signed by our team. From 0.2.2 on the file carries our
 signature, so a re-cut from an Astro bundle of 0.2.2 or later needs nothing. A
 re-cut from a fresh upstream bundle must sign the file again, with the
-identifier and the entitlements it has, **before** the `--sign` step above
-(that step seals the app; a nested file that changes after the seal does not
-start):
+identifier and the entitlements it has, **before** the bundle is sealed (the
+`--sign` of §4; a nested file that changes after the seal does not start):
 
 ```bash
 BUN="dist/astro-recut/Astro.app/Contents/Resources/BrowserOSServer/default/resources/bin/third_party/bun"
@@ -257,22 +256,27 @@ strings -a "$FW" | grep -c 'bflpfmnmnokmjhmgnolecpppdbdophmk'  # must be 0
 
 Then a real launch on a clean profile:
 
-1. Move the app to `/Applications`, launch it, and let it reach the answer
-   engine. A fresh install has no connection, so the chat shows the publik card.
-2. **Continue with publik API** → the card should show
-   **$0.00 · link this computer for $0.05 of free use**, the one-sentence
-   justification, and **Link this computer & pick a plan**. A new computer
-   starts at $0.00 (publik migration 0059). Nothing may be spent before that
-   card has been seen.
-3. Settings → Models shows the same card; the model picker offers
-   *publik Balanced / Fast / Smart*.
-4. Ask one question while the computer is not linked. It must not answer:
-   expect the gateway's "Your publik balance is too low for this request."
-   message with one link to publikhq.com, never a silent success.
-5. Open **Link this computer & pick a plan**, sign in and link the computer.
-   An account that never had it gets its one $0.05 of free use. Back in
-   Astro the balance line should read **$0.05 of usage available**, the same
-   question should now answer, and the balance line should go down.
+1. Run the self-test of §4b first. It must print `publik self-test: ok astro
+   <version>`.
+2. Move the app to `/Applications` and launch it. The first page is **Sign in
+   with publik**: the title, the sentence "This app uses your publik account.
+   Click Sign in with publik, then sign in in your browser. This window
+   continues when you are signed in." and one button. Nothing else of Astro is
+   reachable (a new tab, the side panel: the same page).
+3. Click **Sign in with publik**: the browser opens the publik sign-in page in
+   a new tab; the gate shows "Waiting for you to sign in in your browser."
+   Sign in there. Within 3 seconds the gate moves on by itself.
+4. An account with no plan sees **Choose how to pay for AI** with **Get a
+   plan** and **Use my own key**; an account with a plan or a balance sees
+   **Connect your plan** with **Connect your plan** and **Use my own key**.
+   Press **Connect your plan**: the chat opens, the model picker offers
+   *publik Balanced / Fast / Smart*, and one question answers.
+5. Settings → Models shows the publik card: signed in as @you, the plan or the
+   balance, the choice, **Use my own key** / **Connect your plan** / **Ask
+   again at next start**, and the usage-count switch. Press **Use my own key**:
+   the publik connection leaves the list and your own connections stay.
+6. Quit and start Astro again: no gate (the choice is stored), and a second
+   `app_opened` on your publik dashboard's weekly users.
 
 ## 8. Publish
 

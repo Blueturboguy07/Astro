@@ -2,7 +2,7 @@
   "name": "@browseros/app",
   "description": "Astro \u2014 an open-source, privacy-first AI browser.",
   "private": true,
-  "version": "0.0.102",
+  "version": "0.0.103",
   "type": "module",
   "scripts": {
     "dev": "test -d generated/graphql || bun run codegen; bun --env-file=../../.env.development wxt",

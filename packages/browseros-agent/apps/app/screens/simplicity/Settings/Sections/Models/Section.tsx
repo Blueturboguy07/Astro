@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { isPublikServerProvider } from '@/lib/publik/provision'
-import { usePublikStatus } from '@/lib/publik/status'
+import { isPublikServerProvider } from '@/lib/publik/providers'
 import type {
   ConfigModelProvider,
   ModelProviderUISection,
@@ -21,16 +20,12 @@ const Models = ({
   values: ConfigModelProvider[]
 }) => {
   const [providers, setProviders] = useState<ConfigModelProvider[]>(values)
-  const publik = usePublikStatus()
 
-  /* The publik connection is managed by its own card (balance, the plan
-     button for as long as the install is anonymous, CONTRACT §12.2), not
-     by the generic key/base-URL form — whose labels name the dialect's
-     vendor, which the copy rule forbids on this connection. */
-  const ownProviders = publik.status.available
-    ? providers.filter((p) => !isPublikServerProvider(p))
-    : providers
-  const showEmptyState = !publik.status.available
+  /* The publik connection is managed by its own card (the account, the
+     choice between the plan and the person's own key), not by the generic
+     key/base-URL form — whose labels name the dialect's vendor, which the
+     copy rule forbids on this connection. */
+  const ownProviders = providers.filter((p) => !isPublikServerProvider(p))
 
   return (
     <div className="flex-1 space-y-6 overflow-y-auto py-6">
@@ -41,19 +36,10 @@ const Models = ({
         <AddProvider modelProviders={fields} setProviders={setProviders} />
       </div>
       <div className="flex flex-col gap-y-4 px-6">
-        {publik.status.available && (
-          <PublikCard
-            publik={publik}
-            onProvisioned={() => {
-              /* The list came from /api/config before the mint; the next
-                 open of Settings re-reads it. */
-            }}
-          />
-        )}
+        <PublikCard />
         {ownProviders.length === 0 ? (
-          /* With publik API present the card above is the connection, so
-             "No connections yet" would be wrong. */
-          showEmptyState && (
+          /* The card above is the publik connection; this box is about the
+             person's own. */
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-light-200 border-dashed bg-light-secondary/10 px-4 py-12 dark:border-dark-200 dark:bg-dark-secondary/10">
               <div className="mb-3 rounded-full bg-sky-500/10 p-3 dark:bg-sky-500/10">
                 <svg
@@ -72,14 +58,13 @@ const Models = ({
                 </svg>
               </div>
               <p className="mb-1 font-medium text-black/70 text-sm dark:text-white/70">
-                No connections yet
+                No connections of your own yet
               </p>
               <p className="mb-4 max-w-sm text-center text-black/50 text-xs dark:text-white/50">
-                Add your first connection to start using AI models. Connect to
-                OpenAI, Anthropic, Ollama, and more.
+                Add your own key to use OpenAI, Anthropic, Ollama, and more
+                next to publik API.
               </p>
             </div>
-          )
         ) : (
           ownProviders.map((provider) => (
             <ModelProvider

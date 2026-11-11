@@ -51,9 +51,10 @@ function buildSchema() {
       .string()
       .optional()
       .transform(parseAstroApiUrl),
-    /* publik API (lib/publik): the public app token the packaged build
-       carries so a fresh install can mint its own key. Absent in dev and
-       source builds, where every publik surface hides itself. */
+    /* The publik module (lib/publik/publik.ts): the public app token the
+       packaged build carries so a fresh install can mint its own key at the
+       gate. Without it the gate cannot get past "This build has no publik
+       app token", so a dev checkout sets it in .env.development. */
     VITE_PUBLIK_APP_TOKEN: z.string().optional().transform(parsePublikToken),
     VITE_PUBLIK_API_BASE_URL: z
       .string()
