@@ -34,7 +34,7 @@ import {
   getMessageNormalizationOptions,
   normalizeMessagesForModel,
 } from './message-normalization'
-import { buildNudgeToolSet } from './nudge-tools'
+import { buildNudgeToolSet, nudgeStopConditions } from './nudge-tools'
 import { buildSystemPrompt } from './prompt'
 import { createLanguageModel } from './provider-factory'
 import { streamIdleTimeoutMiddleware } from './stream-idle-timeout'
@@ -402,7 +402,7 @@ export class AiSdkAgent {
       model,
       instructions,
       tools,
-      stopWhen: [stepCountIs(AGENT_LIMITS.MAX_TURNS)],
+      stopWhen: [stepCountIs(AGENT_LIMITS.MAX_TURNS), ...nudgeStopConditions()],
       prepareStep,
       ...(isChatGPTPro && {
         providerOptions: {

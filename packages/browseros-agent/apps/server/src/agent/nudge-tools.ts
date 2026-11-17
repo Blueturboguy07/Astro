@@ -1,4 +1,4 @@
-import { type ToolSet, tool } from 'ai'
+import { hasToolCall, type StopCondition, type ToolSet, tool } from 'ai'
 import { z } from 'zod'
 import { getConnectorCatalog } from '../api/services/klavis'
 
@@ -15,6 +15,16 @@ function sentinel(payload: Record<string, unknown>) {
     content: [{ type: 'text' as const, text }],
     isError: false,
   }
+}
+
+/* Tools that wait for the person. The turn ends at the step that calls
+   one, so the model cannot say "now connected" and call the app's tools
+   before the click (Astro 0.2.4 QA, F-085: the prompt alone did not stop
+   it). */
+export const BLOCKING_NUDGE_TOOLS = ['suggest_app_connection'] as const
+
+export function nudgeStopConditions(): StopCondition<ToolSet>[] {
+  return BLOCKING_NUDGE_TOOLS.map((name) => hasToolCall(name))
 }
 
 export function buildNudgeToolSet(): ToolSet {
