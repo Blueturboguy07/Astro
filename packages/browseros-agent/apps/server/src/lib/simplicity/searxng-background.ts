@@ -5,8 +5,9 @@
  * for it inside the request.
  *
  * Returns the search URL when search runs. Otherwise it starts the setup in
- * the background at most once per server process (a failed setup is not
- * retried from here; a question retries it) and returns null at once.
+ * the background at most once per server process and returns null at
+ * once. A failed setup is never retried by itself, only by the Retry button
+ * (F-002).
  */
 export function makeSearxngURLWithoutWaiting(deps: {
   configuredURL: () => string;

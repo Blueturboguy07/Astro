@@ -36,9 +36,12 @@ const USER_AGENT = 'BrowserOS'
 const PIP_TIMEOUT_MS = 10 * 60_000
 const TAR_TIMEOUT_MS = 5 * 60_000
 const DOWNLOAD_TIMEOUT_MS = 15 * 60_000
-/* A failed setup is not retried by every search of the same answer (and of
-   the discover page): the next attempt waits this long. */
-const FAILURE_COOLDOWN_MS = 60_000
+/* A failed setup is never retried by itself: each attempt on a machine
+   where macOS blocks the downloaded Python put one more "python3.12 Not
+   Opened" dialog on the person's screen (about 200 in the QA run, F-002).
+   The failure is kept in this file, across server restarts, until the
+   person presses Retry. */
+const FAILURE_FILE = '.setup-failed.json'
 /* Another server with the same data dir (a second profile) holds the lock
    while it sets up; a lock older than this is from a process that died. */
 const LOCK_STALE_MS = 20 * 60_000
@@ -364,6 +367,62 @@ export async function clearQuarantine(dir: string): Promise<void> {
   }
 }
 
+/** The first file under `dir` that still has com.apple.quarantine, or null. */
+export function findQuarantined(
+  dir: string,
+  timeoutMs = 60_000,
+): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    let out = ''
+    const child = spawn(
+      '/usr/bin/find',
+      [dir, '-xattrname', 'com.apple.quarantine', '-print', '-quit'],
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    )
+    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs)
+    child.stdout?.on('data', (d) => {
+      out += String(d)
+    })
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (code !== 0) {
+        reject(new Error(`could not check ${dir} for the macOS download flag`))
+        return
+      }
+      const first = out.split('\n')[0]?.trim()
+      resolve(first ? first : null)
+    })
+  })
+}
+
+/**
+ * The gate before Astro runs anything it downloaded: clears the macOS
+ * quarantine flag on the whole tree, then checks that no file still has it.
+ * If one does, nothing runs: macOS would block it and show the person a
+ * "python3.12 Not Opened" dialog (F-002).
+ */
+export async function ensureNoQuarantine(
+  dir: string,
+  deps: {
+    platform?: NodeJS.Platform
+    clear?: (dir: string) => Promise<void>
+    find?: (dir: string) => Promise<string | null>
+  } = {},
+): Promise<void> {
+  if ((deps.platform ?? process.platform) !== 'darwin') return
+  await (deps.clear ?? clearQuarantine)(dir)
+  const left = await (deps.find ?? findQuarantined)(dir)
+  if (left) {
+    throw new Error(
+      `macOS still marks ${path.relative(dir, left) || left} as downloaded, so Astro did not run it`,
+    )
+  }
+}
+
 /* Skipped when unpacking the SearXNG repo — and ONLY the SearXNG repo. Its
    deployment scripting (utils/, container/) contains a symlink, and Windows
    tar.exe can't create symlinks without admin rights, which kills the whole
@@ -522,7 +581,7 @@ async function provision(
     )
     await clearQuarantine(tgz)
     await extract(tgz, p.python)
-    await clearQuarantine(p.python)
+    await ensureNoQuarantine(p.root)
     await runProcess(pythonBin(p), ['-c', 'import ssl, sqlite3'], {
       timeoutMs: 60_000,
     })
@@ -541,6 +600,7 @@ async function provision(
 
   const py = pythonBin(p)
   settingUp('dependencies')
+  await ensureNoQuarantine(p.root)
   logger.info('Installing search dependencies')
   /* Same two-step upstream's Dockerfile uses: seed the build deps, then install
      SearXNG itself editable so it keeps its templates and static assets. */
@@ -560,7 +620,7 @@ async function provision(
     ],
     { env: pipEnv(), timeoutMs: PIP_TIMEOUT_MS },
   )
-  await clearQuarantine(p.python)
+  await ensureNoQuarantine(p.root)
   await runProcess(
     py,
     [
@@ -574,7 +634,7 @@ async function provision(
     ],
     { env: pipEnv(), timeoutMs: PIP_TIMEOUT_MS },
   )
-  await clearQuarantine(p.root)
+  await ensureNoQuarantine(p.root)
 
   writeSettings(p)
   fs.writeFileSync(p.marker, new Date().toISOString())
@@ -635,51 +695,79 @@ async function withSetupLock<T>(
 }
 
 /**
- * Wraps an async job so concurrent callers share one run, and a failure is
- * returned again (without a new run) for `cooldownMs`. The first search of an
- * answer fires several queries plus the image and video searches at once;
- * each used to start its own setup, and each deleted the tree the others
- * were downloading and executing.
+ * Wraps an async job so concurrent callers share one run. A failure is
+ * returned again, without a new run, until `reset()` (the Retry button).
+ * The first search of an answer fires several queries plus the image and
+ * video searches at once; each used to start its own setup, and each
+ * deleted the tree the others were downloading and executing.
  */
 export function singleFlight<T>(
   job: () => Promise<T>,
-  opts: { cooldownMs: number; now?: () => number },
-): () => Promise<T> {
-  const now = opts.now ?? Date.now
+): (() => Promise<T>) & { reset: () => void } {
   let running: Promise<T> | null = null
-  let failure: { err: Error; at: number } | null = null
-  return () => {
+  let failure: Error | null = null
+  const run = () => {
     if (running) return running
-    if (failure && now() - failure.at < opts.cooldownMs) {
-      return Promise.reject(failure.err)
-    }
+    if (failure) return Promise.reject(failure)
     running = job()
-      .then((v) => {
-        failure = null
-        return v
-      })
       .catch((err: unknown) => {
-        failure = {
-          err: err instanceof Error ? err : new Error(String(err)),
-          at: now(),
-        }
-        throw failure.err
+        failure = err instanceof Error ? err : new Error(String(err))
+        throw failure
       })
       .finally(() => {
         running = null
       })
     return running
   }
+  return Object.assign(run, {
+    reset: () => {
+      failure = null
+    },
+  })
+}
+
+function failureFile(dataDir: string): string {
+  return path.join(paths(dataDir).root, FAILURE_FILE)
+}
+
+function readFailure(dataDir: string): string | null {
+  try {
+    const v = JSON.parse(fs.readFileSync(failureFile(dataDir), 'utf8')) as {
+      message?: string
+    }
+    return v.message || 'the last setup failed'
+  } catch {
+    return null
+  }
+}
+
+function writeFailure(dataDir: string, message: string): void {
+  try {
+    fs.mkdirSync(paths(dataDir).root, { recursive: true })
+    fs.writeFileSync(
+      failureFile(dataDir),
+      JSON.stringify({ message, at: new Date().toISOString() }),
+    )
+  } catch {}
 }
 
 async function startOnce(dataDir: string): Promise<string> {
   if (runningURL && (await isServing(runningURL))) return runningURL
+
+  const earlier = readFailure(dataDir)
+  if (earlier) {
+    setStatus({ state: 'failed', message: earlier, at: Date.now() })
+    throw new Error(`Web search is not available: ${earlier}`)
+  }
 
   try {
     const p = isProvisioned(dataDir)
       ? paths(dataDir)
       : await withSetupLock(paths(dataDir), () => provision(dataDir))
     if (!fs.existsSync(p.settings)) writeSettings(p)
+    /* Also for a tree an older build installed: never exec a quarantined
+       Python. */
+    await ensureNoQuarantine(p.root)
 
     settingUp('starting')
     const port = await freePort()
@@ -717,25 +805,38 @@ async function startOnce(dataDir: string): Promise<string> {
     setStatus({ state: 'ready', url })
     return url
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    let message = err instanceof Error ? err.message : String(err)
+    if (/SIGKILL/.test(message)) {
+      message = `${message.replace(/\.$/, '')}. macOS may have blocked the downloaded Python`
+    }
     logger.warn('Local search setup failed', { error: message })
+    writeFailure(dataDir, message)
     setStatus({ state: 'failed', message, at: Date.now() })
     throw new Error(`Web search is not available: ${message}`)
   }
 }
 
-const flights = new Map<string, () => Promise<string>>()
+const flights = new Map<string, ReturnType<typeof singleFlight<string>>>()
 
 /** Starts SearXNG and returns its loopback URL. Provisions first if needed. One run at a time per data dir. */
 export function start(dataDir: string = getBrowserosDir()): Promise<string> {
   let flight = flights.get(dataDir)
   if (!flight) {
-    flight = singleFlight(() => startOnce(dataDir), {
-      cooldownMs: FAILURE_COOLDOWN_MS,
-    })
+    flight = singleFlight(() => startOnce(dataDir))
     flights.set(dataDir, flight)
   }
   return flight()
+}
+
+/**
+ * The Retry button: forgets the failed setup and starts one new attempt in
+ * the background. Never called by Astro itself.
+ */
+export function retrySearchSetup(dataDir: string = getBrowserosDir()): void {
+  fs.rmSync(failureFile(dataDir), { force: true })
+  flights.get(dataDir)?.reset()
+  if (status.state === 'failed') setStatus({ state: 'idle' })
+  start(dataDir).catch(() => undefined)
 }
 
 /** Returns the URL of the running instance, or null when not started. */

@@ -46,8 +46,18 @@ export const ensureWebSearchReady = async (
   let shown = false;
   let lastAt = 0;
 
-  const show = (level: NoticeResearchBlock['level'], text: string) => {
-    const step: NoticeResearchBlock = { id, type: 'notice', level, text };
+  const show = (
+    level: NoticeResearchBlock['level'],
+    text: string,
+    action?: NoticeResearchBlock['action'],
+  ) => {
+    const step: NoticeResearchBlock = {
+      id,
+      type: 'notice',
+      level,
+      text,
+      ...(action && { action }),
+    };
     const steps = researchBlock.data.subSteps;
     const i = steps.findIndex((s) => s.id === id);
     if (i === -1) steps.push(step);
@@ -82,13 +92,13 @@ export const ensureWebSearchReady = async (
   } catch (err) {
     const message =
       err instanceof Error ? err.message : 'Web search is not available.';
-    const text = `${message.replace(/\.$/, '')}. This answer uses no web sources.`;
+    const text = `${message.replace(/\.$/, '')}. This answer uses no web sources. Astro does not retry the setup by itself: press Retry to try once more.`;
     /* Later searches of the same answer fail fast with the same error: one
        error step is enough. */
     const already = researchBlock.data.subSteps.some(
       (s) => s.type === 'notice' && s.level === 'error' && s.text === text,
     );
-    if (!already) show('error', text);
+    if (!already) show('error', text, 'retry-search-setup');
     else if (shown) {
       const steps = researchBlock.data.subSteps;
       researchBlock.data.subSteps = steps.filter((s) => s.id !== id);

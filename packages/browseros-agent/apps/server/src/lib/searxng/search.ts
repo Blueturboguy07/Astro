@@ -53,9 +53,17 @@ export async function resolveSearxngURL(
 ): Promise<string> {
   const configured = (deps.configured ?? getSearxngURL)().trim()
   if (configured) return configured.replace(/\/+$/, '')
-  return (
-    (deps.running ?? getRunningURL)() ?? (await (deps.startLocal ?? start)())
-  )
+  const running = (deps.running ?? getRunningURL)()
+  if (running) return running
+  try {
+    return await (deps.startLocal ?? start)()
+  } catch (err) {
+    /* The setup is never retried by itself (F-002); say where to retry. */
+    const message = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `${message.replace(/\.$/, '')}. Retry the setup with the Retry button under a web answer on the Astro home page.`,
+    )
+  }
 }
 
 export async function searchSearxng(

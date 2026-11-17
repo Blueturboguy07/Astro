@@ -23,41 +23,36 @@ import type { ResearchBlock } from '../../../src/lib/simplicity/types'
 describe('singleFlight', () => {
   it('runs one job for many concurrent callers', async () => {
     let runs = 0
-    const go = singleFlight(
-      async () => {
-        runs++
-        await new Promise((r) => setTimeout(r, 20))
-        return 'url'
-      },
-      { cooldownMs: 60_000 },
-    )
+    const go = singleFlight(async () => {
+      runs++
+      await new Promise((r) => setTimeout(r, 20))
+      return 'url'
+    })
     const all = await Promise.all([go(), go(), go(), go(), go()])
     expect(all).toEqual(['url', 'url', 'url', 'url', 'url'])
     expect(runs).toBe(1)
   })
 
-  it('returns a failure again during the cooldown without a new run', async () => {
+  /* F-002: each automatic retry put one more Gatekeeper dialog on the
+     person's screen. A failure stays until Retry (reset). */
+  it('never runs again after a failure until reset', async () => {
     let runs = 0
-    let t = 0
-    const go = singleFlight(
-      async () => {
-        runs++
-        throw new Error('the download failed')
-      },
-      { cooldownMs: 60_000, now: () => t },
-    )
+    const go = singleFlight(async () => {
+      runs++
+      throw new Error('the download failed')
+    })
     await expect(go()).rejects.toThrow('the download failed')
-    t = 30_000
+    await expect(go()).rejects.toThrow('the download failed')
     await expect(go()).rejects.toThrow('the download failed')
     expect(runs).toBe(1)
-    t = 61_000
+    go.reset()
     await expect(go()).rejects.toThrow('the download failed')
     expect(runs).toBe(2)
   })
 
   it('runs again after a success when called later', async () => {
     let runs = 0
-    const go = singleFlight(async () => ++runs, { cooldownMs: 60_000 })
+    const go = singleFlight(async () => ++runs)
     expect(await go()).toBe(1)
     expect(await go()).toBe(2)
   })
@@ -214,7 +209,8 @@ describe('ensureWebSearchReady', () => {
     )
     expect(errors).toHaveLength(1)
     expect(errors[0]).toMatchObject({
-      text: 'Web search is not available: python3 -m pip install was stopped by the system (SIGKILL). This answer uses no web sources.',
+      text: 'Web search is not available: python3 -m pip install was stopped by the system (SIGKILL). This answer uses no web sources. Astro does not retry the setup by itself: press Retry to try once more.',
+      action: 'retry-search-setup',
     })
   })
 })

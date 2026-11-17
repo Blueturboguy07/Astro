@@ -13,6 +13,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
+import RetrySearchSetup from './RetrySearchSetup'
 import type {
   Chunk,
   ResearchBlock,
@@ -279,9 +280,12 @@ const AssistantSteps = ({
             className="-mt-1 flex items-start gap-2 px-3 pb-3"
           >
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
-            <span className="text-amber-700 text-sm dark:text-amber-400">
-              {e.text}
-            </span>
+            <div className="flex flex-col items-start gap-1.5">
+              <span className="text-amber-700 text-sm dark:text-amber-400">
+                {e.text}
+              </span>
+              {e.action === 'retry-search-setup' && <RetrySearchSetup />}
+            </div>
           </div>
         ))}
 

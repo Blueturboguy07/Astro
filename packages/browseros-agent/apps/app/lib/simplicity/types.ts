@@ -107,6 +107,8 @@ export type NoticeResearchBlock = {
   type: 'notice'
   level: 'info' | 'error'
   text: string
+  /* The failed one-time setup: the UI offers a Retry button (F-002). */
+  action?: 'retry-search-setup'
 }
 
 export type ResearchBlockSubStep =

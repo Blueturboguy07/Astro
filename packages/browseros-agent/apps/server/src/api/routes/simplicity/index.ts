@@ -27,6 +27,7 @@ import * as providerModels from './providers/[id]/models/route'
 import * as providers from './providers/route'
 import * as reconnect from './reconnect/[id]/route'
 import * as search from './search/route'
+import * as searchSetupRetry from './search-setup/retry/route'
 import * as suggestions from './suggestions/route'
 import * as uploads from './uploads/route'
 import * as videos from './videos/route'
@@ -81,6 +82,7 @@ export function createSimplicityRoutes(): Hono {
   app.post('/reconnect/:id', adapt(reconnect.POST as Handler, ['id']))
 
   app.post('/search', adapt(search.POST as Handler))
+  app.post('/search-setup/retry', adapt(searchSetupRetry.POST as Handler))
   app.post('/suggestions', adapt(suggestions.POST as Handler))
   app.get('/discover', adapt(discover.GET as Handler))
   app.post('/images', adapt(images.POST as Handler))
