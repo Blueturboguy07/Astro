@@ -10,6 +10,50 @@ import Scraper from '../../../../../scraper';
 import { splitText } from '../../../../../utils/splitText';
 import { ensureWebSearchReady } from './webSearchSetup';
 
+type SearchHit = Awaited<ReturnType<typeof searchSearxng>>['results'][number];
+
+const unranked = (hits: SearchHit[]): Chunk[] =>
+  hits.map((r) => ({
+    content: r.content || r.title,
+    metadata: { title: r.title, url: r.url, similarity: 1, embedding: [] },
+  }));
+
+/* Ranks one query's hits by embedding similarity and drops the weak ones.
+   Without an embedding provider (the publik default) the registry hands out
+   NullEmbedding, whose zero vectors give similarity 0 for every hit: the
+   `> 0.5` cut then dropped every web result and each answer said "Found 0
+   results" (Astro 0.2.4 QA, F-002). A query vector with no signal now keeps
+   the engine order, like an embedding failure always did. */
+export const scoreResults = async (
+  query: string,
+  hits: SearchHit[],
+  embedding: BaseEmbedding<any>,
+): Promise<Chunk[]> => {
+  try {
+    const queryEmbedding = (await embedding.embedText([query]))[0];
+    if (!queryEmbedding?.some((v) => v !== 0)) return unranked(hits);
+
+    const scored = await Promise.all(
+      hits.map(async (r) => {
+        const content = r.content || r.title;
+        const chunkEmbedding = (await embedding.embedText([content]))[0];
+        return {
+          content,
+          metadata: {
+            title: r.title,
+            url: r.url,
+            similarity: computeSimilarity(queryEmbedding, chunkEmbedding),
+            embedding: chunkEmbedding,
+          },
+        };
+      }),
+    );
+    return scored.filter((c) => c.metadata.similarity > 0.5);
+  } catch {
+    return unranked(hits);
+  }
+};
+
 export const executeSearch = async (input: {
   queries: string[];
   mode: SearchAgentConfig['mode'];
@@ -59,48 +103,8 @@ export const executeSearch = async (input: {
         return;
       }
 
-      let resultChunks: Chunk[] = [];
-
-      try {
-        const queryEmbedding = (await input.embedding.embedText([q]))[0];
-
-        resultChunks = (
-          await Promise.all(
-            res.results.map(async (r) => {
-              const content = r.content || r.title;
-              const chunkEmbedding = (
-                await input.embedding.embedText([content])
-              )[0];
-
-              return {
-                content,
-                metadata: {
-                  title: r.title,
-                  url: r.url,
-                  similarity: computeSimilarity(queryEmbedding, chunkEmbedding),
-                  embedding: chunkEmbedding,
-                },
-              };
-            }),
-          )
-        ).filter((c) => c.metadata.similarity > 0.5);
-      } catch (err) {
-        resultChunks = res.results.map((r) => {
-          const content = r.content || r.title;
-
-          return {
-            content,
-            metadata: {
-              title: r.title,
-              url: r.url,
-              similarity: 1,
-              embedding: [],
-            },
-          };
-        });
-      } finally {
-        results.push(...resultChunks);
-      }
+      const resultChunks = await scoreResults(q, res.results, input.embedding);
+      results.push(...resultChunks);
 
       if (!searchResultsEmitted) {
         searchResultsEmitted = true;
