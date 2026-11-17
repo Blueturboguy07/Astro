@@ -1,3 +1,4 @@
+import { ndjsonWriter } from '../../ndjson-writer';
 import SessionManager from '../../../../../lib/simplicity/session';
 
 export const POST = async (
@@ -13,67 +14,36 @@ export const POST = async (
       return Response.json({ message: 'Session not found' }, { status: 404 });
     }
 
-    const responseStream = new TransformStream();
-    const writer = responseStream.writable.getWriter();
-    const encoder = new TextEncoder();
+    const responseStream = new TransformStream<Uint8Array, Uint8Array>();
+    const out = ndjsonWriter(responseStream.writable);
 
     const disconnect = session.subscribe((event, data) => {
       if (event === 'data') {
         if (data.type === 'block') {
-          writer.write(
-            encoder.encode(
-              JSON.stringify({
-                type: 'block',
-                block: data.block,
-              }) + '\n',
-            ),
-          );
+          out.write({ type: 'block', block: data.block });
         } else if (data.type === 'updateBlock') {
-          writer.write(
-            encoder.encode(
-              JSON.stringify({
-                type: 'updateBlock',
-                blockId: data.blockId,
-                patch: data.patch,
-              }) + '\n',
-            ),
-          );
+          out.write({
+            type: 'updateBlock',
+            blockId: data.blockId,
+            patch: data.patch,
+          });
         } else if (data.type === 'researchComplete') {
-          writer.write(
-            encoder.encode(
-              JSON.stringify({
-                type: 'researchComplete',
-              }) + '\n',
-            ),
-          );
+          out.write({ type: 'researchComplete' });
         }
       } else if (event === 'end') {
-        writer.write(
-          encoder.encode(
-            JSON.stringify({
-              type: 'messageEnd',
-            }) + '\n',
-          ),
-        );
-        writer.close();
+        out.write({ type: 'messageEnd' });
+        out.close();
         disconnect();
       } else if (event === 'error') {
-        writer.write(
-          encoder.encode(
-            JSON.stringify({
-              type: 'error',
-              data: data.data,
-            }) + '\n',
-          ),
-        );
-        writer.close();
+        out.write({ type: 'error', data: data.data });
+        out.close();
         disconnect();
       }
     });
 
     req.signal.addEventListener('abort', () => {
       disconnect();
-      writer.close();
+      out.close();
     });
 
     return new Response(responseStream.readable, {

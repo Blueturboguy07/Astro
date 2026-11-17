@@ -20,6 +20,7 @@ import { EXIT_CODES } from '@browseros/shared/constants/exit-codes'
 import { CommanderError } from 'commander'
 import { loadServerConfig } from './config'
 import { isPortInUseError } from './lib/port-binding'
+import { installRejectionGuard } from './lib/rejection-guard'
 import { Sentry } from './lib/sentry'
 import { Application } from './main'
 
@@ -30,6 +31,14 @@ if (!configResult.ok) {
   console.error(configResult.error)
   process.exit(EXIT_CODES.GENERAL_ERROR)
 }
+
+installRejectionGuard((reason) => {
+  Sentry.captureException(reason)
+  console.error(
+    'Unhandled promise rejection; the server keeps running:',
+    reason,
+  )
+})
 
 const app = new Application(configResult.value)
 
