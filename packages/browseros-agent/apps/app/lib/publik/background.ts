@@ -11,6 +11,7 @@ import {
   type GateAction,
   type GateUI,
   gateStorage,
+  refreshAccount,
   selfTest,
   sendEvent,
   startTelemetry,
@@ -162,6 +163,11 @@ export function startPublik(): void {
     line: await selfTest(),
   }))
   onRuntimeMessage(RuntimeMessageType.publikSync, () => syncProviders())
+  onRuntimeMessage(RuntimeMessageType.publikRefresh, async () => {
+    if ((await gateStorage.getValue())?.status === 'done') {
+      await refreshAccount()
+    }
+  })
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ACTIVE_SESSION_ALARM) void activeSession()
   })

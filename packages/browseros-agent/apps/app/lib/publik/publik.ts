@@ -492,17 +492,36 @@ export async function ensureSignedIn(
       choice = a === 'connect' ? 'publik' : 'own_key'
       await setChoice(choice)
     }
-    await accountStorage.setValue({
-      handle: w.account?.handle ?? null,
-      plan: w.plan,
-      balance_micros: w.balance_micros,
-      top_up_url: w.top_up_url ?? null,
-      linked_at: w.linked_at ?? null,
-      seen_at: Date.now(),
-    })
+    await accountStorage.setValue(accountFromWallet(w))
     await startTelemetry()
     return { key: c.key, wallet: w, choice }
   }
+}
+
+/** What the pages may read of a wallet: never the key. */
+export function accountFromWallet(w: Wallet, now = Date.now()): PublikAccount {
+  return {
+    handle: w.account?.handle ?? null,
+    plan: w.plan,
+    balance_micros: w.balance_micros,
+    top_up_url: w.top_up_url ?? null,
+    linked_at: w.linked_at ?? null,
+    seen_at: now,
+  }
+}
+
+/** Reads the wallet again so the pages show the balance after a paid answer. At most once every 10 s; quiet when publik is not reachable. */
+export async function refreshAccount(): Promise<void> {
+  const current = await accountStorage.getValue().catch(() => null)
+  if (current && Date.now() - current.seen_at < 10_000) return
+  const c = await readCredential()
+  if (!c) return
+  try {
+    const r = await readWallet(c.key)
+    if (r.wallet && r.wallet.claim_state === 'claimed') {
+      await accountStorage.setValue(accountFromWallet(r.wallet))
+    }
+  } catch {}
 }
 
 /** Builder check, run by the BUILT extension: the self-test page prints this line (RELEASING.md). */

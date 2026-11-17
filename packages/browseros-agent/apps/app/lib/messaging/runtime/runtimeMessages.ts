@@ -13,6 +13,8 @@ export const RuntimeMessageType = {
   publikWake: 'runtime.publikWake',
   publikSelfTest: 'runtime.publikSelfTest',
   publikSync: 'runtime.publikSync',
+  /* Read the wallet again: the left rail shows the balance. */
+  publikRefresh: 'runtime.publikRefresh',
 } as const
 
 export interface RuntimePublikGateData {
@@ -46,6 +48,7 @@ type RuntimeMessagesProtocol = {
   [RuntimeMessageType.publikWake](): void
   [RuntimeMessageType.publikSelfTest](): RuntimePublikSelfTestResponse
   [RuntimeMessageType.publikSync](): void
+  [RuntimeMessageType.publikRefresh](): void
 }
 
 const { sendMessage, onMessage } =

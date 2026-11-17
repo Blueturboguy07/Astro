@@ -18,7 +18,6 @@
 
 import {
   AppWindow,
-  Bell,
   ChevronsLeft,
   Clock,
   Folder,
@@ -30,9 +29,12 @@ import {
 import ProductLogo from '@/assets/product_logo.svg'
 import { type FC, type ReactNode, useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router'
+import { refreshPublikAccount, usePublikAccount } from '@/lib/publik/useGate'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import { useChat } from '@/lib/simplicity/hooks/useChat'
 import type { Chat } from '@/lib/simplicity/types/discover'
 import { cn } from '@/lib/utils'
+import { accountFooter } from './comet-sidebar.helpers'
 
 const PRIMARY = [
   { to: '/home/computer', label: 'Computer', icon: Monitor },
@@ -85,6 +87,15 @@ export const CometSidebar: FC<{ children: ReactNode }> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false)
   const [chats, setChats] = useState<Chat[]>([])
   const navigate = useNavigate()
+  const { startNewChat, loading } = useChat()
+  const { account, choice } = usePublikAccount()
+  const footer = accountFooter(account, choice)
+
+  /* The balance moves with every paid answer: read the wallet again when
+     the rail mounts and after each answer. */
+  useEffect(() => {
+    if (!loading) void refreshPublikAccount()
+  }, [loading])
 
   useEffect(() => {
     let cancelled = false
@@ -120,7 +131,12 @@ export const CometSidebar: FC<{ children: ReactNode }> = ({ children }) => {
         </div>
 
         <nav className="flex flex-col gap-0.5 px-2">
-          <NavLink to="/home" end className={({ isActive }) => itemClass(isActive)}>
+          <NavLink
+            to="/home"
+            end
+            onClick={() => startNewChat()}
+            className={({ isActive }) => itemClass(isActive)}
+          >
             <span className="flex size-6 items-center justify-center rounded-full border border-black/15 dark:border-white/20">
               <Plus size={14} />
             </span>
@@ -179,24 +195,23 @@ export const CometSidebar: FC<{ children: ReactNode }> = ({ children }) => {
           )}
         </div>
 
-        <div className="border-light-200 border-t px-3 py-3 dark:border-dark-200">
-          <div className="flex items-center gap-2">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-light-200 font-medium text-[11px] dark:bg-dark-200">
-              ME
-            </span>
-            {!collapsed && (
-              <>
+        {footer && (
+          <div className="border-light-200 border-t px-3 py-3 dark:border-dark-200">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-light-200 font-medium text-[11px] dark:bg-dark-200">
+                {footer.initials}
+              </span>
+              {!collapsed && (
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px]">Local</div>
+                  <div className="truncate text-[13px]">{footer.title}</div>
                   <div className="truncate text-[11px] text-black/45 dark:text-white/45">
-                    BYO key
+                    {footer.detail}
                   </div>
                 </div>
-                <Bell size={15} className="text-black/40 dark:text-white/40" />
-              </>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </SidebarShell>
 
       <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>

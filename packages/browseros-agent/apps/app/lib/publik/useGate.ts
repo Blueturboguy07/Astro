@@ -91,6 +91,12 @@ export function usePublikAccount(): UsePublikAccount {
   }
 }
 
+/** Asks the background to read the wallet again (the balance after an answer). */
+export const refreshPublikAccount = () =>
+  sendRuntimeMessage(RuntimeMessageType.publikRefresh, undefined).catch(
+    () => null,
+  )
+
 /** The last 402 the chat saw, with its one link; `dismiss` clears it. */
 export function usePublikMoney() {
   const money = useStorageItem(moneyStorage)
