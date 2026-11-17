@@ -156,10 +156,12 @@ const SettingsDialogue = ({
                 </div>
                 <div className="flex flex-col space-y-1 px-2 py-[18px]">
                   <p className="text-black/70 text-xs dark:text-white/70">
-                    Version: {process.env.NEXT_PUBLIC_VERSION}
+                    {/* NEXT_PUBLIC_VERSION is a Vane build variable this
+                        build never sets (F-024): the agent's own version. */}
+                    Version: {chrome.runtime.getManifest().version}
                   </p>
                   <a
-                    href="https://github.com/itzcrazykns/vane"
+                    href="https://github.com/Blueturboguy07/Astro"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex flex-row items-center space-x-1 text-black/70 text-xs transition duration-200 hover:text-black/90 dark:text-white/70 hover:dark:text-white/90"
