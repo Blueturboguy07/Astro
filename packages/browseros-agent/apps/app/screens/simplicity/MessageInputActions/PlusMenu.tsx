@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
 import SettingsDialogue from '../Settings/SettingsDialogue'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import { appendEmbeddingModel } from '@/lib/simplicity/upload-embedding'
 
 /* Perplexity ground truth (2026-07): the composer's "+" button opens a menu
    with "Upload files or images" on top and a "Connectors ›" row that expands
@@ -48,11 +49,8 @@ const PlusMenu = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  /* Same upload flow as AttachSmall/Attach (POST to /api/uploads, gated on an
-     embedding model being chosen) — reused here rather than imported since
-     those two components already duplicate this exact logic between
-     themselves, and AttachSmall stays untouched for anywhere it's still
-     mounted. */
+  /* Same upload flow as AttachSmall/Attach (POST to /api/uploads, with the
+     embedding model when one exists). */
   const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
 
@@ -69,17 +67,7 @@ const PlusMenu = () => {
         data.append('files', selectedFiles[i])
       }
 
-      const embeddingModelProvider = localStorage.getItem(
-        'embeddingModelProviderId',
-      )
-      const embeddingModel = localStorage.getItem('embeddingModelKey')
-
-      if (!embeddingModelProvider || !embeddingModel) {
-        throw new Error('Please select an embedding model before uploading.')
-      }
-
-      data.append('embedding_model_provider_id', embeddingModelProvider)
-      data.append('embedding_model_key', embeddingModel)
+      appendEmbeddingModel(data)
 
       const res = await apiFetch(`/api/uploads`, {
         method: 'POST',

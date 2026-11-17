@@ -1,3 +1,4 @@
+import NullEmbedding from '../../../../lib/simplicity/models/base/null-embedding';
 import ModelRegistry from '../../../../lib/simplicity/models/registry';
 import UploadManager from '../../../../lib/simplicity/uploads/manager';
 
@@ -6,19 +7,22 @@ export async function POST(req: Request) {
     const formData = await req.formData();
 
     const files = formData.getAll('files') as File[];
-    const embeddingModel = formData.get('embedding_model_key') as string;
-    const embeddingModelProvider = formData.get('embedding_model_provider_id') as string;
+    const embeddingModel = String(formData.get('embedding_model_key') ?? '');
+    const embeddingModelProvider = String(
+      formData.get('embedding_model_provider_id') ?? '',
+    );
 
-    if (!embeddingModel || !embeddingModelProvider) {
-      return Response.json(
-        { message: 'Missing embedding model or provider' },
-        { status: 400 },
-      );
+    if (files.length === 0) {
+      return Response.json({ message: 'No file was sent.' }, { status: 400 });
     }
 
     const registry = new ModelRegistry();
 
-    const model = await registry.loadEmbeddingModel(embeddingModelProvider, embeddingModel);
+    /* No embedding model (publik only): NullEmbedding, and the answer finds
+       the relevant parts of the file by its words (F-068). */
+    const model = embeddingModelProvider && embeddingModel
+      ? await registry.loadEmbeddingModel(embeddingModelProvider, embeddingModel)
+      : new NullEmbedding();
     
     const uploadManager = new UploadManager({
       embeddingModel: model,

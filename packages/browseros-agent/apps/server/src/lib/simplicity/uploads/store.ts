@@ -3,6 +3,7 @@ import UploadManager from "./manager";
 import computeSimilarity from "../utils/computeSimilarity";
 import { Chunk } from "../types";
 import { hashObj } from '../utils/hash';
+import { hasSignal, keywordScore } from './keyword-score';
 
 type UploadStoreParams = {
     embeddingModel: BaseEmbedding<any>;
@@ -56,8 +57,14 @@ class UploadStore {
         const results: { chunk: Chunk; score: number; }[][] = [];
         const hashResults: string[][] = []
 
-        await Promise.all(queryEmbeddings.map(async (query) => {
+        await Promise.all(queryEmbeddings.map(async (query, qi) => {
             const similarities = this.records.map((record, idx) => {
+                /* No embedding model, or vectors from another model: rank
+                   by the query's words instead (F-068). */
+                const byWords =
+                    !hasSignal(query) ||
+                    !hasSignal(record.embedding) ||
+                    query.length !== record.embedding.length;
                 return {
                     chunk: {
                         content: record.content,
@@ -66,12 +73,16 @@ class UploadStore {
                             fileId: record.fileId,
                         }
                     },
-                    score: computeSimilarity(query, record.embedding)
+                    score: byWords
+                        ? keywordScore(queries[qi] ?? '', record.content)
+                        : computeSimilarity(query, record.embedding)
                 } as { chunk: Chunk; score: number; };
             }).sort((a, b) => b.score - a.score)
 
             results.push(similarities)
-            hashResults.push(similarities.map(s => hashObj(s)))
+            /* The part only, not its score: the same part found by two
+               queries must add up (rank fusion). */
+            hashResults.push(similarities.map(s => hashObj(s.chunk)))
         }))
 
         const chunkMap: Map<string, Chunk> = new Map();

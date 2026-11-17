@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import { appendEmbeddingModel } from '@/lib/simplicity/upload-embedding'
 
 const AttachSmall = () => {
   const { files, setFiles, setFileIds, fileIds } = useChat()
@@ -29,17 +30,7 @@ const AttachSmall = () => {
         data.append('files', selectedFiles[i])
       }
 
-      const embeddingModelProvider = localStorage.getItem(
-        'embeddingModelProviderId',
-      )
-      const embeddingModel = localStorage.getItem('embeddingModelKey')
-
-      if (!embeddingModelProvider || !embeddingModel) {
-        throw new Error('Please select an embedding model before uploading.')
-      }
-
-      data.append('embedding_model_provider_id', embeddingModelProvider)
-      data.append('embedding_model_key', embeddingModel)
+      appendEmbeddingModel(data)
 
       const res = await apiFetch(`/api/uploads`, {
         method: 'POST',
