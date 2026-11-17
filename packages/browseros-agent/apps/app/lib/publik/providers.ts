@@ -15,12 +15,23 @@ import {
   withPublikAgentProviders,
 } from './agent-provider-list'
 import {
+  isPublikServerProvider,
+  PROVIDER_SYNC_ALARM,
+  PUBLIK_PROVIDER_NAME,
+  planServerEntry,
+  retryWithBackoff,
+  type ServerProvider,
+  SYNC_RETRY_DELAYS_MS,
+} from './provider-sync'
+import {
   type Choice,
   choiceStorage,
   DEFAULT_BASE_URL,
   MODELS,
   readCredential,
 } from './publik'
+
+export { isPublikServerProvider, PROVIDER_SYNC_ALARM }
 
 /* Where the install key goes when the person chose "Connect your plan":
  * the two provider stores the app already has. The browser agent reads
@@ -30,7 +41,6 @@ import {
  * connections are never touched, so bring-your-own-key works exactly as
  * before. Only the background calls this (lib/publik/background.ts). */
 
-export const PUBLIK_PROVIDER_NAME = 'publik API'
 const TIERS: { model: string; name: string }[] = [
   { model: MODELS.balanced, name: 'publik Balanced' },
   { model: MODELS.fast, name: 'publik Fast' },
@@ -44,30 +54,6 @@ export const publikServerProviderIdStorage = storage.defineItem<string | null>(
   'local:publik-server-provider-id',
   { fallback: null },
 )
-
-type ServerProvider = {
-  id: string
-  name?: string
-  type?: string
-  config?: Record<string, unknown>
-  chatModels?: { key: string; name: string }[]
-}
-
-/** The answer engine's publik entry, as `GET /api/providers` returns it. */
-export const isPublikServerProvider = (
-  p: { id?: string; name?: string; config?: Record<string, unknown> },
-  serverProviderId?: string | null,
-): boolean => {
-  if (serverProviderId && p.id === serverProviderId) return true
-  const base = p.config?.baseURL
-  if (typeof base === 'string') {
-    try {
-      const host = new URL(base).hostname.toLowerCase()
-      if (host === 'publikhq.com' || host.endsWith('.publikhq.com')) return true
-    } catch {}
-  }
-  return p.name === PUBLIK_PROVIDER_NAME
-}
 
 async function upsertAgentProvider(baseUrl: string, key: string) {
   const current = (await providersStorage.getValue()) || []
@@ -97,6 +83,18 @@ async function removeAgentProvider() {
   }
 }
 
+/** True/false: the answer engine has / lacks the publik entry; null: the local server did not answer. */
+export async function hasAnswerEngineProvider(): Promise<boolean | null> {
+  try {
+    const listed = await listServerProviders()
+    if (!listed) return null
+    const serverId = await publikServerProviderIdStorage.getValue()
+    return listed.some((p) => isPublikServerProvider(p, serverId))
+  } catch {
+    return null
+  }
+}
+
 async function listServerProviders(): Promise<ServerProvider[] | null> {
   const res = await apiFetch('/api/providers')
   if (!res.ok) return null
@@ -105,8 +103,8 @@ async function listServerProviders(): Promise<ServerProvider[] | null> {
   )
 }
 
-/* Idempotent. A server that is still starting makes this return false; the
-   settings card asks the background to run it again (publikSync). */
+/* Idempotent. A server that is still starting makes this return false;
+   apply() retries it (retryWithBackoff, then the alarm). */
 async function ensureAnswerEngineProvider(
   baseURL: string,
   key: string,
@@ -115,8 +113,17 @@ async function ensureAnswerEngineProvider(
     const listed = await listServerProviders()
     if (!listed) return false
     const serverId = await publikServerProviderIdStorage.getValue()
-    let provider = listed.find((p) => isPublikServerProvider(p, serverId))
-    if (!provider && serverId) return true
+    const plan = planServerEntry(listed, serverId)
+    let provider = 'use' in plan ? plan.use : undefined
+    if ('create' in plan && plan.staleId) {
+      /* A stored id the server does not list: the old code counted it as
+         done, so a lost entry was never written again. Remove what may be
+         left of it (one copy at a time) and write a new one. */
+      await apiFetch(`/api/providers/${plan.staleId}`, {
+        method: 'DELETE',
+      }).catch(() => null)
+      await publikServerProviderIdStorage.setValue(null)
+    }
     if (!provider) {
       const res = await apiFetch('/api/providers', {
         method: 'POST',
@@ -172,6 +179,16 @@ async function removeAnswerEngineProvider() {
   }
 }
 
+async function armSyncAlarm(on: boolean) {
+  try {
+    if (on) {
+      await chrome.alarms.create(PROVIDER_SYNC_ALARM, { delayInMinutes: 1 })
+    } else {
+      await chrome.alarms.clear(PROVIDER_SYNC_ALARM)
+    }
+  } catch {}
+}
+
 let chain: Promise<void> = Promise.resolve()
 
 /** The stored choice, applied to the two provider stores. Calls run one after the other. */
@@ -184,9 +201,15 @@ async function apply(choice: Choice | null): Promise<void> {
   const c = choice === 'publik' ? await readCredential() : null
   if (c) {
     await upsertAgentProvider(c.base_url || DEFAULT_BASE_URL, c.key)
-    await ensureAnswerEngineProvider(c.base_url || DEFAULT_BASE_URL, c.key)
+    const ok = await retryWithBackoff(
+      () => ensureAnswerEngineProvider(c.base_url || DEFAULT_BASE_URL, c.key),
+      SYNC_RETRY_DELAYS_MS,
+      async () => (await choiceStorage.getValue()) === 'publik',
+    )
+    await armSyncAlarm(!ok && (await choiceStorage.getValue()) === 'publik')
     return
   }
+  await armSyncAlarm(false)
   await removeAgentProvider()
   await removeAnswerEngineProvider()
 }

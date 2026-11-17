@@ -3,7 +3,7 @@ import {
   onRuntimeMessage,
   RuntimeMessageType,
 } from '@/lib/messaging/runtime/runtimeMessages'
-import { applyChoice, syncProviders } from './providers'
+import { applyChoice, PROVIDER_SYNC_ALARM, syncProviders } from './providers'
 import {
   ACTIVE_SESSION_ALARM,
   accountFromWallet,
@@ -124,6 +124,8 @@ function runGate(): Promise<void> {
     const state = await gateStorage.getValue()
     if (state?.status === 'done') {
       await startTelemetry() // the worker restarted inside a signed-in session
+      /* Every start checks the answer-engine entry again (F-078). */
+      if ((await choiceStorage.getValue()) === 'publik') void syncProviders()
       return
     }
     await gateStorage.setValue({ status: 'checking', at: Date.now() })
@@ -204,6 +206,7 @@ export function startPublik(): void {
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ACTIVE_SESSION_ALARM) void activeSession()
     if (alarm.name === RECHECK_ALARM) void recheck()
+    if (alarm.name === PROVIDER_SYNC_ALARM) void syncProviders()
   })
   choiceStorage.watch((choice) => {
     void applyChoice(choice)

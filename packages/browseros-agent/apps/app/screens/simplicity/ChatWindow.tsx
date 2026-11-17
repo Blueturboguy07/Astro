@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { usePublikMoney } from '@/lib/publik/useGate'
+import {
+  syncPublikProviders,
+  usePublikAccount,
+  usePublikMoney,
+} from '@/lib/publik/useGate'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
 import type { Block } from '@/lib/simplicity/types'
 import { PublikMoneyBanner } from '@/screens/simplicity/Publik/PublikCard'
@@ -41,6 +45,7 @@ const ChatWindow = () => {
   const { hasError, connectionErrorMessage, retryConnection, notFound, messages, isReady } =
     useChat()
   const { money, dismiss } = usePublikMoney()
+  const { choice } = usePublikAccount()
 
   /* "Can't reach the local Astro server" stayed until Retry was pressed,
      also when the server came up seconds later. Try again every 5 s for
@@ -49,17 +54,24 @@ const ChatWindow = () => {
   retryRef.current = retryConnection
   const tries = useRef(0)
   const noConnectionYet = /no chat model/i.test(connectionErrorMessage ?? '')
+  /* With "Connect your plan" chosen, "no connection yet" is a write that
+     has not landed (the local server was starting): ask the background to
+     write it again and look again (F-078). With "Use my own key" it is the
+     real state, so no retry. */
+  const waitForPublik = noConnectionYet && choice === 'publik'
   useEffect(() => {
     if (isReady) tries.current = 0
   }, [isReady])
   useEffect(() => {
-    if (!hasError || noConnectionYet || tries.current >= 24) return
+    if (!hasError || (noConnectionYet && !waitForPublik) || tries.current >= 24)
+      return
+    if (waitForPublik) syncPublikProviders()
     const timer = setTimeout(() => {
       tries.current += 1
       retryRef.current({ quiet: true })
     }, 5_000)
     return () => clearTimeout(timer)
-  }, [hasError, noConnectionYet])
+  }, [hasError, noConnectionYet, waitForPublik])
 
   if (hasError) {
     /* The local server lists no providers: the person chose "Use my own

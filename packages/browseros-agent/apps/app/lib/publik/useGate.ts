@@ -91,6 +91,10 @@ export function usePublikAccount(): UsePublikAccount {
   }
 }
 
+/** Asks the background to write the publik connections again (F-078). */
+export const syncPublikProviders = () =>
+  sendRuntimeMessage(RuntimeMessageType.publikSync, undefined).catch(() => null)
+
 /** Asks the background to read the wallet again (the balance after an answer). */
 export const refreshPublikAccount = () =>
   sendRuntimeMessage(RuntimeMessageType.publikRefresh, undefined).catch(

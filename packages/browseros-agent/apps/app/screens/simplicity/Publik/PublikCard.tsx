@@ -1,7 +1,13 @@
 import { AlertCircle, Loader2, X } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
+import { showConnectButton } from '@/lib/publik/provider-sync'
+import { hasAnswerEngineProvider } from '@/lib/publik/providers'
 import { type Choice, publikLink } from '@/lib/publik/publik'
-import { refreshPublikAccount, usePublikAccount } from '@/lib/publik/useGate'
+import {
+  refreshPublikAccount,
+  syncPublikProviders,
+  usePublikAccount,
+} from '@/lib/publik/useGate'
 import { cn } from '@/lib/simplicity/utils'
 import ProviderLogo from '@/screens/simplicity/ui/ProviderLogo'
 
@@ -65,12 +71,41 @@ const PublikCard = ({ className }: { className?: string }) => {
   const { account, choice, usageCounted, choose, setUsageCounted } =
     usePublikAccount()
   const [busy, setBusy] = useState<Choice | 'ask' | null>(null)
+  /* Whether the answer engine has the publik connection (null: unknown or
+     the local server did not answer). */
+  const [connected, setConnected] = useState<boolean | null>(null)
+  const [checks, setChecks] = useState(0)
 
   /* The stored balance is from the last wallet read; read it again when the
      card opens (Astro 0.2.4 QA, F-020). */
   useEffect(() => {
     void refreshPublikAccount()
   }, [])
+
+  /* Opening Settings checks the connection and asks the background to
+     write it again when it is missing; it looks again every 3 s for a
+     minute (F-078: the write at "Connect your plan" could fail for good). */
+  useEffect(() => {
+    if (choice !== 'publik') {
+      setConnected(null)
+      return
+    }
+    let stop = false
+    let n = 0
+    const look = async () => {
+      const has = await hasAnswerEngineProvider()
+      if (stop) return
+      setConnected(has)
+      if (has === true || n >= 20) return
+      if (n === 0) syncPublikProviders()
+      n += 1
+      setTimeout(() => void look(), 3_000)
+    }
+    void look()
+    return () => {
+      stop = true
+    }
+  }, [choice, checks])
 
   if (account === undefined || choice === undefined) return null
 
@@ -98,6 +133,7 @@ const PublikCard = ({ className }: { className?: string }) => {
       await choose(next)
     } finally {
       setBusy(null)
+      setChecks((c) => c + 1)
     }
   }
 
@@ -150,9 +186,15 @@ const PublikCard = ({ className }: { className?: string }) => {
       <p className="text-[11px] text-black/60 leading-relaxed sm:text-xs dark:text-white/60">
         {uses}
       </p>
+      {choice === 'publik' && connected === false && (
+        <p className="text-[11px] text-amber-700 leading-relaxed sm:text-xs dark:text-amber-400">
+          The answer engine has no publik connection yet. Astro tries again
+          by itself; press Connect your plan to try now.
+        </p>
+      )}
 
       <div className="flex flex-row flex-wrap items-center gap-x-4 gap-y-2">
-        {choice !== 'publik' && (
+        {showConnectButton(choice, connected) && (
           <Button next="publik" primary>
             Connect your plan
           </Button>
