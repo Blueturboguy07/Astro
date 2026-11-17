@@ -32,6 +32,14 @@ const qualityRank = (providerType: string, key: string): number => {
    differ), cap at 3. If fewer than 3 distinct vendors are connected, this
    returns what exists (the MIN_COUNCIL_MEMBERS floor is enforced by
    canRunCouncil at the entry point, not here). */
+/* Each publik tier is a different model behind one connection, so each
+   counts as its own council seat; without this the three tiers were one
+   "openai" vendor and a publik-only person could never run a council, while
+   the client counted a signed-out Claude Code as the second (Astro 0.2.4 QA,
+   F-055). */
+export const seatOf = (key: string, providerType: string): string =>
+  key.startsWith('publik-') ? key : providerType;
+
 export const autoPickCouncil = (providers: MinimalProvider[]): ResolvedRow[] => {
   const ranked = availableRows(providers)
     .map((row) => ({ row, providerType: typeOfProvider(providers, row.providerId) }))
@@ -44,8 +52,9 @@ export const autoPickCouncil = (providers: MinimalProvider[]): ResolvedRow[] => 
   const seenVendors = new Set<string>();
 
   for (const { row, providerType } of ranked) {
-    if (seenVendors.has(providerType)) continue;
-    seenVendors.add(providerType);
+    const vendor = seatOf(row.key, providerType);
+    if (seenVendors.has(vendor)) continue;
+    seenVendors.add(vendor);
     picked.push(row);
     if (picked.length >= MAX_COUNCIL_MEMBERS) break;
   }
@@ -113,7 +122,7 @@ export const estimateCouncilCost = (
       inputTokens: promptTokens,
       outputTokens: completionTokens,
     });
-    return { usd, free: usd == null };
+    return { usd, free: usd == null && !key.startsWith('publik-') };
   };
 
   const perMember = members.map((m) => {
@@ -128,9 +137,16 @@ export const estimateCouncilCost = (
   );
 
   const free = perMember.every((m) => m.free) && chairEstimate.free;
-  const totalUSD = free
-    ? null
-    : perMember.reduce((sum, m) => sum + (m.usd ?? 0), 0) + (chairEstimate.usd ?? 0);
+  /* A paid model with no price row (the publik tiers) has no estimate:
+     show none rather than "Free" or a sum that leaves it out (F-055). */
+  const unpriced =
+    perMember.some((m) => !m.free && m.usd == null) ||
+    (!chairEstimate.free && chairEstimate.usd == null);
+  const totalUSD =
+    free || unpriced
+      ? null
+      : perMember.reduce((sum, m) => sum + (m.usd ?? 0), 0) +
+        (chairEstimate.usd ?? 0);
 
   return { totalUSD, free, perMember };
 };

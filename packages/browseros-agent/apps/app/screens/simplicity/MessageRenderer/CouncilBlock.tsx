@@ -151,13 +151,15 @@ const CouncilBlockRenderer = ({ block }: { block: CouncilBlockType }) => {
           </span>
         </div>
 
-        {stillRunning && costEstimate && (
-          <span className="text-[11px] text-black/40 tabular-nums dark:text-white/40">
-            {costEstimate.free
-              ? 'Free'
-              : `~${formatCost(costEstimate.totalUSD ?? 0)} est.`}
-          </span>
-        )}
+        {stillRunning &&
+          costEstimate &&
+          (costEstimate.free || costEstimate.totalUSD != null) && (
+            <span className="text-[11px] text-black/40 tabular-nums dark:text-white/40">
+              {costEstimate.free
+                ? 'Free'
+                : `~${formatCost(costEstimate.totalUSD ?? 0)} est.`}
+            </span>
+          )}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">

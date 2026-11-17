@@ -931,9 +931,29 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     if (!res.ok) {
       const body = await res.json().catch(() => null)
       void note402(body?.message)
-      toast.error(body?.message ?? 'That request failed. Try again.')
+      const text = body?.message ?? 'That request failed. Try again.'
+      toast.error(text)
       setLoading(false)
-      setMessages((prev) => prev.filter((msg) => msg.messageId !== messageId))
+      /* Keep the question on screen with the reason and a Retry, like a
+         failed stream: removing it lost what the person typed (F-055). */
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.messageId === messageId
+            ? {
+                ...msg,
+                status: 'error' as const,
+                responseBlocks: [
+                  ...msg.responseBlocks,
+                  {
+                    id: globalThis.crypto.randomUUID(),
+                    type: 'error',
+                    data: String(text),
+                  } as any,
+                ],
+              }
+            : msg,
+        ),
+      )
       return
     }
 
