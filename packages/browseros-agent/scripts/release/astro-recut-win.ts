@@ -230,6 +230,10 @@ export type WinRecutOptions = {
   tree: string
   crx: string
   version: string
+  /** Astro's release version (0.2.4): Add/Remove Programs, the installer's
+      file version and name. Not the CRX version (QA F-014: 0.2.4 showed
+      DisplayVersion 0.0.103). */
+  appVersion: string
   out: string
   pkg: 'nsis' | 'zip'
   nsi?: string
@@ -392,13 +396,13 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
   const makensis = opts.makensis ?? 'makensis'
   const outFile = path.join(
     path.resolve(opts.out),
-    `Astro-Setup-${opts.version}.exe`,
+    `Astro-Setup-${opts.appVersion}.exe`,
   )
   if (!opts.dryRun) {
     run(makensis, [
       `/DSRCDIR=${path.resolve(opts.tree)}`,
       `/DOUTFILE=${outFile}`,
-      `/DVERSION=${opts.version}`,
+      `/DVERSION=${opts.appVersion}`,
       path.resolve(nsi),
     ])
   }
@@ -408,6 +412,17 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
 
 /* ------------------------------------------------------------------ */
 
+/** NSIS VIProductVersion takes x.y.z(.w); the release tag without its `v`. */
+export function validateAppVersion(version: string): string {
+  const v = version.replace(/^v/, '')
+  if (!/^\d+\.\d+\.\d+$/.test(v)) {
+    throw new Error(
+      `--app-version must be x.y.z (e.g. 0.2.4), got "${version}"`,
+    )
+  }
+  return v
+}
+
 export function parseArgs(argv: string[]): WinRecutOptions {
   const get = (flag: string): string | undefined => {
     const i = argv.indexOf(flag)
@@ -416,10 +431,12 @@ export function parseArgs(argv: string[]): WinRecutOptions {
   const tree = get('--tree')
   const crx = get('--crx')
   const version = get('--version')
-  if (!tree || !crx || !version) {
+  const appVersion = get('--app-version')
+  if (!tree || !crx || !version || !appVersion) {
     throw new Error(
       'Usage: bun astro-recut-win.ts --tree <Chrome-bin> --crx <file.crx> ' +
-        '--version <0.0.101> [--out dir] [--package nsis|zip] [--nsi <.nsi>] ' +
+        '--version <CRX version, 0.0.101> --app-version <Astro release, 0.2.4> ' +
+        '[--out dir] [--package nsis|zip] [--nsi <.nsi>] ' +
         '[--makensis <path>] [--dry-run]',
     )
   }
@@ -431,6 +448,7 @@ export function parseArgs(argv: string[]): WinRecutOptions {
     tree,
     crx,
     version: validateExtensionVersion(version),
+    appVersion: validateAppVersion(appVersion),
     out: get('--out') ?? 'dist/win',
     pkg,
     nsi: get('--nsi'),

@@ -15,6 +15,10 @@ on:
         description: "Astro agent version stamped into the build (matches the CRX, e.g. 0.0.101)"
         required: true
         type: string
+      app_version:
+        description: "Astro release version for Add/Remove Programs and the installer name (e.g. 0.2.4)"
+        required: true
+        type: string
       agent_crx_url:
         description: "Direct download URL for the Astro-keyed agent CRX (kofbmbng...). Defaults to the latest ext-agent release asset."
         required: false
@@ -109,6 +113,7 @@ jobs:
       - name: Recut + package (NSIS)
         env:
           VERSION: ${{ inputs.version }}
+          APP_VERSION: ${{ inputs.app_version }}
         run: |
           $ErrorActionPreference = "Stop"
           $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
@@ -117,6 +122,7 @@ jobs:
             --tree "$env:CHROME_BIN" `
             --crx work\astro-agent.crx `
             --version "$env:VERSION" `
+            --app-version "$env:APP_VERSION" `
             --out dist\win `
             --package nsis `
             --nsi packages/browseros-agent/scripts/release/astro-win.nsi `
@@ -298,7 +304,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Astro-Setup-${{ inputs.version }}
+          name: Astro-Setup-${{ inputs.app_version }}
           path: ${{ env.SETUP_EXE }}
           if-no-files-found: error
 

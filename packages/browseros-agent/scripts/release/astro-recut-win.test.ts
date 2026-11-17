@@ -9,6 +9,7 @@ import {
   chromeVersionDir,
   parseArgs,
   patchChromeDllUrls,
+  validateAppVersion,
   WIN_URL_PATCHES,
 } from './astro-recut-win'
 
@@ -115,8 +116,28 @@ describe('chromeVersionDir', () => {
 })
 
 describe('parseArgs', () => {
-  it('requires --tree, --crx and --version', () => {
+  it('requires --tree, --crx, --version and --app-version', () => {
     expect(() => parseArgs(['--tree', 't', '--crx', 'c'])).toThrow(/Usage/)
+    expect(() =>
+      parseArgs(['--tree', 't', '--crx', 'c', '--version', '0.0.101']),
+    ).toThrow(/Usage/)
+  })
+
+  /* QA F-014: Add/Remove Programs showed 0.0.103 (the CRX) for Astro 0.2.4. */
+  it('keeps the Astro release version apart from the CRX version', () => {
+    const o = parseArgs([
+      '--tree',
+      't',
+      '--crx',
+      'c.crx',
+      '--version',
+      '0.0.103',
+      '--app-version',
+      'v0.2.4',
+    ])
+    expect(o.version).toBe('0.0.103')
+    expect(o.appVersion).toBe('0.2.4')
+    expect(() => validateAppVersion('0.0.103.1')).toThrow(/x\.y\.z/)
   })
 
   it('defaults to the nsis package and dist/win', () => {
@@ -127,6 +148,8 @@ describe('parseArgs', () => {
       'c.crx',
       '--version',
       '0.0.101',
+      '--app-version',
+      '0.2.4',
     ])
     expect(o.pkg).toBe('nsis')
     expect(o.out).toBe('dist/win')
@@ -142,6 +165,8 @@ describe('parseArgs', () => {
         'c.crx',
         '--version',
         '0.0.101',
+        '--app-version',
+        '0.2.4',
         '--package',
         'msi',
       ]),
