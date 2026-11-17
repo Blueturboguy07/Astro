@@ -74,7 +74,9 @@ export class Application {
     try {
       await createHttpServer({
         port: this.config.serverPort,
-        host: '0.0.0.0',
+        /* Loopback only: on 0.0.0.0 any machine on the network could call
+           routes that take no Origin header (Astro 0.2.4 QA, F-053). */
+        host: '127.0.0.1',
         version: VERSION,
         browser,
         browserSession,

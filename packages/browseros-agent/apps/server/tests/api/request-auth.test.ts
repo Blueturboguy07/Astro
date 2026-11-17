@@ -9,8 +9,18 @@ describe('request auth', () => {
   it('accepts loopback and extension origins', () => {
     expect(isTrustedAppOrigin('http://127.0.0.1:9105')).toBe(true)
     expect(isTrustedAppOrigin('http://localhost:3000')).toBe(true)
-    expect(isTrustedAppOrigin('chrome-extension://browseros')).toBe(true)
-    expect(isTrustedAppOrigin('moz-extension://browseros')).toBe(true)
+    expect(
+      isTrustedAppOrigin('chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg'),
+    ).toBe(true)
+  })
+
+  /* Astro 0.2.4 QA, F-053: any chrome-extension:// origin was trusted. */
+  it('rejects extensions other than Astro', () => {
+    expect(isTrustedAppOrigin('chrome-extension://browseros')).toBe(false)
+    expect(
+      isTrustedAppOrigin('chrome-extension://abcdefghijklmnopabcdefghijklmnop'),
+    ).toBe(false)
+    expect(isTrustedAppOrigin('moz-extension://browseros')).toBe(false)
   })
 
   it('rejects missing and untrusted origins', () => {
@@ -38,7 +48,9 @@ describe('request auth', () => {
       .get('/agents/status', (c) => c.json({ ok: true }))
 
     const res = await app.request('http://localhost/agents/status', {
-      headers: { Origin: 'chrome-extension://browseros' },
+      headers: {
+        Origin: 'chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg',
+      },
     })
 
     expect(res.status).toBe(200)

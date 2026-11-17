@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from 'hono'
+import { isAllowedOrigin } from './cors'
 import { isLocalhostRequest } from './security'
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1'])
@@ -17,7 +18,12 @@ export function isTrustedAppOrigin(origin: string | undefined): boolean {
       return true
     }
 
-    return EXTENSION_PROTOCOLS.has(url.protocol)
+    /* Only Astro's own extension (and BROWSEROS_TRUSTED_ORIGINS), not any
+       extension the person installed (Astro 0.2.4 QA, F-053). */
+    return (
+      EXTENSION_PROTOCOLS.has(url.protocol) &&
+      isAllowedOrigin(`${url.protocol}//${url.host}`)
+    )
   } catch {
     return false
   }
