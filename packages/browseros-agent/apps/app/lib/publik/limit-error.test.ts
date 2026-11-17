@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  errorToastText,
   nextUtcMidnight,
   PUBLIK_PLANS_URL,
   PUBLIK_WALLET_URL,
@@ -113,5 +114,16 @@ describe('parsePublikErrorCard (council seats, answer engine 402)', () => {
   it('leaves other errors alone', () => {
     expect(parsePublikErrorCard('500 Internal error')).toBeNull()
     expect(parsePublikErrorCard('This model failed to answer.')).toBeNull()
+  })
+})
+
+describe('errorToastText', () => {
+  it('uses the card words for publik errors and keeps other text', () => {
+    expect(
+      errorToastText('402 Your publik balance is too low for this request.'),
+    ).toBe(
+      'Not enough publik balance. Your publik balance is too low for this request.',
+    )
+    expect(errorToastText('Something else broke')).toBe('Something else broke')
   })
 })

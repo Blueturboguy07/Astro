@@ -147,3 +147,11 @@ export function parsePublikErrorCard(
   }
   return null
 }
+
+/** The toast for a failed turn: the card's words for a publik 429 or 402,
+    not the raw "429 ..." / "402 ..." text. */
+export function errorToastText(message: unknown): string {
+  const text = String(message ?? '')
+  const card = parsePublikErrorCard(text)
+  return card ? `${card.title}. ${card.text}` : text
+}

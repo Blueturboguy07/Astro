@@ -1,5 +1,6 @@
 'use client'
 
+import { errorToastText } from '@/lib/publik/limit-error'
 import { answerWasPaid } from '@/lib/publik/money-banner'
 import { clear402, note402 } from '@/lib/publik/publik'
 import { randomHex } from '@/lib/simplicity/random-id'
@@ -728,7 +729,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
            the chat's publik banner can show the gateway's own sentence
            with its one link. Anything else is ignored by note402. */
         void note402(data.data)
-        toast.error(data.data)
+        toast.error(errorToastText(data.data))
         setLoading(false)
         setResearchEnded(true)
         /* The toast vanishes in seconds — the turn itself must show the
@@ -1034,7 +1035,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       const body = await res.json().catch(() => null)
       void note402(body?.message)
       const text = body?.message ?? 'That request failed. Try again.'
-      toast.error(text)
+      toast.error(errorToastText(text))
       setLoading(false)
       /* Keep the question on screen with the reason and a Retry, like a
          failed stream: removing it lost what the person typed (F-055). */
