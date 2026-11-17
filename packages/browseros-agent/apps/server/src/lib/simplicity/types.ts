@@ -100,13 +100,23 @@ export type UploadSearchResultsResearchBlock = {
   results: Chunk[];
 };
 
+/* A line about the research itself rather than a result: the one-time
+   web-search setup (with its progress) and why web search failed. */
+export type NoticeResearchBlock = {
+  id: string;
+  type: 'notice';
+  level: 'info' | 'error';
+  text: string;
+};
+
 export type ResearchBlockSubStep =
   | ReasoningResearchBlock
   | SearchingResearchBlock
   | SearchResultsResearchBlock
   | ReadingResearchBlock
   | UploadSearchingResearchBlock
-  | UploadSearchResultsResearchBlock;
+  | UploadSearchResultsResearchBlock
+  | NoticeResearchBlock;
 
 export type ResearchBlock = {
   id: string;

@@ -33,6 +33,16 @@ const READY_TIMEOUT_MS = 60_000
 const READY_POLL_MS = 500
 const PROBE_TIMEOUT_MS = 1500
 const USER_AGENT = 'BrowserOS'
+const PIP_TIMEOUT_MS = 10 * 60_000
+const TAR_TIMEOUT_MS = 5 * 60_000
+const DOWNLOAD_TIMEOUT_MS = 15 * 60_000
+/* A failed setup is not retried by every search of the same answer (and of
+   the discover page): the next attempt waits this long. */
+const FAILURE_COOLDOWN_MS = 60_000
+/* Another server with the same data dir (a second profile) holds the lock
+   while it sets up; a lock older than this is from a process that died. */
+const LOCK_STALE_MS = 20 * 60_000
+const LOCK_POLL_MS = 1000
 
 /* python-build-standalone publishes relocatable CPython builds for every target
    we ship to. A venv bakes in absolute paths to its base interpreter, so a venv
@@ -54,6 +64,65 @@ interface SearxngPaths {
   src: string
   settings: string
   marker: string
+  lock: string
+}
+
+/* What the answer UI shows while the one-time setup runs, and why it
+   failed. One process-wide value: every caller shares one setup. */
+export type SearchSetupStatus =
+  | { state: 'idle' }
+  | {
+      state: 'setting_up'
+      step: 'python' | 'searxng' | 'dependencies' | 'starting'
+      percent: number | null
+      message: string
+    }
+  | { state: 'ready'; url: string }
+  | { state: 'failed'; message: string; at: number }
+
+let status: SearchSetupStatus = { state: 'idle' }
+const listeners = new Set<(s: SearchSetupStatus) => void>()
+
+export function getSearchSetupStatus(): SearchSetupStatus {
+  return status
+}
+
+export function onSearchSetupStatus(
+  cb: (s: SearchSetupStatus) => void,
+): () => void {
+  listeners.add(cb)
+  return () => listeners.delete(cb)
+}
+
+function setStatus(next: SearchSetupStatus) {
+  status = next
+  for (const cb of listeners) {
+    try {
+      cb(next)
+    } catch {}
+  }
+}
+
+function settingUp(
+  step: Extract<SearchSetupStatus, { state: 'setting_up' }>['step'],
+  percent: number | null = null,
+) {
+  const what = {
+    python: 'downloading Python',
+    searxng: 'downloading the search engine',
+    dependencies: 'installing the search packages',
+    starting: '',
+  }[step]
+  const pct = percent === null ? '' : ` ${percent}%`
+  setStatus({
+    state: 'setting_up',
+    step,
+    percent,
+    message:
+      step === 'starting'
+        ? 'Starting web search'
+        : `Setting up web search (one time, about 150 MB): ${what}${pct}`,
+  })
 }
 
 function paths(dataDir: string): SearxngPaths {
@@ -64,8 +133,13 @@ function paths(dataDir: string): SearxngPaths {
     src: path.join(root, 'searxng-src'),
     settings: path.join(root, 'settings.yml'),
     marker: path.join(root, '.provisioned'),
+    lock: path.join(dataDir, 'searxng.lock'),
   }
 }
+
+/* Written into a step's directory once that step is complete, so a failed
+   later step does not throw away (and download again) an earlier one. */
+const STEP_MARKER = '.astro-ready'
 
 function pythonBin(p: SearxngPaths): string {
   return isWin
@@ -116,11 +190,47 @@ function freePort(): Promise<number> {
   })
 }
 
-async function download(url: string, dest: string, label: string) {
+/* Streamed to disk so the percent can be shown and a 100 MB body is never
+   held in memory twice. */
+async function download(
+  url: string,
+  dest: string,
+  label: string,
+  onPercent?: (percent: number) => void,
+) {
   logger.info(`Downloading ${label}`)
-  const res = await fetch(url, { headers: { 'user-agent': USER_AGENT } })
-  if (!res.ok) throw new Error(`Couldn't download ${label} (${res.status})`)
-  fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()))
+  const res = await fetch(url, {
+    headers: { 'user-agent': USER_AGENT },
+    signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+  })
+  if (!res.ok || !res.body) {
+    throw new Error(`the download of ${label} failed (HTTP ${res.status})`)
+  }
+  const total = Number(res.headers.get('content-length')) || 0
+  const fd = fs.openSync(dest, 'w')
+  let received = 0
+  let lastPercent = -1
+  try {
+    const reader = res.body.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      fs.writeSync(fd, value)
+      received += value.byteLength
+      if (total && onPercent) {
+        const percent = Math.min(99, Math.floor((received / total) * 100))
+        if (percent !== lastPercent) {
+          lastPercent = percent
+          onPercent(percent)
+        }
+      }
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
+  if (total && received !== total) {
+    throw new Error(`the download of ${label} stopped before the end`)
+  }
 }
 
 function pbsTriple(): string {
@@ -131,9 +241,14 @@ function pbsTriple(): string {
 }
 
 async function resolvePythonURL(): Promise<string> {
-  const res = await fetch(PBS_LATEST, { headers: { 'user-agent': USER_AGENT } })
+  const res = await fetch(PBS_LATEST, {
+    headers: { 'user-agent': USER_AGENT },
+    signal: AbortSignal.timeout(30_000),
+  })
   if (!res.ok) {
-    throw new Error(`Couldn't reach python-build-standalone (${res.status})`)
+    throw new Error(
+      `could not reach python-build-standalone (HTTP ${res.status})`,
+    )
   }
   const triple = pbsTriple()
   const assets = (await res.json()) as {
@@ -145,7 +260,7 @@ async function resolvePythonURL(): Promise<string> {
       a.name.includes(triple) &&
       a.name.endsWith('install_only.tar.gz'),
   )
-  if (!asset) throw new Error(`No CPython ${PY_SERIES} build for ${triple}`)
+  if (!asset) throw new Error(`no CPython ${PY_SERIES} build for ${triple}`)
   return asset.browser_download_url
 }
 
@@ -155,35 +270,83 @@ function tarBin(): string {
   return isWin ? 'tar' : '/usr/bin/tar'
 }
 
-function extract(tgz: string, into: string, excludes: string[] = []) {
+/**
+ * Runs a child process without blocking the server. execFileSync froze every
+ * request (health checks included) for the minutes pip takes, and its error
+ * said only "Command failed". This one rejects with the exit code or signal
+ * and the end of stderr, which is what names the real problem.
+ */
+export function runProcess(
+  cmd: string,
+  args: string[],
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs: number },
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let stderr = ''
+    let timedOut = false
+    const child = spawn(cmd, args, {
+      cwd: opts.cwd,
+      env: opts.env ?? process.env,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    })
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGKILL')
+    }, opts.timeoutMs)
+    child.stderr?.on('data', (c: Buffer) => {
+      stderr = (stderr + c.toString()).slice(-4000)
+    })
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      reject(new Error(`could not run ${path.basename(cmd)}: ${err.message}`))
+    })
+    child.on('close', (code, signal) => {
+      clearTimeout(timer)
+      if (code === 0) return resolve()
+      const name = `${path.basename(cmd)} ${args.slice(0, 3).join(' ')}`
+      const tail = stderr.trim().split('\n').slice(-3).join(' ').slice(-300)
+      const why = timedOut
+        ? `timed out after ${Math.round(opts.timeoutMs / 60_000)} min`
+        : signal
+          ? `was stopped by the system (${signal})`
+          : `exited with code ${code}`
+      reject(new Error(`${name} ${why}${tail ? `: ${tail}` : ''}`))
+    })
+  })
+}
+
+async function extract(tgz: string, into: string, excludes: string[] = []) {
   /* A previous failed attempt leaves a partial tree behind — start clean so a
      relaunch actually recovers. */
   fs.rmSync(into, { recursive: true, force: true })
   fs.mkdirSync(into, { recursive: true })
-  execFileSync(tarBin(), [
-    'xzf',
-    tgz,
-    '-C',
-    into,
-    '--strip-components=1',
-    ...excludes.flatMap((pattern) => ['--exclude', pattern]),
-  ])
+  await runProcess(
+    tarBin(),
+    [
+      'xzf',
+      tgz,
+      '-C',
+      into,
+      '--strip-components=1',
+      ...excludes.flatMap((pattern) => ['--exclude', pattern]),
+    ],
+    { timeoutMs: TAR_TIMEOUT_MS },
+  )
   fs.rmSync(tgz, { force: true })
 }
 
 /* python-build-standalone's CPython isn't Apple Developer ID signed or
-   notarized. If the extracted tree ends up quarantined (macOS can propagate
-   com.apple.quarantine from a quarantined download onto files it produces),
-   executing python3 out of it trips Gatekeeper's "Apple could not verify
-   that Python 3.12 is free of malware" block on first use — reported as
-   search/chat failing right after install. Astro.app is itself notarized
-   and just verified this tree came from the pinned python-build-standalone
-   release asset, so it's safe to clear quarantine here before first
-   execution, the same way Homebrew and other tool-downloading apps do for
-   binaries they fetch into their own private data directory. Only runs on
-   macOS — Gatekeeper doesn't exist elsewhere. `xattr -dr` exits 0 whether or
-   not anything was actually quarantined, so the common case (nothing to
-   clear) is a fast no-op, not a failure. */
+   notarized. Astro.app quarantines every file its processes create (the
+   server and its children included: the extracted tree carried
+   `com.apple.quarantine …;Astro;`), and macOS kills a quarantined,
+   un-notarized binary at exec — observed as pip "stopped by the system
+   (SIGKILL)" right after the download. pip's own wheels (.so files) are
+   created quarantined too, so this runs after every step, not only after
+   the extraction. Astro.app is itself notarized and just verified this tree
+   came from the pinned release asset, so it's safe to clear quarantine here
+   before execution, the same way Homebrew and other tool-downloading apps do
+   for binaries they fetch into their own private data directory. Only runs
+   on macOS. `xattr -dr` exits 0 whether or not anything was quarantined. */
 export function clearQuarantine(dir: string) {
   if (process.platform !== 'darwin') return
   try {
@@ -327,6 +490,13 @@ GIT_BRANCH = "unknown"
   }
 }
 
+const pipEnv = (): NodeJS.ProcessEnv => ({
+  ...process.env,
+  PIP_DISABLE_PIP_VERSION_CHECK: '1',
+  PIP_NO_INPUT: '1',
+  PYTHONNOUSERSITE: '1',
+})
+
 /** One-time setup under the BrowserOS data dir. Uninstall is a single rm -rf. */
 async function provision(
   dataDir: string = getBrowserosDir(),
@@ -334,37 +504,44 @@ async function provision(
   const p = paths(dataDir)
   if (isProvisioned(dataDir)) return p
 
-  /* The marker is only written on full success, so reaching this point with an
-     existing tree means a PREVIOUS provisioning died partway. Its remains are
-     poison — the existsSync fast-paths below would happily reuse a
-     half-extracted Python — so start over from nothing. */
-  if (fs.existsSync(p.root)) {
-    logger.info('Previous search setup was incomplete, starting it over')
-    fs.rmSync(p.root, { recursive: true, force: true })
-  }
-
   fs.mkdirSync(p.root, { recursive: true })
   logger.info('Setting up local search, a one-time download of about 150 MB')
 
-  if (!fs.existsSync(pythonBin(p))) {
+  /* Each step's marker is written only when that step is complete. A step
+     without its marker was cut off: its remains are poison (the old code
+     reused a half-extracted Python), so that step alone starts again. */
+  const pythonReady = path.join(p.python, STEP_MARKER)
+  if (!fs.existsSync(pythonReady)) {
+    settingUp('python', 0)
     const tgz = path.join(p.root, 'python.tar.gz')
-    await download(await resolvePythonURL(), tgz, 'the Python runtime')
-    extract(tgz, p.python)
+    await download(await resolvePythonURL(), tgz, 'the Python runtime', (pct) =>
+      settingUp('python', pct),
+    )
+    clearQuarantine(tgz)
+    await extract(tgz, p.python)
     clearQuarantine(p.python)
+    await runProcess(pythonBin(p), ['-c', 'import ssl, sqlite3'], {
+      timeoutMs: 60_000,
+    })
+    fs.writeFileSync(pythonReady, new Date().toISOString())
   }
 
-  if (!fs.existsSync(path.join(p.src, 'searx', 'webapp.py'))) {
+  const srcReady = path.join(p.src, STEP_MARKER)
+  if (!fs.existsSync(srcReady)) {
+    settingUp('searxng')
     const tgz = path.join(p.root, 'searxng.tar.gz')
     await download(SEARXNG_TARBALL, tgz, 'the SearXNG search engine')
-    extract(tgz, p.src, SEARXNG_EXCLUDES)
+    await extract(tgz, p.src, SEARXNG_EXCLUDES)
     patchSearxng(p)
+    fs.writeFileSync(srcReady, new Date().toISOString())
   }
 
   const py = pythonBin(p)
+  settingUp('dependencies')
   logger.info('Installing search dependencies')
   /* Same two-step upstream's Dockerfile uses: seed the build deps, then install
      SearXNG itself editable so it keeps its templates and static assets. */
-  execFileSync(
+  await runProcess(
     py,
     [
       '-m',
@@ -378,9 +555,10 @@ async function provision(
       'msgspec',
       'typing_extensions',
     ],
-    { stdio: 'ignore' },
+    { env: pipEnv(), timeoutMs: PIP_TIMEOUT_MS },
   )
-  execFileSync(
+  clearQuarantine(p.python)
+  await runProcess(
     py,
     [
       '-m',
@@ -391,8 +569,9 @@ async function provision(
       '-e',
       p.src,
     ],
-    { stdio: 'ignore' },
+    { env: pipEnv(), timeoutMs: PIP_TIMEOUT_MS },
   )
+  clearQuarantine(p.root)
 
   writeSettings(p)
   fs.writeFileSync(p.marker, new Date().toISOString())
@@ -400,48 +579,160 @@ async function provision(
   return p
 }
 
-/** Starts SearXNG and returns its loopback URL. Provisions first if needed. */
-export async function start(
-  dataDir: string = getBrowserosDir(),
-): Promise<string> {
+const pidAlive = (pid: number) => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/* The data dir is shared by every server that runs with the same HOME (two
+   profiles, or BrowserOS beside Astro). Only one of them may set up search:
+   the other waits, then finds the marker. */
+async function withSetupLock<T>(
+  p: SearxngPaths,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const deadline = Date.now() + LOCK_STALE_MS
+  for (;;) {
+    try {
+      fs.mkdirSync(path.dirname(p.lock), { recursive: true })
+      const fd = fs.openSync(p.lock, 'wx')
+      fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: Date.now() }))
+      fs.closeSync(fd)
+      break
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
+      let holder: { pid?: number; at?: number } = {}
+      try {
+        holder = JSON.parse(fs.readFileSync(p.lock, 'utf8'))
+      } catch {}
+      const stale =
+        !holder.pid ||
+        holder.pid === process.pid ||
+        !pidAlive(holder.pid) ||
+        Date.now() - (holder.at ?? 0) > LOCK_STALE_MS
+      if (stale) {
+        fs.rmSync(p.lock, { force: true })
+        continue
+      }
+      if (Date.now() > deadline) {
+        throw new Error('another Astro window is still setting up web search')
+      }
+      await new Promise((r) => setTimeout(r, LOCK_POLL_MS))
+    }
+  }
+  try {
+    return await fn()
+  } finally {
+    fs.rmSync(p.lock, { force: true })
+  }
+}
+
+/**
+ * Wraps an async job so concurrent callers share one run, and a failure is
+ * returned again (without a new run) for `cooldownMs`. The first search of an
+ * answer fires several queries plus the image and video searches at once;
+ * each used to start its own setup, and each deleted the tree the others
+ * were downloading and executing.
+ */
+export function singleFlight<T>(
+  job: () => Promise<T>,
+  opts: { cooldownMs: number; now?: () => number },
+): () => Promise<T> {
+  const now = opts.now ?? Date.now
+  let running: Promise<T> | null = null
+  let failure: { err: Error; at: number } | null = null
+  return () => {
+    if (running) return running
+    if (failure && now() - failure.at < opts.cooldownMs) {
+      return Promise.reject(failure.err)
+    }
+    running = job()
+      .then((v) => {
+        failure = null
+        return v
+      })
+      .catch((err: unknown) => {
+        failure = {
+          err: err instanceof Error ? err : new Error(String(err)),
+          at: now(),
+        }
+        throw failure.err
+      })
+      .finally(() => {
+        running = null
+      })
+    return running
+  }
+}
+
+async function startOnce(dataDir: string): Promise<string> {
   if (runningURL && (await isServing(runningURL))) return runningURL
 
-  const p = await provision(dataDir)
-  if (!fs.existsSync(p.settings)) writeSettings(p)
+  try {
+    const p = isProvisioned(dataDir)
+      ? paths(dataDir)
+      : await withSetupLock(paths(dataDir), () => provision(dataDir))
+    if (!fs.existsSync(p.settings)) writeSettings(p)
 
-  const port = await freePort()
-  const url = `http://${HOST}:${port}`
+    settingUp('starting')
+    const port = await freePort()
+    const url = `http://${HOST}:${port}`
 
-  /* Keep Flask's output — when search fails to come up, its traceback is the
-     only thing that explains why. */
-  const logDir = path.join(dataDir, 'logs')
-  fs.mkdirSync(logDir, { recursive: true })
-  const fd = fs.openSync(path.join(logDir, 'searxng.log'), 'a')
+    /* Keep Flask's output — when search fails to come up, its traceback is the
+       only thing that explains why. */
+    const logDir = path.join(dataDir, 'logs')
+    fs.mkdirSync(logDir, { recursive: true })
+    const fd = fs.openSync(path.join(logDir, 'searxng.log'), 'a')
 
-  proc = spawn(
-    pythonBin(p),
-    ['-m', 'flask', 'run', '--host', HOST, '--port', String(port)],
-    {
-      cwd: p.src,
-      env: {
-        ...process.env,
-        FLASK_APP: 'searx/webapp.py',
-        SEARXNG_SETTINGS_PATH: p.settings,
+    proc = spawn(
+      pythonBin(p),
+      ['-m', 'flask', 'run', '--host', HOST, '--port', String(port)],
+      {
+        cwd: p.src,
+        env: {
+          ...process.env,
+          FLASK_APP: 'searx/webapp.py',
+          SEARXNG_SETTINGS_PATH: p.settings,
+        },
+        stdio: ['ignore', fd, fd],
+        detached: false,
       },
-      stdio: ['ignore', fd, fd],
-      detached: false,
-    },
-  )
-  proc.on('exit', () => {
-    proc = null
-    runningURL = null
-  })
+    )
+    proc.on('exit', () => {
+      proc = null
+      runningURL = null
+    })
 
-  if (!(await waitUntilServing(url))) {
-    throw new Error("Local search started but isn't responding.")
+    if (!(await waitUntilServing(url))) {
+      throw new Error("the search engine started but isn't responding")
+    }
+    runningURL = url
+    setStatus({ state: 'ready', url })
+    return url
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.warn('Local search setup failed', { error: message })
+    setStatus({ state: 'failed', message, at: Date.now() })
+    throw new Error(`Web search is not available: ${message}`)
   }
-  runningURL = url
-  return url
+}
+
+const flights = new Map<string, () => Promise<string>>()
+
+/** Starts SearXNG and returns its loopback URL. Provisions first if needed. One run at a time per data dir. */
+export function start(dataDir: string = getBrowserosDir()): Promise<string> {
+  let flight = flights.get(dataDir)
+  if (!flight) {
+    flight = singleFlight(() => startOnce(dataDir), {
+      cooldownMs: FAILURE_COOLDOWN_MS,
+    })
+    flights.set(dataDir, flight)
+  }
+  return flight()
 }
 
 /** Returns the URL of the running instance, or null when not started. */

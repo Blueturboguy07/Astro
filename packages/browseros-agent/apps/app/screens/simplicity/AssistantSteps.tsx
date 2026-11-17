@@ -1,8 +1,10 @@
 'use client'
 
 import {
+  AlertTriangle,
   BookSearch,
   ChevronRight,
+  Download,
   FileText,
   Globe,
   Search,
@@ -48,6 +50,8 @@ const getCurrentStepLabel = (step: ResearchBlockSubStep): string => {
       return 'Searching your files'
     case 'upload_search_results':
       return 'Reading your files'
+    case 'notice':
+      return step.text
     default:
       return 'Researching'
   }
@@ -67,6 +71,12 @@ const getStepIcon = (step: ResearchBlockSubStep) => {
       return <BookSearch className="h-3.5 w-3.5" />
     case 'upload_search_results':
       return <FileText className="h-3.5 w-3.5" />
+    case 'notice':
+      return step.level === 'error' ? (
+        <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+      ) : (
+        <Download className="h-3.5 w-3.5" />
+      )
     default:
       return null
   }
@@ -86,6 +96,8 @@ const getStepLabel = (step: ResearchBlockSubStep): string => {
       return 'Searching your files'
     case 'upload_search_results':
       return `Found ${step.results.length} ${pluralize(step.results.length, 'passage')}`
+    case 'notice':
+      return step.text
     default:
       return 'Researching'
   }
@@ -222,6 +234,13 @@ const AssistantSteps = ({
   const isRunning = isLast && status === 'answering' && !researchEnded
   const lastStep = subSteps[stepCount - 1]
 
+  /* A failed web search must be visible without opening the steps: the
+     answer below it has no web sources. */
+  const errors = subSteps.filter(
+    (s): s is Extract<ResearchBlockSubStep, { type: 'notice' }> =>
+      s.type === 'notice' && s.level === 'error',
+  )
+
   const headerLabel = isRunning
     ? `Working · ${stepCount} ${pluralize(stepCount, 'step')} completed`
     : `Completed · ${stepCount} ${pluralize(stepCount, 'step')}`
@@ -251,6 +270,20 @@ const AssistantSteps = ({
           }`}
         />
       </button>
+
+      {!isExpanded &&
+        errors.map((e) => (
+          <div
+            key={e.id}
+            role="alert"
+            className="-mt-1 flex items-start gap-2 px-3 pb-3"
+          >
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+            <span className="text-amber-700 text-sm dark:text-amber-400">
+              {e.text}
+            </span>
+          </div>
+        ))}
 
       {!isExpanded && isRunning && lastStep && (
         <div className="-mt-1 flex items-center gap-2 px-3 pb-3">

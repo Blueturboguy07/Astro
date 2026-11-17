@@ -8,6 +8,7 @@ import computeSimilarity from '../../../../../utils/computeSimilarity';
 import z from 'zod/v4';
 import Scraper from '../../../../../scraper';
 import { splitText } from '../../../../../utils/splitText';
+import { ensureWebSearchReady } from './webSearchSetup';
 
 export const executeSearch = async (input: {
   queries: string[];
@@ -19,6 +20,10 @@ export const executeSearch = async (input: {
   embedding: BaseEmbedding<any>;
 }) => {
   const researchBlock = input.researchBlock;
+
+  if (!(await ensureWebSearchReady(researchBlock, input.session))) {
+    return [];
+  }
 
   researchBlock.data.subSteps.push({
     id: crypto.randomUUID(),
