@@ -4,6 +4,7 @@ import crypto from "crypto"
 import fs from 'node:fs';
 import { splitText } from "../utils/splitText";
 import { ensureDOMMatrix } from "./dommatrix-polyfill";
+import { getBrowserosDir } from "../../browseros-dir";
 /* pdf-parse and officeparser are imported lazily, at the point a file of that
    type is actually parsed. Both pull heavy document toolchains in at import
    time — pdf-parse loads pdfjs, which reaches for @napi-rs/canvas and DOMMatrix
@@ -51,11 +52,13 @@ type FileRes = {
 
 class UploadManager {
     private embeddingModel: BaseEmbedding<any>;
-    /* DATA_DIR, not cwd: in the packaged app cwd is inside the read-only
-       .app bundle — writing there fails and uploads break. */
+    /* Next to simplicity.db and config.json, never the working directory:
+       the packaged server's cwd can be read-only, and tests wrote into the
+       repo. */
     static uploadsDir = path.join(
-        process.env.DATA_DIR || process.cwd(),
-        'data',
+        process.env.DATA_DIR
+            ? path.join(process.env.DATA_DIR, 'data')
+            : path.join(getBrowserosDir(), 'simplicity'),
         'uploads',
     );
     static uploadedFilesRecordPath = path.join(this.uploadsDir, 'uploaded_files.json');
