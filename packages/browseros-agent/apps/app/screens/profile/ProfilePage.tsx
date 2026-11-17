@@ -41,6 +41,7 @@ import {
   GetProfileByUserIdDocument,
   UpdateProfileByUserIdDocument,
 } from './graphql/profileDocument'
+import { shouldGoToLogin } from './profile.helpers'
 
 const formSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -54,7 +55,7 @@ type ProfileState = 'idle' | 'loading' | 'success' | 'error'
 export const ProfilePage: FC = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { sessionInfo } = useSessionInfo()
+  const { sessionInfo, isLoading: isSessionLoading } = useSessionInfo()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const userId = sessionInfo?.user?.id
@@ -112,10 +113,10 @@ export const ProfilePage: FC = () => {
   }, [profileData, form])
 
   useEffect(() => {
-    if (!isLoggedIn && !sessionInfo) {
+    if (shouldGoToLogin(isSessionLoading, userId)) {
       navigate('/login', { replace: true })
     }
-  }, [isLoggedIn, sessionInfo, navigate])
+  }, [isSessionLoading, userId, navigate])
 
   useEffect(() => {
     return () => {
