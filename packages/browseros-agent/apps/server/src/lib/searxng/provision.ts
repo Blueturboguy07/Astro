@@ -356,7 +356,11 @@ export async function clearQuarantine(dir: string): Promise<void> {
      xattr takes long enough to matter, and nothing may block the server's
      event loop during the setup (F-025). */
   try {
-    await runProcess('/usr/bin/xattr', ['-dr', 'com.apple.quarantine', dir], {
+    /* -s: a symlink's own flag too (python/bin/2to3 -> 2to3-3.12). Without
+       it the links kept the flag and the gate refused to run anything
+       (found in the 0.0.109 UI run). Regular files and folders are
+       reached by -r either way. */
+    await runProcess('/usr/bin/xattr', ['-drs', 'com.apple.quarantine', dir], {
       timeoutMs: 120_000,
     })
   } catch (err) {

@@ -111,6 +111,36 @@ describe('ensureNoQuarantine', () => {
   })
 
   it.skipIf(process.platform !== 'darwin')(
+    'clears the flag on a symlink itself, as the app download sets it',
+    async () => {
+      const { symlinkSync } = await import('node:fs')
+      const dir = mkdtempSync(join(tmpdir(), 'astro-quarantine-link-'))
+      try {
+        const target = join(dir, '2to3-3.12')
+        const link = join(dir, '2to3')
+        writeFileSync(target, '#!/bin/sh\n')
+        symlinkSync('2to3-3.12', link)
+        for (const [flags, f] of [
+          [['-w'], target],
+          [['-s', '-w'], link],
+        ] as const) {
+          execFileSync('/usr/bin/xattr', [
+            ...flags,
+            'com.apple.quarantine',
+            '0081;00000000;Astro;',
+            f,
+          ])
+        }
+        expect(await findQuarantined(dir)).not.toBe(null)
+        await ensureNoQuarantine(dir)
+        expect(await findQuarantined(dir)).toBe(null)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+  )
+
+  it.skipIf(process.platform !== 'darwin')(
     'clears and verifies a real quarantined tree',
     async () => {
       const dir = mkdtempSync(join(tmpdir(), 'astro-quarantine-'))
