@@ -224,7 +224,9 @@ export async function quit(session, { waitMs = 45_000 } = {}) {
     windowsClosed: close?.closed ?? 0,
     closedTitles: close?.titles ?? [],
     procsBefore: before.map((p) => `${p.name}(${p.pid})`),
-    clean: left.length === 0,
+    // No process before the close means the browser was already gone: not a clean quit to measure.
+    alreadyGone: before.length === 0,
+    clean: before.length > 0 && left.length === 0,
     ms: Date.now() - t0,
     leftovers: left.map((p) => `${p.name}(${p.pid})`),
   }

@@ -196,22 +196,34 @@ switch ($Action) {
     Emit @{ ok = $true; how = $how; window = $hit.win.title; control = $hit.el.Current.ControlType.ProgrammaticName }
   }
   'uia-dump' {
-    # Names of buttons/dialogs/text in the app windows (debugging native dialogs).
+    # Names of buttons/dialogs/text in the app windows (native dialogs).
+    # Bounded walk: a browser window's web content can hold thousands of nodes.
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
-    $out = @()
+    $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+    $script:out = @()
+    function Walk($el, [int]$depth, $title, $sw) {
+      if ($depth -gt 10 -or $script:n -ge 500 -or $sw.Elapsed.TotalSeconds -gt 15) { return }
+      $c = $walker.GetFirstChild($el)
+      while ($null -ne $c -and $script:n -lt 500 -and $sw.Elapsed.TotalSeconds -le 15) {
+        $script:n++
+        try {
+          $nm = $c.Current.Name
+          if ($nm) { $script:out += [ordered]@{ window = $title; type = $c.Current.ControlType.ProgrammaticName; name = $nm } }
+        } catch { }
+        Walk $c ($depth + 1) $title $sw
+        $c = $walker.GetNextSibling($c)
+      }
+    }
     foreach ($w in (Get-AppWindows)) {
       try {
+        $script:n = 0
+        $sw = [Diagnostics.Stopwatch]::StartNew()
         $el = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$w.hwnd)
-        $all = $el.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
-        $n = 0
-        foreach ($c in $all) {
-          if ($n -ge 400) { break }
-          $nm = $c.Current.Name
-          if ($nm) { $out += [ordered]@{ window = $w.title; type = $c.Current.ControlType.ProgrammaticName; name = $nm }; $n++ }
-        }
+        $script:out += [ordered]@{ window = $w.title; type = 'window'; name = $el.Current.Name }
+        Walk $el 0 $w.title $sw
       } catch { }
     }
-    Emit @($out)
+    Emit @($script:out)
   }
   'netsample' {
     # Sample established TCP connections of the app's processes until $StopFile exists.

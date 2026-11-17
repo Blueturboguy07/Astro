@@ -70,6 +70,9 @@ jobs:
       run:
         shell: pwsh
     env:
+      # The repo whose release is tested. Fixed, so this workflow also works
+      # when it runs from another repo.
+      RELEASE_REPO: Blueturboguy07/Astro
       RELEASE_TAG: ${{ inputs.release_tag || 'v0.2.4' }}
       EXPECT_AGENT_VERSION: ${{ inputs.expect_agent_version || '0.0.103' }}
       QA_IDLE_MS: ${{ format('{0}000', inputs.idle_seconds || '180') }}

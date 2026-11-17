@@ -18,7 +18,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as A from './lib/astro.mjs'
-import { listTargets, screenshotTarget } from './lib/cdp.mjs'
+import { evalInTarget, listTargets, screenshotTarget } from './lib/cdp.mjs'
 import { parseNetLog, isLocal } from './lib/netlog.mjs'
 import { extStorageGet, extStorageRemove, extStorageSet, extensionWorker } from './lib/publik.mjs'
 import { Blocked, blockedRow, brandHits, RESULTS, runRow, sleep, waitFor } from './lib/rows.mjs'
@@ -41,7 +41,7 @@ import {
 } from './lib/win.mjs'
 
 const TAG = process.env.RELEASE_TAG || 'v0.2.4'
-const REPO = process.env.GITHUB_REPOSITORY || 'Blueturboguy07/Astro'
+const REPO = process.env.RELEASE_REPO || 'Blueturboguy07/Astro'
 const EXPECT_AGENT = process.env.EXPECT_AGENT_VERSION || '0.0.103'
 const SELFTEST_OK = `publik self-test: ok astro ${EXPECT_AGENT}`
 const IDLE_MS = Number(process.env.QA_IDLE_MS || 180_000)
@@ -65,12 +65,17 @@ const SITES = [
 
 fs.mkdirSync(A.WORK, { recursive: true })
 fs.mkdirSync(RESULTS, { recursive: true })
+process.on('unhandledRejection', (e) => console.log(`unhandled rejection (ignored): ${e?.stack ?? e}`))
 
 /** What the brand rows read at the end. */
 const brand = { windowTitles: [], procs: [], versionText: '', helpText: '', defaultUserData: null }
 const recordWindows = (where) => {
   for (const w of appWindows()) if (w.title) brand.windowTitles.push({ where, title: w.title, class: w.class, process: w.name })
 }
+const quitText = (q) =>
+  q.alreadyGone
+    ? 'no Astro process was running when the quit started (the browser had already exited)'
+    : `closed ${q.windowsClosed} window(s); processes before: ${q.procsBefore.join(', ')}; ${q.clean ? `all gone in ${(q.ms / 1000).toFixed(1)} s` : `LEFT after ${(q.ms / 1000).toFixed(0)} s: ${q.leftovers.join(', ')}`}`
 const shotDesktop = (ctx, name) => {
   const r = desktopShot(ctx.file(name))
   if (r?.error) ctx.note(`desktop screenshot failed: ${r.error}`)
@@ -189,7 +194,6 @@ if (needA(D))
     const back = await extStorageGet(S, ['qa-harness-probe'])
     await extStorageRemove(S, ['qa-harness-probe'])
     // Key NAMES only: the values hold this install's publik key.
-    const { evalInTarget } = await import('./lib/cdp.mjs')
     const keys = await evalInTarget(sw.webSocketDebuggerUrl, 'chrome.storage.local.get(null).then(o => Object.keys(o).sort())')
     ctx.writeJson('storage-keys.json', { worker: sw.url, keys })
     const ok = back?.['qa-harness-probe']?.at === probe.at
@@ -286,7 +290,6 @@ if (needA(D))
     const k2 = sendKeys('{ENTER}')
     await sleep(1500)
     const sw = await extensionWorker(S)
-    const { evalInTarget } = await import('./lib/cdp.mjs')
     const find = () => evalInTarget(sw.webSocketDebuggerUrl, `chrome.bookmarks.search({ url: ${JSON.stringify(BOOKMARK_URL)} }).then(r => r.map(b => ({ id: b.id, title: b.title, url: b.url, parentId: b.parentId })))`)
     let hits = await find()
     let method = 'Ctrl+D (real keyboard input on the runner desktop)'
@@ -447,7 +450,7 @@ if (needA(D))
   await runRow(D, async (ctx) => {
     const q = await A.quit(S)
     ctx.writeJson('quit.json', q)
-    return { result: q.clean ? 'pass' : 'fail', actual: `closed ${q.windowsClosed} window(s); processes before: ${q.procsBefore.join(', ')}; ${q.clean ? `all gone in ${(q.ms / 1000).toFixed(1)} s` : `LEFT after ${(q.ms / 1000).toFixed(0)} s: ${q.leftovers.join(', ')}`}` }
+    return { result: q.clean ? 'pass' : 'fail', actual: quitText(q) }
   })
 A.killAll()
 
@@ -489,7 +492,7 @@ else
   await runRow(D, async (ctx) => {
     const file = A.readJson(path.join(P1, 'Default', 'Bookmarks'))
     const onDisk = JSON.stringify(file ?? {}).includes(BOOKMARK_URL)
-    const { page } = await A.openPage(S2, 'chrome://bookmarks')
+    const { page } = await A.openPage(S2, 'chrome://bookmarks/?q=Web%20browser')
     await sleep(2500)
     const text = await A.visibleText(page)
     ctx.writeText('bookmarks-page.txt', text)
@@ -505,7 +508,7 @@ else
   await runRow(D, async (ctx) => {
     const q = await A.quit(S2)
     ctx.writeJson('quit.json', q)
-    return { result: q.clean ? 'pass' : 'fail', actual: `closed ${q.windowsClosed} window(s); processes before: ${q.procsBefore.join(', ')}; ${q.clean ? `all gone in ${(q.ms / 1000).toFixed(1)} s` : `LEFT after ${(q.ms / 1000).toFixed(0)} s: ${q.leftovers.join(', ')}`}` }
+    return { result: q.clean ? 'pass' : 'fail', actual: quitText(q) }
   })
 A.killAll()
 
@@ -561,7 +564,7 @@ await runRow(
     const ok = h.ok && wins.length > 0 && q.clean
     return {
       result: ok ? 'pass' : 'fail',
-      actual: `user data dir: ${userData}; config after ${((Date.now() - t0) / 1000).toFixed(0)} s; /health ${h.health?.status}; tabs: ${targets.filter((t) => t.type === 'page').map((t) => t.url).join(' , ')}; windows: ${wins.map((w) => w.title).join(' | ')}; quit clean: ${q.clean}${q.clean ? '' : ` (left: ${q.leftovers.join(', ')})`}`,
+      actual: `user data dir: ${userData}; config after ${((Date.now() - t0) / 1000).toFixed(0)} s; /health ${h.health?.status}; tabs: ${targets.filter((t) => t.type === 'page').map((t) => t.url).join(' , ')}; windows: ${wins.map((w) => w.title).join(' | ')}; quit: ${quitText(q)}`,
     }
   },
 )
@@ -785,8 +788,9 @@ if (needE(D))
     ctx.writeJson('windows.json', E.windowsAfterHelp ?? [])
     ctx.writeJson('uia.json', E.uia ?? [])
     const sparkleWins = (E.windowsAfterHelp ?? []).filter((w) => !/Chrome_WidgetWin/.test(w.class) && w.title)
-    const uiaText = Array.isArray(E.uia) ? E.uia.map((x) => x.name).join(' / ') : ''
-    const errorShown = /error|failed|could not|unable/i.test(`${sparkleWins.map((w) => w.title).join(' ')} ${uiaText}`)
+    const sparkleTitles = new Set(sparkleWins.map((w) => w.title))
+    const uiaText = Array.isArray(E.uia) ? E.uia.filter((x) => sparkleTitles.has(x.window)).map((x) => x.name).join(' / ') : ''
+    const errorShown = /error|failed|could not|unable/i.test(`${[...sparkleTitles].join(' ')} ${uiaText}`)
     const helpLines = (E.helpText ?? '').split('\n')
     const status = helpLines.find((l) => /update|up to date|checking|version/i.test(l)) ?? '(no status line)'
     const upToDate = /up to date/i.test(E.helpText ?? '')

@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 $tag = if ($env:RELEASE_TAG) { $env:RELEASE_TAG } else { 'v0.2.4' }
 $releaseVersion = $tag.TrimStart('v')
-$repo = if ($env:GITHUB_REPOSITORY) { $env:GITHUB_REPOSITORY } else { 'Blueturboguy07/Astro' }
+$repo = if ($env:RELEASE_REPO) { $env:RELEASE_REPO } else { 'Blueturboguy07/Astro' }
 $work = if ($env:QA_WORK) { $env:QA_WORK } else { Join-Path $env:RUNNER_TEMP 'astro-qa' }
 $dl = Join-Path $work 'dl'
 New-Item -ItemType Directory -Force -Path $dl | Out-Null

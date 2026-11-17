@@ -41,9 +41,10 @@ export function writeRow(r) {
   return out
 }
 
+// unref: a pending row timer must not keep Node alive after the last row.
 const timeout = (ms, id) =>
   new Promise((_, rej) =>
-    setTimeout(() => rej(new Error(`row ${id} timed out after ${ms} ms`)), ms),
+    setTimeout(() => rej(new Error(`row ${id} timed out after ${ms} ms`)), ms).unref(),
   )
 
 /**
