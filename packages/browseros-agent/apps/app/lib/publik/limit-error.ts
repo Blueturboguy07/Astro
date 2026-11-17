@@ -15,7 +15,12 @@ export interface PublikLimitError {
   url: string
 }
 
-const DAILY_TEXT = /this key has reached its daily (spending )?(cap|limit)/i
+/* The gateway words it per key or per account ("This account has
+   reached its daily limit. It applies to all of its keys together"):
+   the account text showed raw with a useless Retry (0.0.109 UI run). */
+const DAILY_TEXT =
+  /this (key|account) has reached its daily (spending )?(cap|limit)/i
+const ACCOUNT_TEXT = /this account has reached its daily/i
 
 export function parsePublikLimitError(
   message: string,
@@ -42,9 +47,12 @@ export function parsePublikLimitError(
     }
   }
   if (type === 'daily_cap_reached' || DAILY_TEXT.test(message)) {
+    const who = ACCOUNT_TEXT.test(message)
+      ? 'Your publik account (all of its keys together) reached its daily limit.'
+      : 'Your publik key reached its daily spending cap.'
     return {
       title: 'Daily limit reached',
-      text: `Your publik key reached its daily spending cap. ${resetText(resetAt ?? nextUtcMidnight(now), now, !resetAt)}`,
+      text: `${who} ${resetText(resetAt ?? nextUtcMidnight(now), now, !resetAt)}`,
       url: PUBLIK_WALLET_URL,
     }
   }

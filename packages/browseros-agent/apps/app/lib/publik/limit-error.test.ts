@@ -33,6 +33,17 @@ describe('parsePublikLimitError (F-050)', () => {
     expect(e?.text).toContain('at midnight UTC, in 5 h 12 min')
   })
 
+  it('reads the per-account daily limit text (0.0.109 UI run)', () => {
+    const now = new Date('2026-11-17T11:45:00Z')
+    const out = parsePublikLimitError(
+      '429 This account has reached its daily limit. It applies to all of its keys together and resets at midnight UTC.',
+      now,
+    )
+    expect(out?.title).toBe('Daily limit reached')
+    expect(out?.text).toContain('account (all of its keys together)')
+    expect(out?.text).toContain('in 12 h 15 min')
+  })
+
   it('handles the spent plan budget', () => {
     const e = parsePublikLimitError(
       JSON.stringify({
