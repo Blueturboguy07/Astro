@@ -22,6 +22,11 @@
  *   3. The phone-home URLs compiled into chrome.dll repointed to publikhq.com
  *      hosts (all same-length ASCII overwrites) so the build never reaches
  *      cdn.browseros.com.
+ *   4. Upstream's local server (BrowserOSServer\default\resources: the
+ *      browseros_server.exe and its DB migrations) replaced by Astro's, built
+ *      from this repo's apps/server for windows-x64. Without it the Windows
+ *      build shipped upstream's server 0.0.165, which has no /api routes, so
+ *      the answer engine could not work (Astro 0.2.4 QA, F-051).
  *
  * The single most important patch is the extension CONFIG url
  * (kBrowserOSConfigUrl = https://cdn.browseros.com/extensions/extensions.json).
@@ -51,7 +56,9 @@
  *   bun packages/browseros-agent/scripts/release/astro-recut-win.ts \
  *     --tree  path\to\Chrome-bin \
  *     --crx   path\to\astro-agent.crx \
+ *     --server path\to\windows-x64\resources \
  *     --version 0.0.101 \
+ *     --app-version 0.2.4 \
  *     --out   dist\win \
  *     [--package nsis|zip] [--nsi <astro-win.nsi>] [--makensis <makensis.exe>] \
  *     [--dry-run]
@@ -156,6 +163,39 @@ for (const p of WIN_URL_PATCHES) {
 
 const EXTENSIONS_DIR = 'browseros_extensions'
 const BUNDLED_MANIFEST = 'bundled_extensions.json'
+/* Where the browser starts its local server from, inside <version>\. */
+const SERVER_RESOURCES_DIR = path.join(
+  'BrowserOSServer',
+  'default',
+  'resources',
+)
+const SERVER_EXE = path.join('bin', 'browseros_server.exe')
+const SERVER_MIGRATIONS = path.join('db', 'migrations')
+
+/**
+ * Checks a built server resources dir (dist/prod/server/windows-x64/resources
+ * from `bun scripts/build/server.ts --target=windows-x64`): it must hold a
+ * Windows executable (PE, "MZ") and the DB migrations the server applies.
+ */
+export function checkServerResources(dir: string): void {
+  const exe = path.join(dir, SERVER_EXE)
+  if (!fs.existsSync(exe)) {
+    throw new Error(`--server ${dir} has no ${SERVER_EXE}`)
+  }
+  const head = Buffer.alloc(2)
+  const fd = fs.openSync(exe, 'r')
+  try {
+    fs.readSync(fd, head, 0, 2, 0)
+  } finally {
+    fs.closeSync(fd)
+  }
+  if (head.toString('latin1') !== 'MZ') {
+    throw new Error(`--server ${exe} is not a Windows executable`)
+  }
+  if (!fs.existsSync(path.join(dir, SERVER_MIGRATIONS, 'meta'))) {
+    throw new Error(`--server ${dir} has no ${SERVER_MIGRATIONS}`)
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Pure pieces -- exercised by astro-recut-win.test.ts without a       */
@@ -229,6 +269,8 @@ export function patchChromeDllUrls(buf: Uint8Array): BinaryPatch[] {
 export type WinRecutOptions = {
   tree: string
   crx: string
+  /** Astro's built server resources for windows-x64 (F-051). */
+  server: string
   version: string
   /** Astro's release version (0.2.4): Add/Remove Programs, the installer's
       file version and name. Not the CRX version (QA F-014: 0.2.4 showed
@@ -254,6 +296,7 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
   if (!fs.existsSync(opts.tree)) throw new Error(`Tree not found: ${opts.tree}`)
   if (!fs.existsSync(opts.crx)) throw new Error(`CRX not found: ${opts.crx}`)
   validateExtensionVersion(opts.version)
+  checkServerResources(opts.server)
 
   const versionDir = chromeVersionDir(opts.tree)
   const dll = path.join(versionDir, 'chrome.dll')
@@ -360,6 +403,26 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
     console.log('      ok: no adlpneom... crx, not in bundled_extensions.json')
   }
 
+  console.log("[4a/5] local server: install Astro's")
+  const serverDir = path.join(versionDir, SERVER_RESOURCES_DIR)
+  const serverExe = path.join(serverDir, SERVER_EXE)
+  if (!fs.existsSync(serverExe)) {
+    throw new Error(
+      `The tree has no server at ${serverExe}; refusing to guess where it goes.`,
+    )
+  }
+  if (!opts.dryRun) {
+    fs.copyFileSync(path.join(opts.server, SERVER_EXE), serverExe)
+    /* Upstream's migrations belong to upstream's schema; the server applies
+       every file in this folder at start. */
+    const migrations = path.join(serverDir, SERVER_MIGRATIONS)
+    fs.rmSync(migrations, { recursive: true, force: true })
+    fs.cpSync(path.join(opts.server, SERVER_MIGRATIONS), migrations, {
+      recursive: true,
+    })
+  }
+  console.log(`      installed ${SERVER_EXE} and ${SERVER_MIGRATIONS}`)
+
   console.log('[4b/5] rebrand visible "BrowserOS" text in the paks')
   if (!opts.dryRun) {
     /* The About box, menus, chrome://browseros-onboarding and chrome://version
@@ -430,11 +493,13 @@ export function parseArgs(argv: string[]): WinRecutOptions {
   }
   const tree = get('--tree')
   const crx = get('--crx')
+  const server = get('--server')
   const version = get('--version')
   const appVersion = get('--app-version')
-  if (!tree || !crx || !version || !appVersion) {
+  if (!tree || !crx || !server || !version || !appVersion) {
     throw new Error(
       'Usage: bun astro-recut-win.ts --tree <Chrome-bin> --crx <file.crx> ' +
+        '--server <windows-x64 server resources dir> ' +
         '--version <CRX version, 0.0.101> --app-version <Astro release, 0.2.4> ' +
         '[--out dir] [--package nsis|zip] [--nsi <.nsi>] ' +
         '[--makensis <path>] [--dry-run]',
@@ -447,6 +512,7 @@ export function parseArgs(argv: string[]): WinRecutOptions {
   return {
     tree,
     crx,
+    server,
     version: validateExtensionVersion(version),
     appVersion: validateAppVersion(appVersion),
     out: get('--out') ?? 'dist/win',

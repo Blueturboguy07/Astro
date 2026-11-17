@@ -1,0 +1,13 @@
+{
+  "resources": [
+    {
+      "name": "Drizzle migrations",
+      "source": {
+        "type": "local",
+        "path": "apps/server/src/lib/db/migrations"
+      },
+      "destination": "resources/db/migrations",
+      "recursive": true
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { ASTRO_EXTENSION_ID, UPSTREAM_AGENT_EXTENSION_ID } from './astro-recut'
 import {
   astroBundledManifest,
   BUGREPORTER_EXTENSION_ID,
+  checkServerResources,
   chromeVersionDir,
   parseArgs,
   patchChromeDllUrls,
@@ -116,8 +117,21 @@ describe('chromeVersionDir', () => {
 })
 
 describe('parseArgs', () => {
-  it('requires --tree, --crx, --version and --app-version', () => {
+  it('requires --tree, --crx, --server, --version and --app-version', () => {
     expect(() => parseArgs(['--tree', 't', '--crx', 'c'])).toThrow(/Usage/)
+    /* F-051: without --server the build shipped upstream's server. */
+    expect(() =>
+      parseArgs([
+        '--tree',
+        't',
+        '--crx',
+        'c',
+        '--version',
+        '0.0.101',
+        '--app-version',
+        '0.2.4',
+      ]),
+    ).toThrow(/--server/)
     expect(() =>
       parseArgs(['--tree', 't', '--crx', 'c', '--version', '0.0.101']),
     ).toThrow(/Usage/)
@@ -130,6 +144,8 @@ describe('parseArgs', () => {
       't',
       '--crx',
       'c.crx',
+      '--server',
+      'srv',
       '--version',
       '0.0.103',
       '--app-version',
@@ -146,6 +162,8 @@ describe('parseArgs', () => {
       't',
       '--crx',
       'c.crx',
+      '--server',
+      'srv',
       '--version',
       '0.0.101',
       '--app-version',
@@ -163,6 +181,8 @@ describe('parseArgs', () => {
         't',
         '--crx',
         'c.crx',
+        '--server',
+        'srv',
         '--version',
         '0.0.101',
         '--app-version',
@@ -171,5 +191,32 @@ describe('parseArgs', () => {
         'msi',
       ]),
     ).toThrow(/must be "nsis" or "zip"/)
+  })
+})
+
+/* Astro 0.2.4 QA, F-051: the Windows build shipped upstream's server. */
+describe('checkServerResources', () => {
+  const make = (exeHead: string, migrations = true) => {
+    const dir = mkdtempSync(join(tmpdir(), 'astro-srv-'))
+    mkdirSync(join(dir, 'bin'))
+    writeFileSync(join(dir, 'bin', 'browseros_server.exe'), exeHead)
+    if (migrations)
+      mkdirSync(join(dir, 'db', 'migrations', 'meta'), { recursive: true })
+    return dir
+  }
+
+  it('accepts a Windows executable with its migrations', () => {
+    const dir = make('MZ\x90\x00')
+    expect(() => checkServerResources(dir)).not.toThrow()
+    rmSync(dir, { recursive: true })
+  })
+
+  it('refuses a macOS binary or missing migrations', () => {
+    const mac = make('\xcf\xfa\xed\xfe')
+    expect(() => checkServerResources(mac)).toThrow(/not a Windows executable/)
+    rmSync(mac, { recursive: true })
+    const bare = make('MZ', false)
+    expect(() => checkServerResources(bare)).toThrow(/migrations/)
+    rmSync(bare, { recursive: true })
   })
 })

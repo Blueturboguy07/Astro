@@ -34,11 +34,14 @@ if (!fs.existsSync(rceditPath)) {
   process.exit(1)
 }
 
+/* Astro's names in Task Manager and the file properties (Astro 0.2.4 QA,
+   Windows brand check O9-W-06 showed "BrowserOS Agent"). */
 const metadata = {
-  ProductName: 'BrowserOS Agent',
-  FileDescription: 'BrowserOS Agent',
-  CompanyName: 'BrowserOS',
-  LegalCopyright: 'Copyright (C) 2025 BrowserOS',
+  ProductName: 'Astro',
+  FileDescription: 'Astro local server',
+  CompanyName: 'publik',
+  LegalCopyright:
+    'Copyright (C) 2025 BrowserOS, (C) 2026 publik. AGPL-3.0-or-later',
   InternalName: 'browseros-server',
   OriginalFilename: path.basename(exePath),
 }

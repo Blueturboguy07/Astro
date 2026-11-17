@@ -2,9 +2,11 @@ name: "Release: Windows Astro (recut)"
 
 # Builds the Windows Astro installer WITHOUT compiling Chromium. It downloads
 # upstream BrowserOS's prebuilt Windows installer, extracts the Chrome-bin tree,
-# swaps in Astro's agent CRX, byte-patches chrome.dll (agent id + every
-# phone-home url) and drops the bug reporter, then wraps the result in an NSIS
-# installer -- and TESTS that installer end to end over CDP before uploading it.
+# swaps in Astro's agent CRX and Astro's own local server (built here from
+# apps/server; upstream's server has no /api routes, QA F-051), byte-patches
+# chrome.dll (agent id + every phone-home url) and drops the bug reporter, then
+# wraps the result in an NSIS installer -- and TESTS that installer end to end
+# over CDP before uploading it.
 #
 # Unsigned by design (no Windows cert; upstream is unsigned too).
 
@@ -60,6 +62,28 @@ jobs:
 
       - name: Install NSIS
         run: choco install nsis -y --no-progress
+
+      # Astro's local server for windows-x64. The recut refuses to run without
+      # it: upstream's prebuilt tree carries upstream's server (0.0.165), which
+      # answers 404 on /api/* so the answer engine cannot work (QA F-051).
+      - name: Build Astro server (windows-x64)
+        working-directory: packages/browseros-agent
+        env:
+          BROWSEROS_CONFIG_URL: https://astro.invalid/api/browseros-server/config
+          NODE_ENV: production
+          LOG_LEVEL: info
+        run: |
+          $ErrorActionPreference = "Stop"
+          bun install --frozen-lockfile
+          if ($LASTEXITCODE -ne 0) { throw "bun install failed ($LASTEXITCODE)" }
+          bun scripts/build/server.ts --target=windows-x64 --no-upload --manifest=scripts/build/config/server-astro-resources.json
+          if ($LASTEXITCODE -ne 0) { throw "server build failed ($LASTEXITCODE)" }
+          $res = Resolve-Path "dist\prod\server\windows-x64\resources"
+          $exe = Join-Path $res "bin\browseros_server.exe"
+          if (-not (Test-Path $exe)) { throw "server exe not produced at $exe" }
+          $v = & $exe --version
+          Write-Host "Astro server version: $v"
+          "SERVER_RESOURCES=$res" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Download upstream installer
         env:
@@ -121,6 +145,7 @@ jobs:
           bun packages/browseros-agent/scripts/release/astro-recut-win.ts `
             --tree "$env:CHROME_BIN" `
             --crx work\astro-agent.crx `
+            --server "$env:SERVER_RESOURCES" `
             --version "$env:VERSION" `
             --app-version "$env:APP_VERSION" `
             --out dist\win `
@@ -266,6 +291,33 @@ jobs:
             Start-Sleep -Seconds 3
           }
           if (-not $ok) { throw "local server /health did not answer on managed port $srv" }
+
+      # /health answers on any server; /api/providers exists only in Astro's.
+      - name: Assert the Astro server API answers
+        run: |
+          $ErrorActionPreference = "Stop"
+          $srv = $env:ASTRO_SERVER
+          $ok = $false
+          for ($i = 0; $i -lt 20 -and -not $ok; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:$srv/api/providers" -TimeoutSec 5 -UseBasicParsing
+              if ($r.StatusCode -eq 200) { $ok = $true; break }
+            } catch { }
+            Start-Sleep -Seconds 3
+          }
+          if (-not $ok) { throw "FAIL: /api/providers did not answer 200: this is not Astro's server (F-051)" }
+          Write-Host "PASS: /api/providers 200 on server port $srv"
+
+      # The local server must not be reachable from the network (QA F-053).
+      - name: Assert the server listens on loopback only
+        run: |
+          $ErrorActionPreference = "Stop"
+          $srv = [int]$env:ASTRO_SERVER
+          $l = Get-NetTCPConnection -State Listen -LocalPort $srv -ErrorAction SilentlyContinue
+          if (-not $l) { throw "nothing listens on server port $srv" }
+          $bad = $l | Where-Object { $_.LocalAddress -ne "127.0.0.1" -and $_.LocalAddress -ne "::1" }
+          if ($bad) { throw "FAIL: server port $srv listens on $($bad.LocalAddress -join ', ')" }
+          Write-Host "PASS: server port $srv listens on $($l.LocalAddress -join ', ') only"
 
       - name: Stop Astro
         if: always()
