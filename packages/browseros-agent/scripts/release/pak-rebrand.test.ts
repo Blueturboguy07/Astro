@@ -64,6 +64,18 @@ describe('rebrandText', () => {
       ).out.toString(),
     ).toBe("About Astro. Astro's menu")
   })
+
+  /* F-010: upstream's onboarding page (resources.pak 16990/16992). */
+  it('renames BrowserClaw text, not identifiers', () => {
+    expect(
+      rebrandText(
+        Buffer.from(
+          '<title>BrowserClaw Onboarding</title>children:"BrowserClaw"',
+        ),
+      ).out.toString(),
+    ).toBe('<title>Astro Onboarding</title>children:"Astro"')
+    expect(rebrandText(Buffer.from('BrowserClawOnboarding()')).changed).toBe(0)
+  })
 })
 
 describe('rebrandPakBuffer + selfTestRebrand', () => {

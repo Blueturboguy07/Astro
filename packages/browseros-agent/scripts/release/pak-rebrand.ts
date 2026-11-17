@@ -40,8 +40,10 @@ import * as zlib from 'node:zlib'
 
 /* A letter or `_` before, or a letter, digit or `_` after, makes it part of
    an identifier (aboutBrowserOSVersion, BrowserOSPrefs). A digit before is
-   allowed: message placeholders run into text ("$1BrowserOS can check…"). */
-const BRAND_FROM = /(?<![A-Za-z_])BrowserOS(?![A-Za-z0-9_])/g
+   allowed: message placeholders run into text ("$1BrowserOS can check…").
+   "BrowserClaw" is upstream's other product name: chrome://browseros-onboarding
+   showed "BrowserClaw Onboarding" (Astro 0.2.4 QA, F-010). */
+const BRAND_FROM = /(?<![A-Za-z_])Browser(?:OS|Claw)(?![A-Za-z0-9_])/g
 const BRAND_TO = 'Astro'
 const I18N_KEY = /\$i18n[A-Za-z]*\{([^}]*)\}/g
 
@@ -254,7 +256,11 @@ export function selfTestRebrand(orig: Uint8Array, next: Uint8Array): string[] {
       keyChanges.push(it.id)
     }
   }
-  if (residual) problems.push(`${residual} entries still contain "BrowserOS"`)
+  if (residual) {
+    problems.push(
+      `${residual} entries still contain "BrowserOS" or "BrowserClaw"`,
+    )
+  }
   if (decodeFail) problems.push(`${decodeFail} entries fail to decode`)
   if (keyChanges.length) {
     problems.push(
