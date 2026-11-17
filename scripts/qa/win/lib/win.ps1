@@ -7,7 +7,7 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File win.ps1 -Action shot -Out C:\x.png
 #
-# Actions: shot, windows, procs, close, focus, keys, uia-click, uia-dump,
+# Actions: shot, windows, procs, cmdlines, listen, apperrors, close, focus, keys, uia-click, uia-dump,
 #          netsample, dns, dns-clear, lnk, verinfo, reg
 param(
   [Parameter(Mandatory = $true)][string]$Action,
@@ -128,7 +128,7 @@ switch ($Action) {
     Emit @(Get-QaWindows)
   }
   'procs' {
-    $out = @()
+    $rows = @()
     foreach ($p in (Get-Process -ErrorAction SilentlyContinue)) {
       $path = $null
       try { $path = $p.Path } catch { }
@@ -136,7 +136,7 @@ switch ($Action) {
       if (-not $path.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase)) { continue }
       $vi = $null
       try { $vi = (Get-Item -LiteralPath $path).VersionInfo } catch { }
-      $out += [ordered]@{
+      $rows += [ordered]@{
         pid = $p.Id; name = $p.ProcessName; path = $path
         description = if ($vi) { $vi.FileDescription } else { '' }
         product = if ($vi) { $vi.ProductName } else { '' }
@@ -144,7 +144,48 @@ switch ($Action) {
         mainWindowTitle = $p.MainWindowTitle
       }
     }
-    Emit @($out)
+    Emit @($rows)
+  }
+  'cmdlines' {
+    # Command lines of the app's processes (shows the user data dir in use).
+    $rows = @()
+    foreach ($p in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
+      $exe = [string]$p.ExecutablePath
+      if (-not $exe -or -not $exe.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase)) { continue }
+      $rows += [ordered]@{ pid = [int]$p.ProcessId; ppid = [int]$p.ParentProcessId; name = [string]$p.Name; cmd = [string]$p.CommandLine }
+    }
+    Emit @($rows)
+  }
+  'listen' {
+    # Listening TCP sockets of the app's processes (address + port).
+    $ids = @{}
+    foreach ($p in (Get-Process -ErrorAction SilentlyContinue)) {
+      $pp = $null
+      try { $pp = $p.Path } catch { }
+      if ($pp -and $pp.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase)) { $ids[[int]$p.Id] = $p.ProcessName }
+    }
+    $rows = @()
+    foreach ($c in @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue)) {
+      if ($ids.ContainsKey([int]$c.OwningProcess)) {
+        $rows += [ordered]@{ address = [string]$c.LocalAddress; port = [int]$c.LocalPort; pid = [int]$c.OwningProcess; name = $ids[[int]$c.OwningProcess] }
+      }
+    }
+    Emit @($rows)
+  }
+  'apperrors' {
+    # Application-log crash events (Application Error / WER) of the last TimeoutSec seconds.
+    $since = (Get-Date).AddSeconds(-1 * [Math]::Max($TimeoutSec, 60))
+    $rows = @()
+    try {
+      $ev = @(Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $since } -ErrorAction SilentlyContinue |
+        Where-Object { $_.ProviderName -in @('Application Error', 'Windows Error Reporting', 'Application Hang') })
+      foreach ($e in $ev) {
+        $msg = [string]$e.Message
+        if ($msg -notmatch '(?i)chrome|browseros|astro') { continue }
+        $rows += [ordered]@{ time = $e.TimeCreated.ToString('o'); id = [int]$e.Id; provider = [string]$e.ProviderName; message = $msg.Substring(0, [Math]::Min(900, $msg.Length)) }
+      }
+    } catch { }
+    Emit @($rows)
   }
   'close' {
     # The way a person quits: close every top-level window (WM_CLOSE).
@@ -200,7 +241,7 @@ switch ($Action) {
     # Bounded walk: a browser window's web content can hold thousands of nodes.
     Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
     $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
-    $script:out = @()
+    $script:uiaRows = @()
     function Walk($el, [int]$depth, $title, $sw) {
       if ($depth -gt 10 -or $script:n -ge 500 -or $sw.Elapsed.TotalSeconds -gt 15) { return }
       $c = $walker.GetFirstChild($el)
@@ -208,7 +249,7 @@ switch ($Action) {
         $script:n++
         try {
           $nm = $c.Current.Name
-          if ($nm) { $script:out += [ordered]@{ window = $title; type = $c.Current.ControlType.ProgrammaticName; name = $nm } }
+          if ($nm) { $script:uiaRows += [ordered]@{ window = $title; type = $c.Current.ControlType.ProgrammaticName; name = $nm } }
         } catch { }
         Walk $c ($depth + 1) $title $sw
         $c = $walker.GetNextSibling($c)
@@ -219,11 +260,11 @@ switch ($Action) {
         $script:n = 0
         $sw = [Diagnostics.Stopwatch]::StartNew()
         $el = [System.Windows.Automation.AutomationElement]::FromHandle([IntPtr]$w.hwnd)
-        $script:out += [ordered]@{ window = $w.title; type = 'window'; name = $el.Current.Name }
+        $script:uiaRows += [ordered]@{ window = $w.title; type = 'window'; name = $el.Current.Name }
         Walk $el 0 $w.title $sw
       } catch { }
     }
-    Emit @($script:out)
+    Emit @($script:uiaRows)
   }
   'netsample' {
     # Sample established TCP connections of the app's processes until $StopFile exists.
@@ -247,11 +288,11 @@ switch ($Action) {
     Emit @{ ok = $true }
   }
   'dns' {
-    $out = @()
+    $rows = @()
     foreach ($d in (Get-DnsClientCache -ErrorAction SilentlyContinue)) {
-      $out += [ordered]@{ name = [string]$d.Entry; data = [string]$d.Data; type = [int]$d.Type; status = [int]$d.Status }
+      $rows += [ordered]@{ name = [string]$d.Entry; data = [string]$d.Data; type = [int]$d.Type; status = [int]$d.Status }
     }
-    Emit @($out)
+    Emit @($rows)
   }
   'dns-clear' {
     Clear-DnsClientCache
@@ -270,13 +311,13 @@ switch ($Action) {
   'reg' {
     # Dump every value under a registry key (and subkeys), e.g. HKCU:\Software\BrowserOS
     if (-not (Test-Path $Path)) { Emit @{ exists = $false; path = $Path }; break }
-    $out = @()
+    $rows = @()
     foreach ($k in @(Get-Item $Path) + @(Get-ChildItem $Path -Recurse -ErrorAction SilentlyContinue)) {
       $vals = [ordered]@{}
       foreach ($v in $k.GetValueNames()) { $vals[$v] = [string]$k.GetValue($v) }
-      $out += [ordered]@{ key = $k.Name; values = $vals }
+      $rows += [ordered]@{ key = $k.Name; values = $vals }
     }
-    Emit @{ exists = $true; path = $Path; keys = @($out) }
+    Emit @{ exists = $true; path = $Path; keys = @($rows) }
   }
   default { throw "unknown action $Action" }
 }

@@ -18,13 +18,17 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as A from './lib/astro.mjs'
-import { evalInTarget, listTargets, screenshotTarget } from './lib/cdp.mjs'
+import { browserWsUrl, cdpConnect, evalInTarget, listTargets, screenshotTarget } from './lib/cdp.mjs'
 import { parseNetLog, isLocal } from './lib/netlog.mjs'
+import { findRenamedKeys, restoreRenamedKeys } from './lib/pak.mjs'
 import { extStorageGet, extStorageRemove, extStorageSet, extensionWorker } from './lib/publik.mjs'
 import { Blocked, blockedRow, brandHits, RESULTS, runRow, sleep, waitFor } from './lib/rows.mjs'
 import { scanUrls, scanWord } from './lib/scan.mjs'
 import {
   allWindows,
+  appCmdlines,
+  appErrors,
+  appListen,
   appProcs,
   appWindows,
   desktopShot,
@@ -75,7 +79,7 @@ const recordWindows = (where) => {
 const quitText = (q) =>
   q.alreadyGone
     ? 'no Astro process was running when the quit started (the browser had already exited)'
-    : `closed ${q.windowsClosed} window(s); processes before: ${q.procsBefore.join(', ')}; ${q.clean ? `all gone in ${(q.ms / 1000).toFixed(1)} s` : `LEFT after ${(q.ms / 1000).toFixed(0)} s: ${q.leftovers.join(', ')}`}`
+    : `closed ${q.windowsClosed} window(s)${(q.closeRounds?.length ?? 1) > 1 ? `; windows opened again and were closed ${q.closeRounds.length - 1} more time(s): ${q.closeRounds.slice(1).map((r) => `${(r.atMs / 1000).toFixed(0)} s [${r.titles.join(', ')}]`).join(' ')}` : ''}; processes before: ${q.procsBefore.length}; ${q.clean ? `all gone in ${(q.ms / 1000).toFixed(1)} s` : `LEFT after ${(q.ms / 1000).toFixed(0)} s: ${q.leftovers.join(', ')}; windows left: ${(q.windowsLeft ?? []).join(' | ') || 'none'}`}`
 const shotDesktop = (ctx, name) => {
   const r = desktopShot(ctx.file(name))
   if (r?.error) ctx.note(`desktop screenshot failed: ${r.error}`)
@@ -190,6 +194,32 @@ if (needA(D))
       result: ok(prov) && ok(conf) && sys?.status === 200 ? 'pass' : 'fail',
       actual: out.map((r) => `${r.path} ${r.status || r.error}${r.bodyShape ? ` keys[${Object.keys(r.bodyShape).join(',')}]` : ` "${String(r.body).slice(0, 60)}"`}`).join('; ') + `; server --version: ${versionOut}; instance: ${JSON.stringify(S.cfg.instance)}`,
       details: out.map(({ body, ...rest }) => rest),
+    }
+  })
+
+D = {
+  id: 'O7-W-02',
+  title: 'Local server, CDP and proxy listen on loopback only',
+  expected: 'Every listening socket of chrome.exe / browseros_server.exe (cdp, server, proxy, MCP proxy) is bound to 127.0.0.1 or ::1, not 0.0.0.0 / ::, so the local network cannot reach them',
+}
+if (needA(D))
+  await runRow(D, async (ctx) => {
+    const ls = appListen()
+    ctx.writeJson('listen.json', ls)
+    // A program that listens on all interfaces makes Windows Defender Firewall ask a person to allow it.
+    const fw = (allWindows() ?? []).filter((w) => /firewall|security alert/i.test(`${w.title} ${w.class}`))
+    ctx.writeJson('firewall-windows.json', fw)
+    const ports = new Map([[S.cdp, 'cdp'], [S.server, 'server'], [S.cfg.ports.proxy, 'proxy']])
+    const open = ls.filter((l) => !/^(127\.|::1$)/.test(l.address))
+    const fmt = (l) => `${l.name}:${l.address}:${l.port}${ports.has(l.port) ? `(${ports.get(l.port)})` : ''}`
+    // Is a non-loopback socket reachable on the runner's own LAN address?
+    const lan = Object.values(os.networkInterfaces()).flat().find((i) => i && i.family === 'IPv4' && !i.internal)?.address
+    const reach = []
+    if (lan) for (const l of open.slice(0, 6)) reach.push({ port: l.port, url: `http://${lan}:${l.port}/`, ...(await A.httpGet(`http://${lan}:${l.port}/health`, 5000)) })
+    ctx.writeJson('lan-reach.json', reach.map((r) => ({ port: r.port, url: r.url, status: r.status, error: r.error, body: String(r.body ?? '').slice(0, 200) })))
+    return {
+      result: ls.length && open.length === 0 ? 'pass' : ls.length ? 'fail' : 'blocked',
+      actual: `listening: ${ls.map(fmt).join(', ') || 'none found'}; not loopback: ${open.map(fmt).join(', ') || 'none'}${reach.length ? `; from LAN address ${lan}: ${reach.map((r) => `${r.port} -> ${r.status || r.error}`).join(', ')}` : ''}; firewall prompt windows: ${fw.map((w) => `"${w.title}"`).join(', ') || 'none'}`,
     }
   })
 
@@ -463,18 +493,28 @@ if (needA(D))
     }
   })
 
+// chrome://settings reads the default engine through its private API; no DOM walk needed.
+const SEARCH_ENGINES_EXPR = `(async () => {
+  const api = globalThis.chrome && chrome.searchEnginesPrivate
+  if (!api) return { api: false }
+  const x = await new Promise((res) => { const p = api.getSearchEngines(res); if (p && p.then) p.then(res) })
+  const all = [...(x.defaults || []), ...(x.actives || []), ...(x.others || [])]
+  return { api: true, count: all.length, defaults: all.filter((e) => e.default).map((e) => ({ name: e.name, keyword: e.keyword, url: e.url })) }
+})()`
+const settingsProbes = {}
+
 D = { id: 'O8-W-06', title: 'Default search engine', expected: 'chrome://settings/search names a default engine; a query typed in the address bar (Ctrl+L, text, Enter) opens that engine' }
 if (needA(D))
   await runRow(D, async (ctx) => {
     if (!S.browser) await A.connect(S)
-    const { page } = await A.openPage(S, 'chrome://settings/search')
-    await sleep(3000)
-    const text = await A.visibleText(page)
-    ctx.writeText('settings-search.txt', text)
-    await A.pageShot(page, ctx.file('settings-search.png'))
-    const lines = text.split('\n')
-    const i = lines.findIndex((l) => /^Search engine$/i.test(l) || /search engine used/i.test(l))
-    const engine = i >= 0 ? lines.slice(i + 1, i + 4).join(' / ') : '(not found)'
+    const dumps0 = A.crashDumps(P1).length
+    const probe = await A.cdpPageProbe(S.cdp, 'chrome://settings/search', { waitMs: 5000, shotFile: ctx.file('settings-search.png'), extra: SEARCH_ENGINES_EXPR, walk: false })
+    settingsProbes.searchNoWalk = probe
+    ctx.writeJson('settings-search-probe.json', { ...probe, dumpsBefore: dumps0, dumpsAfter: A.crashDumps(P1).length })
+    const def = probe.extra?.defaults?.[0]
+    const engine = def ? `${def.name} (${def.url})` : probe.crashed ? `(settings page crashed during ${probe.crashPhase})` : '(not found)'
+    // Address bar: a blank tab, Ctrl+L, a query, Enter (real keyboard input).
+    const { page } = await A.openPage(S, 'about:blank')
     await page.bringToFront()
     await sleep(800)
     const k = sendKeys('^l')
@@ -484,11 +524,14 @@ if (needA(D))
     if (url) await A.pageShot(page, ctx.file('omnibox-search.png')).catch(() => null)
     await page.close().catch(() => null)
     const host = url ? new URL(url).hostname : null
-    ctx.writeJson('search.json', { engineText: engine, omniboxUrl: url, keys: k })
-    if (!url) {
-      return { result: engine !== '(not found)' ? 'blocked' : 'fail', actual: `settings: ${engine}; address-bar query did not navigate (keyboard ${k?.ok ? 'sent' : 'not sent'})` }
+    ctx.writeJson('search.json', { engine: def ?? null, omniboxUrl: url, keys: k })
+    const matches = Boolean(host && def?.url && new URL(def.url.replace('{searchTerms}', 'x').replace(/\{[^}]*\}/g, '')).hostname === host)
+    if (!url) return { result: 'fail', actual: `settings: ${engine}; address-bar query did not navigate (keyboard ${k?.ok ? 'sent' : 'not sent'})` }
+    return {
+      result: def ? (matches ? 'pass' : 'fail') : 'pass',
+      actual: `settings default: ${engine}; address-bar query went to ${host} (${url.slice(0, 120)})${def && !matches ? ' - not the settings default' : ''}`,
+      notes: def ? '' : 'default engine name not read (see O8-W-09 for the settings page state); the address-bar query shows the engine in use',
     }
-    return { result: 'pass', actual: `settings: ${engine}; address-bar query went to ${host} (${url.slice(0, 120)})` }
   })
 
 D = { id: 'O8-W-07', title: 'chrome://version', expected: 'chrome://version opens; record its text (product line, Chromium version, executable path)' }
@@ -504,6 +547,49 @@ if (needA(D))
     await page.close().catch(() => null)
     const exeOk = text.toLowerCase().includes(A.ASTRO_EXE.toLowerCase())
     return { result: text.length > 50 && exeOk ? 'pass' : 'fail', actual: text.split('\n').filter(Boolean).slice(0, 6).join(' / ').slice(0, 400) + `; executable path is ${A.ASTRO_EXE}: ${exeOk}` }
+  })
+
+D = {
+  id: 'O8-W-09',
+  title: 'Settings pages open without a renderer crash',
+  expected: 'chrome://settings, chrome://settings/search and chrome://settings/help open and stay open (no "Aw, Snap!", no Crashpad dump); reading their text does not crash them',
+}
+if (needA(D))
+  await runRow(D, async (ctx) => {
+    const dumps0 = A.crashDumps(P1)
+    const plain = []
+    for (const [i, u] of ['chrome://settings', 'chrome://settings/help'].entries()) {
+      plain.push(await A.cdpPageProbe(S.cdp, u, { waitMs: 6000, shotFile: ctx.file(`settings-${i}.png`), walk: false }))
+    }
+    if (settingsProbes.searchNoWalk) plain.push(settingsProbes.searchNoWalk)
+    // Same page again, now with the shadow-DOM text walk the harness uses elsewhere.
+    const walked = await A.cdpPageProbe(S.cdp, 'chrome://settings/search', { waitMs: 5000, shotFile: ctx.file('settings-search-walk.png'), walk: true })
+    // A crashed tab as a person sees it: bring one up and shoot the desktop.
+    const crashedUrl = [...plain, walked].find((p) => p.crashed)?.url
+    if (crashedUrl) {
+      const p = await A.cdpPageProbe(S.cdp, crashedUrl, { waitMs: 6000, walk: false, keepOpen: true })
+      await sleep(1500)
+      shotDesktop(ctx, 'desktop-crashed-settings.png')
+      if (p.targetId) {
+        const { ws } = await browserWsUrl(S.cdp)
+        const bs = await cdpConnect(ws)
+        await bs.send('Target.closeTarget', { targetId: p.targetId }).catch(() => null)
+        bs.close()
+      }
+    }
+    const dumps1 = A.crashDumps(P1)
+    const dbg = fs.existsSync(path.join(P1, 'chrome_debug.log'))
+      ? fs.readFileSync(path.join(P1, 'chrome_debug.log'), 'utf8').split(/\r?\n/).filter((l) => /crash|renderer|sad tab|exit_code|terminated|RenderProcessGone/i.test(l)).slice(-60).join('\n')
+      : ''
+    ctx.writeJson('probes.json', { plain, walked, dumpsBefore: dumps0, dumpsAfter: dumps1 })
+    ctx.writeText('debug-log-crash-lines.txt', dbg)
+    const plainCrash = plain.filter((p) => p.crashed)
+    const walkCrash = walked.crashed
+    return {
+      result: plainCrash.length === 0 && !walkCrash ? 'pass' : 'fail',
+      actual: `${plain.map(A.probeText).join(' ; ')} ; with text walk: ${A.probeText(walked)}; Crashpad dumps ${dumps0.length} -> ${dumps1.length}`,
+      notes: plainCrash.length ? 'the page crashes on its own, before any harness script runs' : walkCrash ? 'the page loads; it crashes only when a script walks its DOM (shadow roots + checkVisibility); a person does not hit this, a page script or extension can' : '',
+    }
   })
 
 D = { id: 'O8-W-08', title: 'Install an extension from the Chrome Web Store', expected: 'Web Store "Add to Chrome" then "Add extension" in the native dialog installs uBlock Origin Lite into the profile' }
@@ -612,26 +698,41 @@ await runRow(
   { id: 'O2-W-11', title: 'Second start of the same profile', expected: 'Profile p1 starts again: new ports in config.json, /health 200, an app tab with the gate, no crash' },
   async (ctx) => {
     if (!fs.existsSync(P1)) throw new Blocked('profile p1 does not exist (first start failed)')
+    const dumps0 = A.crashDumps(P1)
     S2 = await A.launch({ profile: P1, args: ['--enable-logging', '--v=0'] })
     const h = await A.waitHealth(S2.server)
-    await A.waitGateTab(S2.cdp, 60_000).catch(() => null)
-    await sleep(3000)
+    const gateT = await A.waitGateTab(S2.cdp, 60_000).catch(() => null)
+    await sleep(4000)
     const targets = await listTargets(S2.cdp)
     ctx.writeJson('targets.json', targets.map((t) => ({ type: t.type, url: t.url, title: t.title })))
-    await A.connect(S2)
-    const gate = S2.context.pages().find((p) => p.url().startsWith(A.APP_URL))
+    // Raw CDP for the checks (no Playwright attach to every restored tab).
+    const gate = targets.find((t) => t.type === 'page' && t.url.startsWith(A.APP_URL))
     let text = ''
     if (gate) {
-      await gate.getByRole('button').first().waitFor({ timeout: 30_000 }).catch(() => null)
-      text = await A.visibleText(gate)
-      await A.pageShot(gate, ctx.file('gate-second-start.png'))
+      text = await waitFor(async () => {
+        const t = await evalInTarget(gate.webSocketDebuggerUrl, `(${A.VISIBLE_TEXT_FN.toString()})()`).catch(() => '')
+        return /Sign in with publik|Retry/.test(t) ? t : null
+      }, { timeoutMs: 30_000, what: 'gate text' }).catch(() => '')
+      const png = await screenshotTarget(gate.webSocketDebuggerUrl).catch(() => null)
+      if (png) fs.writeFileSync(ctx.file('gate-second-start.png'), png)
     }
     shotDesktop(ctx, 'desktop-second-start.png')
-    const crashed = fs.existsSync(path.join(P1, 'Crashpad', 'reports')) ? fs.readdirSync(path.join(P1, 'Crashpad', 'reports')) : []
+    recordWindows('second start')
+    // Diagnostic: can Playwright attach to this browser (it attaches to every target)?
+    let pw = 'ok'
+    try {
+      await A.connect(S2, { timeout: 30_000 })
+    } catch (e) {
+      pw = `failed: ${e.message.split('\n')[0]}`
+      S2.browser = null
+      S2.context = null
+    }
+    const dumps1 = A.crashDumps(P1)
     const ok = h.ok && Boolean(gate) && /Sign in with publik/.test(text)
     return {
       result: ok ? 'pass' : 'fail',
-      actual: `config after ${(S2.configMs / 1000).toFixed(1)} s (cdp=${S2.cdp} server=${S2.server}); /health ${h.health?.status}; tabs: ${targets.filter((t) => t.type === 'page').map((t) => t.url).join(' , ')}; gate text: ${text.replace(/\n/g, ' / ').slice(0, 160)}; crash reports: ${crashed.length}`,
+      actual: `config after ${(S2.configMs / 1000).toFixed(1)} s (cdp=${S2.cdp} server=${S2.server}); /health ${h.health?.status}; restored tabs: ${targets.filter((t) => t.type === 'page').map((t) => t.url).join(' , ')}; gate text: ${text.replace(/\n/g, ' / ').slice(0, 160)}; Crashpad dumps ${dumps0.length} -> ${dumps1.length}`,
+      notes: `Playwright connectOverCDP (harness only): ${pw}${gateT ? '' : '; gate tab did not appear in 60 s'}`,
     }
   },
 )
@@ -642,14 +743,19 @@ else
   await runRow(D, async (ctx) => {
     const file = A.readJson(path.join(P1, 'Default', 'Bookmarks'))
     const onDisk = JSON.stringify(file ?? {}).includes(BOOKMARK_URL)
-    const { page } = await A.openPage(S2, 'chrome://bookmarks/?q=Web%20browser')
-    await sleep(2500)
-    const text = await A.visibleText(page)
-    ctx.writeText('bookmarks-page.txt', text)
-    await A.pageShot(page, ctx.file('chrome-bookmarks.png'))
-    await page.close().catch(() => null)
-    const shown = /Web browser/i.test(text) || text.includes('en.wikipedia.org')
-    return { result: onDisk && shown ? 'pass' : 'fail', actual: `in Default\\Bookmarks: ${onDisk}; shown on chrome://bookmarks: ${shown}; added via ${bookmark.method}` }
+    const probe = await A.cdpPageProbe(S2.cdp, 'chrome://bookmarks/?q=Web%20browser', {
+      waitMs: 3000,
+      shotFile: ctx.file('chrome-bookmarks.png'),
+      extra: `new Promise((r) => chrome.bookmarks.search('Web browser', r)).then((x) => x.map((b) => ({ title: b.title, url: b.url })))`,
+      walk: false,
+    })
+    ctx.writeJson('bookmarks-probe.json', probe)
+    const listed = (probe.extra ?? []).filter((b) => b.url === BOOKMARK_URL)
+    const shown = listed.length > 0
+    return {
+      result: onDisk && shown ? 'pass' : 'fail',
+      actual: `in Default\\Bookmarks: ${onDisk}; chrome://bookmarks lists it: ${shown} (${listed.map((b) => b.title).join(', ')}); added via ${bookmark.method}${probe.crashed ? `; bookmarks page CRASHED during ${probe.crashPhase}` : ''}`,
+    }
   })
 
 D = { id: 'O2-W-12', title: 'Clean quit after the second start', expected: 'Closing every window ends all chrome.exe / browseros_server.exe processes within 45 s' }
@@ -692,8 +798,62 @@ await runRow(
   },
   async (ctx) => {
     if (!fs.existsSync(SM_LNK)) throw new Blocked(`no Start-menu shortcut at ${SM_LNK}`)
-    const t0 = A.launchShortcut(SM_LNK)
-    const found = await waitFor(() => findDefaultConfig(t0), { timeoutMs: 120_000, what: 'config.json of the default profile' })
+    const la = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local')
+    const snapshot = (label) => ({
+      label,
+      procs: appCmdlines().map((p) => ({ ...p, cmd: p.cmd.slice(0, 400) })),
+      windows: appWindows(),
+      userDataDirs: (fs.existsSync(la) ? fs.readdirSync(la) : []).filter((d) => fs.existsSync(path.join(la, d, 'User Data'))),
+    })
+    const diag = { attempts: [] }
+    // Attempt 1: the shortcut through the shell, the way a double-click opens it.
+    let t0 = Date.now()
+    spawn('explorer.exe', [SM_LNK], { detached: true, stdio: 'ignore' }).unref()
+    let found = await waitFor(() => findDefaultConfig(t0), { timeoutMs: 45_000, what: 'config.json of the default profile' }).catch(() => null)
+    diag.attempts.push({ how: 'explorer.exe <Start-menu .lnk>', configFound: Boolean(found), ...snapshot('45 s after the shortcut') })
+    let how = 'Start-menu shortcut (explorer.exe)'
+    if (!found) {
+      shotDesktop(ctx, 'desktop-shortcut-45s.png')
+      diag.uia = uiaDump()
+      for (const name of ["Don't sign in", 'Stay signed out', 'Continue without an account', 'No thanks', 'Not now', 'Skip']) {
+        const r = uiaClick(name, 2)
+        if (r?.ok) {
+          diag.clicked = { name, ...r }
+          break
+        }
+      }
+      found = await waitFor(() => findDefaultConfig(t0), { timeoutMs: 15_000, what: 'config.json of the default profile' }).catch(() => null)
+    }
+    if (!found) {
+      // Attempt 2: chrome.exe itself, no profile flag (the shortcut's own target), with logging.
+      A.killAll()
+      t0 = Date.now()
+      const child = spawn(A.ASTRO_EXE, ['--enable-logging', '--v=0'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: false })
+      let errOut = ''
+      child.stdout.on('data', (d) => (errOut += d))
+      child.stderr.on('data', (d) => (errOut += d))
+      const exited = new Promise((r) => child.on('exit', (code, signal) => r({ code, signal, afterMs: Date.now() - t0 })))
+      found = await waitFor(() => findDefaultConfig(t0), { timeoutMs: 60_000, what: 'config.json of the default profile' }).catch(() => null)
+      const ex = await Promise.race([exited, sleep(1000).then(() => null)])
+      const at = { how: 'chrome.exe --enable-logging --v=0 (no --user-data-dir)', configFound: Boolean(found), exit: ex ? { ...ex, codeHex: ex.code != null ? `0x${(ex.code >>> 0).toString(16)}` : null } : 'still running', output: errOut.slice(-2000), ...snapshot('60 s after chrome.exe') }
+      diag.attempts.push(at)
+      if (found) how = 'chrome.exe with no profile flag (the shortcut did not start it)'
+    }
+    diag.appErrors = appErrors(600)
+    const udRoot = path.join(la, 'BrowserOS', 'User Data')
+    diag.defaultUserData = fs.existsSync(udRoot) ? { path: udRoot, entries: fs.readdirSync(udRoot).slice(0, 60), dumps: A.crashDumps(udRoot) } : null
+    const dbg = path.join(udRoot, 'chrome_debug.log')
+    if (fs.existsSync(dbg)) ctx.writeText('default-chrome_debug.log.txt', fs.readFileSync(dbg, 'utf8').split(/\r?\n/).slice(-300).join('\n'))
+    ctx.writeJson('diagnosis.json', diag)
+    if (!found) {
+      shotDesktop(ctx, 'desktop-shortcut-end.png')
+      const a2 = diag.attempts[1]
+      return {
+        result: 'fail',
+        actual: `the default profile never started. Shortcut via explorer.exe: chrome.exe processes after 45 s ${diag.attempts[0].procs.length}, windows ${diag.attempts[0].windows.length}. chrome.exe with no profile flag: ${a2 ? (typeof a2.exit === 'object' ? `exited after ${(a2.exit.afterMs / 1000).toFixed(1)} s, code ${a2.exit.codeHex}` : 'still running, no config.json in 60 s') : 'not run'}; user data dirs: ${diag.defaultUserData ? `${udRoot} (Crashpad dumps ${diag.defaultUserData.dumps.length})` : 'none'}; crash events: ${diag.appErrors.length ? diag.appErrors.map((e) => e.message.split(/\r?\n/).slice(0, 3).join(' ')).join(' | ').slice(0, 400) : 'none'}`,
+      }
+    }
+    const configMs = Date.now() - t0
     const userData = path.dirname(path.dirname(found.file))
     brand.defaultUserData = userData
     const S3 = { profile: userData, cdp: found.cfg.ports.cdp, server: found.cfg.ports.server }
@@ -706,15 +866,27 @@ await runRow(
     shotDesktop(ctx, 'desktop-shortcut-start.png')
     const wins = appWindows()
     recordWindows('Start-menu start')
-    await A.connect(S3)
-    const first = S3.context.pages()[0]
-    if (first) await A.pageShot(first, ctx.file('first-tab.png')).catch(() => null)
+    const firstT = targets.find((t) => t.type === 'page')
+    const png = firstT ? await screenshotTarget(firstT.webSocketDebuggerUrl).catch(() => null) : null
+    if (png) fs.writeFileSync(ctx.file('first-tab.png'), png)
+    // First run of the default profile shows onboarding: do what a person does, "Skip for now".
+    let skip = null
+    if (targets.some((t) => t.type === 'page' && t.url.startsWith('chrome://browseros-onboarding'))) {
+      const click = uiaClick('Skip for now', 15)
+      await sleep(7000)
+      const t2 = await listTargets(S3.cdp).catch(() => [])
+      skip = { click, pages: t2.filter((t) => t.type === 'page').map((t) => t.url), windows: appWindows().map((w) => w.title) }
+      ctx.writeJson('after-skip.json', skip)
+      shotDesktop(ctx, 'desktop-after-skip.png')
+    }
     const q = await A.quit(S3)
     ctx.writeJson('quit.json', q)
-    const ok = h.ok && wins.length > 0 && q.clean
+    const viaShortcut = how.startsWith('Start-menu')
+    const ok = h.ok && wins.length > 0 && q.clean && viaShortcut
     return {
       result: ok ? 'pass' : 'fail',
-      actual: `user data dir: ${userData}; config after ${((Date.now() - t0) / 1000).toFixed(0)} s; /health ${h.health?.status}; tabs: ${targets.filter((t) => t.type === 'page').map((t) => t.url).join(' , ')}; windows: ${wins.map((w) => w.title).join(' | ')}; quit: ${quitText(q)}`,
+      notes: viaShortcut ? '' : 'the Start-menu shortcut did not start the browser; chrome.exe with no flags did (see diagnosis.json)',
+      actual: `started by ${how}; ${skip ? `onboarding shown; "Skip for now" ${skip.click?.ok ? 'clicked' : 'not found'} -> tabs ${skip.pages.join(' , ') || 'none'}, windows ${skip.windows.join(' | ') || 'none'}; ` : ''}user data dir: ${userData}; config.json within ${(configMs / 1000).toFixed(0)} s${diag.clicked ? ` (only after clicking first-run button "${diag.clicked.name}")` : ''}; /health ${h.health?.status}; tabs: ${targets.filter((t) => t.type === 'page').map((t) => t.url).join(' , ')}; windows: ${wins.map((w) => w.title).join(' | ')}; quit: ${quitText(q)}`,
     }
   },
 )
@@ -790,13 +962,15 @@ try {
   E.idleShot = path.join(A.WORK, 'idle-end.png')
   desktopShot(E.idleShot)
   // About page: on Windows it runs WinSparkle's check (with its own UI).
-  await A.connect(S5)
-  const { page } = await A.openPage(S5, 'chrome://settings/help')
-  await sleep(25_000)
-  E.helpText = await A.visibleText(page)
-  brand.helpText = E.helpText
+  // Raw CDP probe: a renderer crash here must not lose the net-log rows.
   E.helpShot = path.join(A.WORK, 'settings-help.png')
-  await A.pageShot(page, E.helpShot).catch(() => null)
+  try {
+    E.helpProbe = await A.cdpPageProbe(S5.cdp, 'chrome://settings/help', { waitMs: 25_000, shotFile: E.helpShot, ax: true, walk: true, keepOpen: true })
+  } catch (e) {
+    E.helpProbe = { error: e.message }
+  }
+  E.helpText = E.helpProbe.text || E.helpProbe.axText || ''
+  brand.helpText = E.helpText
   E.helpDesktop = path.join(A.WORK, 'settings-help-desktop.png')
   desktopShot(E.helpDesktop)
   E.windowsAfterHelp = appWindows()
@@ -804,7 +978,7 @@ try {
   E.uia = uiaDump()
   E.winsparkleReg = regDump('HKCU:\\Software\\BrowserOS')
   E.astroReg = regDump('HKCU:\\Software\\Astro')
-  E.quit = await A.quit(S5)
+  E.quit = await A.quit(S5).catch((e) => ({ error: e.message }))
   fs.writeFileSync(stop, '')
   await new Promise((r) => {
     sampler.on('exit', r)
@@ -933,6 +1107,7 @@ D = { id: 'O2-W-15', title: 'About page update check (chrome://settings/help)', 
 if (needE(D))
   await runRow(D, async (ctx) => {
     ctx.writeText('settings-help.txt', E.helpText ?? '')
+    ctx.writeJson('help-probe.json', { ...(E.helpProbe ?? {}), text: undefined, axText: undefined })
     for (const [src, name] of [
       [E.helpShot, 'settings-help.png'],
       [E.helpDesktop, 'desktop-after-help.png'],
@@ -949,9 +1124,69 @@ if (needE(D))
     const upToDate = /up to date/i.test(E.helpText ?? '')
     return {
       result: upToDate && !errorShown ? 'pass' : 'fail',
-      actual: `About page: "${status}"; other windows: ${sparkleWins.map((w) => `"${w.title}" (${w.class})`).join(', ') || 'none'}; dialog text: ${uiaText.slice(0, 300)}`,
+      actual: `${E.helpProbe?.crashed ? `About page CRASHED during ${E.helpProbe.crashPhase} after ${(E.helpProbe.crashAtMs / 1000).toFixed(1)} s; ` : ''}About page: "${status}"; other windows: ${sparkleWins.map((w) => `"${w.title}" (${w.class})`).join(', ') || 'none'}; dialog text: ${uiaText.slice(0, 300)}`,
     }
   })
+
+// =====================================================================
+// O8-W-10 diagnostic: undo the rebrand's renamed i18n key, retest settings
+// =====================================================================
+const fixed = {}
+await runRow(
+  {
+    id: 'O8-W-10',
+    title: 'Diagnostic: settings pages with the renamed i18n key restored in resources.pak',
+    expected: 'The recut rebrand renamed $i18n{aboutBrowserOSVersion} to $i18n{aboutAstroVersion} in resources.pak. With only that key put back, chrome://settings, /help and /search open without a crash (confirms the root cause of O8-W-09); the shipped pak is restored afterwards',
+    timeoutMs: 330_000,
+  },
+  async (ctx) => {
+    const ver = fs.readdirSync(INSTALL_DIR).find((d) => /^\d+(\.\d+){3}$/.test(d))
+    if (!ver) throw new Blocked(`no version folder in ${INSTALL_DIR}`)
+    const pak = path.join(INSTALL_DIR, ver, 'resources.pak')
+    const orig = fs.readFileSync(pak)
+    const renamed = findRenamedKeys(orig)
+    ctx.writeJson('renamed-keys.json', renamed)
+    if (!renamed.length) throw new Blocked('no renamed $i18n key in resources.pak')
+    const { out, changed } = restoreRenamedKeys(orig)
+    const backup = path.join(A.WORK, 'resources.pak.shipped')
+    fs.writeFileSync(backup, orig)
+    let S6 = null
+    try {
+      fs.writeFileSync(pak, out)
+      const P5 = A.profilePath('p5-pakfix')
+      S6 = await A.launch({ profile: P5, fresh: true, args: ['--enable-logging', '--v=0'] })
+      await A.waitHealth(S6.server)
+      await A.waitGateTab(S6.cdp, 60_000).catch(() => null)
+      const d0 = A.crashDumps(P5)
+      const probes = []
+      for (const [i, u] of ['chrome://settings', 'chrome://settings/search'].entries()) probes.push(await A.cdpPageProbe(S6.cdp, u, { waitMs: 5000, shotFile: ctx.file(`fixed-settings-${i}.png`), walk: false }))
+      // About page: let its update check run (WinSparkle on Windows), read it without page script.
+      const help = await A.cdpPageProbe(S6.cdp, 'chrome://settings/help', { waitMs: 25_000, shotFile: ctx.file('fixed-settings-help.png'), ax: true, walk: false, keepOpen: true })
+      probes.push(help)
+      shotDesktop(ctx, 'desktop-fixed-help.png')
+      fixed.windows = appWindows()
+      fixed.helpText = help.axText ?? ''
+      ctx.writeText('fixed-help-text.txt', fixed.helpText)
+      ctx.writeJson('windows-after-help.json', fixed.windows)
+      const d1 = A.crashDumps(P5)
+      ctx.writeJson('probes.json', { changed, probes: probes.map((p) => ({ ...p, axText: undefined, text: undefined })), dumpsBefore: d0, dumpsAfter: d1 })
+      fixed.quit = await A.quit(S6)
+      S6 = null
+      const crashed = probes.filter((p) => p.crashed)
+      const status = fixed.helpText.split('\n').find((l) => /up to date|updat|checking|version/i.test(l)) ?? '(no status line)'
+      const other = (fixed.windows ?? []).filter((w) => !/Chrome_WidgetWin/.test(w.class) && w.title)
+      return {
+        result: crashed.length === 0 ? 'pass' : 'fail',
+        actual: `restored ${renamed.flatMap((r) => r.keys).join(', ')} in entry ${changed.map((c) => c.id).join(', ')}; ${probes.map(A.probeText).join(' ; ')}; Crashpad dumps ${d0.length} -> ${d1.length}; About page then reads: "${status}"; other windows: ${other.map((w) => `"${w.title}"`).join(', ') || 'none'}`,
+        notes: crashed.length === 0 ? 'root cause confirmed: the renamed $i18n key alone crashes every settings page' : 'still crashes with the key restored: the key is not the (only) cause',
+      }
+    } finally {
+      if (S6) await A.quit(S6).catch(() => null)
+      A.killAll()
+      fs.writeFileSync(pak, orig)
+    }
+  },
+)
 
 // =====================================================================
 // O9 brand rows
@@ -974,7 +1209,10 @@ await brandRow({ id: 'O9-W-01', title: 'Brand: chrome://version', expected: 'No 
 })
 
 await brandRow({ id: 'O9-W-02', title: 'Brand: chrome://settings/help (About)', expected: 'No "BrowserOS" on the About page' }, async () => {
-  if (!brand.helpText) throw new Blocked('About page text not captured (session E)')
+  if (!brand.helpText) {
+    const extra = fixed.helpText ? `; with the key restored (O8-W-10) the About page text has ${brandHits(fixed.helpText).length} "BrowserOS" hit(s)${brandHits(fixed.helpText).length ? `: ${brandHits(fixed.helpText).slice(0, 3).join(' ; ')}` : ''}` : ''
+    throw new Blocked(`the shipped About page crashes on load (O8-W-09), no text to check${extra}`)
+  }
   return { surfaces: { 'chrome://settings/help': brand.helpText } }
 })
 
