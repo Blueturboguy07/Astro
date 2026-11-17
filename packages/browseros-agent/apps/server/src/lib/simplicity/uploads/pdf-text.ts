@@ -1,3 +1,4 @@
+/// <reference path="./pdf-worker.d.ts" />
 import { ensureDOMMatrix } from './dommatrix-polyfill'
 
 /* Astro 0.2.4 QA, F-042: PDF text that works inside the bun-compiled server.
