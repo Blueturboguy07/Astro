@@ -168,19 +168,33 @@ computer counts twice.
 
 **The self-test** (setup.md step 6). An extension cannot read
 `PUBLIK_SELF_TEST=1`, so the switch is a URL. On the built app, with a fresh
-profile:
+profile. Two traps: the executable inside the bundle keeps its upstream name
+(`Contents/MacOS/BrowserOS`, there is no `Contents/MacOS/Astro`), and a URL on
+the first command line of a fresh profile fails with `ERR_BLOCKED_BY_CLIENT`
+(Chromium opens the start-up tab before it installs the bundled agent
+extension). So start Astro first, then open the self-test in a new tab:
 
 ```bash
 APP=dist/astro-recut/Astro.app
+BIN="$APP/Contents/MacOS/BrowserOS"
 PROFILE=$(mktemp -d)
-"$APP/Contents/MacOS/Astro" --user-data-dir="$PROFILE" --no-first-run \
-  --enable-logging=stderr --v=0 \
-  "chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg/app.html#/publik/self-test" \
-  2>&1 | grep -m1 -o 'publik self-test: [^"]*'
+LOG=$(mktemp)
+# 1. Start Astro on the fresh profile; keep its log.
+"$BIN" --user-data-dir="$PROFILE" --no-first-run \
+  --enable-logging=stderr --v=0 >"$LOG" 2>&1 &
+sleep 20   # the bundled agent extension installs in this time
+# 2. Same binary, same profile: the running Astro opens the URL in a new tab.
+"$BIN" --user-data-dir="$PROFILE" \
+  "chrome-extension://kofbmbngmnnpmopgbhpbajhnnnoflolg/app.html#/publik/self-test"
+sleep 10
+grep -m1 -o 'publik self-test: [^"]*' "$LOG"
 ```
 
+If step 2 opens nothing, paste the same URL into the address bar of a new tab
+in that Astro window, then run the `grep` again.
+
 Expect `publik self-test: ok astro <CRX version>`. The page prints the same line
-in the tab and in the tab title; quit Astro after you read it. The module
+in the tab and in the tab title; quit Astro (Cmd+Q) after you read it. The module
 prints `ok` only after a real `POST /installs` and `GET /wallet` with this
 build's app token, so the line proves the gate is on the start-up path of that
 build. `publik self-test: failed: <message>` names what to fix. On Windows use
@@ -319,15 +333,21 @@ the rest of the notes are about something else (a v0.1.1 release dropped it
 while rewriting the notes for the publik-API-default-provider change, and a
 Windows visitor landing on the bare Releases page — the repo's own README
 link and GitHub's Releases sidebar both go there — saw only a macOS `.dmg`
-with no Windows signpost at all). This asset is macOS-only; mirror README.md's
-`### Windows and Linux` section and point at the install guide:
+with no Windows signpost at all). Mirror README.md's `### Windows` and
+`### Linux` sections:
 
 ```markdown
 ## Windows and Linux
 
-This asset (`Astro.dmg`) is macOS (Apple silicon) only. Windows and Linux run
-Astro through Iris's install guide instead: https://publikhq.com/astro/install/windows
+`Astro.dmg` is macOS (Apple silicon) only. Windows: download `Astro-Setup.exe`
+above, or follow https://publikhq.com/astro/install/windows. Linux: there is no
+Linux build; run Astro on top of BrowserOS as described in
+https://github.com/Blueturboguy07/Astro/blob/main/SETUP.md
 ```
+
+Do not link `https://publikhq.com/astro/install/linux`: that page does not
+exist (it answers 200 with "Page not found"). Check every link in the notes
+with `curl -sL <url> | grep -o '<title>[^<]*</title>'` before you publish.
 
 ---
 
