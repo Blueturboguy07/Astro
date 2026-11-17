@@ -1,9 +1,9 @@
 ---
 title: "Scheduled Tasks"
-description: "Run the BrowserOS agent automatically on a schedule"
+description: "Run the Astro agent automatically on a schedule"
 ---
 
-Scheduled Tasks let you run the BrowserOS agent automatically, whether it is daily, every few hours, or every few minutes. Write a prompt once, set a schedule, and let the agent handle it on autopilot.
+Scheduled Tasks let you run the Astro agent automatically, whether it is daily, every few hours, or every few minutes. Write a prompt once, set a schedule, and let the agent handle it on autopilot.
 
 Watch how to set up a scheduled task from scratch:
 
@@ -90,10 +90,7 @@ Your scheduled task prompts can be as complex as you want. If you have [connecte
 
 ## Viewing Results
 
-When a scheduled task runs, you can see the results in two places:
-
-- **New Tab page**: Results show up right on your new tab
-- **Scheduled Tasks page**: View the full run history for each task
+When a scheduled task runs, you see the results on the **Scheduled Tasks** page, in the run history of each task. The new tab does not show them (the new tab is the answer engine).
 
 <img src="/images/features--scheduled-tasks-results.png" alt="Scheduled task results" />
 
@@ -110,7 +107,7 @@ You can also:
 
 <Steps>
   <Step title="Task triggers on schedule">
-    BrowserOS uses your browser's built-in alarm system to trigger tasks at the right time. If your laptop was closed at the scheduled time, the task runs as soon as you open BrowserOS again.
+    Astro uses your browser's built-in alarm system to trigger tasks at the right time. If your laptop was closed at the scheduled time, the task runs as soon as you open Astro again.
   </Step>
   <Step title="Background window opens">
     A hidden browser window opens automatically. The task runs there so it never interrupts whatever you are working on. You will not see anything happen on screen.
@@ -119,27 +116,23 @@ You can also:
     The agent runs your prompt with full access to browser automation and any connected apps. It can navigate pages, fill forms, extract data, and interact with your services.
   </Step>
   <Step title="Results are saved">
-    When the task finishes, the result is saved and appears on your New Tab page and in the task's run history. The hidden window closes automatically.
+    When the task finishes, the result is saved in the task's run history. The hidden window closes automatically.
   </Step>
 </Steps>
 
 <Note>
-BrowserOS needs to be open for scheduled tasks to run. Tasks have a 10-minute timeout. If a task takes longer than that, it will be marked as failed and you can retry it.
+Astro needs to be open for scheduled tasks to run. A task stops after 15 minutes, or after 5 minutes with no progress. A stopped task is marked as failed and you can retry it. If you quit Astro while a task runs, the run is marked as interrupted at the next start.
 </Note>
 
-## Cloud Sync
+## Stored on This Device
 
-If you are signed in, your scheduled task configurations sync across devices. Create a task on your laptop and it appears on your desktop. Edits sync both ways, and conflicts are resolved automatically using timestamps.
-
-Only the schedule setup syncs (name, prompt, schedule type, and timing). Task run results and output stay on the device where the task ran.
-
-See [Sync to Cloud](/features/sync-to-cloud) for more details.
+Astro does not sync scheduled tasks to a cloud account. Tasks and their results stay on the computer where you created them. See [Your Data Stays on This Device](/features/sync-to-cloud).
 
 ## Privacy
 
 <Columns cols={2}>
   <Card title="Runs locally" icon="house-laptop">
-    All tasks run on your machine in a hidden browser window. Nothing is sent to external servers.
+    All tasks run on your machine in a hidden browser window. Only the requests to your AI model and to the apps you connected leave your computer.
   </Card>
   <Card title="Full control" icon="toggle-on">
     Enable, disable, edit, or delete any task at any time. You decide what runs and when.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "maple",
-  "name": "BrowserOS Documentation",
+  "name": "Astro Documentation",
   "colors": {
     "primary": "#f25e1a",
     "light": "#FF7A3D",
@@ -17,26 +17,6 @@
           "onboarding",
           "update/index",
           "changelog"
-        ]
-      },
-      {
-        "group": "BrowserClaw",
-        "pages": [
-          "browserclaw/index",
-          "browserclaw/how-it-works",
-          "browserclaw/install",
-          {
-            "group": "Connect your agent",
-            "pages": [
-              "browserclaw/mcp/index",
-              "browserclaw/mcp/claude-desktop",
-              "browserclaw/mcp/manual"
-            ]
-          },
-          "browserclaw/cockpit",
-          "browserclaw/tabs-and-isolation",
-          "browserclaw/audit-and-replay",
-          "browserclaw/privacy"
         ]
       },
       {
@@ -66,34 +46,65 @@
       },
       {
         "group": "Integrations",
-        "pages": ["integrations/n8n"]
+        "pages": [
+          "integrations/n8n"
+        ]
       },
       {
         "group": "Troubleshooting",
-        "pages": ["troubleshooting/connection-issues"]
+        "pages": [
+          "troubleshooting/connection-issues"
+        ]
       },
       {
         "group": "Contributing",
-        "pages": ["contributing"]
+        "pages": [
+          "contributing"
+        ]
       }
     ]
   },
   "redirects": [
-    { "source": "/features/skills", "destination": "/" },
-    { "source": "/features/soul", "destination": "/" },
-    { "source": "/features/memory", "destination": "/" },
-    { "source": "/features/llm-chat-hub", "destination": "/" },
-    { "source": "/features/workflows", "destination": "/features/scheduled-tasks" },
-    { "source": "/features/qwen-code-oauth", "destination": "/features/bring-your-own-llm" },
-    { "source": "/features/browserclaw", "destination": "/browserclaw" },
-    { "source": "/browserclaw/first-run", "destination": "/browserclaw/how-it-works" },
-    { "source": "/browserclaw/sample-prompts", "destination": "/browserclaw/how-it-works" },
-    { "source": "/browserclaw/agent-profiles", "destination": "/browserclaw/tabs-and-isolation" },
-    { "source": "/browserclaw/permissions-and-boundaries", "destination": "/browserclaw/tabs-and-isolation" },
-    { "source": "/browserclaw/troubleshooting", "destination": "/browserclaw" },
-    { "source": "/browserclaw/comparisons/browseros", "destination": "/browserclaw" },
-    { "source": "/browserclaw/comparisons/chrome-devtools-mcp", "destination": "/comparisons/chrome-devtools-mcp" },
-    { "source": "/browserclaw/comparisons/browser-use", "destination": "/browserclaw" }
+    {
+      "source": "/features/skills",
+      "destination": "/"
+    },
+    {
+      "source": "/features/soul",
+      "destination": "/"
+    },
+    {
+      "source": "/features/memory",
+      "destination": "/"
+    },
+    {
+      "source": "/features/llm-chat-hub",
+      "destination": "/"
+    },
+    {
+      "source": "/features/workflows",
+      "destination": "/features/scheduled-tasks"
+    },
+    {
+      "source": "/features/qwen-code-oauth",
+      "destination": "/features/bring-your-own-llm"
+    },
+    {
+      "source": "/features/browserclaw",
+      "destination": "/"
+    },
+    {
+      "source": "/browserclaw/comparisons/chrome-devtools-mcp",
+      "destination": "/comparisons/chrome-devtools-mcp"
+    },
+    {
+      "source": "/browserclaw",
+      "destination": "/"
+    },
+    {
+      "source": "/browserclaw/:slug*",
+      "destination": "/"
+    }
   ],
   "logo": {
     "light": "/logo/logo44.png",
@@ -107,13 +118,13 @@
       },
       {
         "label": "Support",
-        "href": "https://discord.gg/YKwjt5vuKr"
+        "href": "https://github.com/Blueturboguy07/Astro/issues"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Download",
-      "href": "https://browseros.com"
+      "href": "https://publikhq.com/astro"
     }
   },
   "contextual": {
@@ -130,10 +141,7 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/browseros_ai",
-      "github": "https://github.com/BrowserOS-ai/BrowserOS",
-      "discord": "https://discord.gg/YKwjt5vuKr",
-      "slack": "https://dub.sh/browserOS-slack"
+      "github": "https://github.com/Blueturboguy07/Astro"
     }
   }
 }

@@ -1,9 +1,9 @@
 ---
 title: "Getting Started"
-description: "Set up BrowserOS in 2 minutes"
+description: "Set up Astro in 2 minutes"
 ---
 
-Welcome to BrowserOS! Let's get you set up.
+Welcome to Astro! Let's get you set up. Astro has no onboarding wizard: the steps below are all there is.
 
 <Steps>
   <Step title="Import from Chrome">
@@ -19,9 +19,12 @@ Welcome to BrowserOS! Let's get you set up.
   </Step>
 
   <Step title="Set up your AI">
-    BrowserOS includes a default AI model with limited daily usage. For the best experience, add your own.
+    At the first start, Astro asks you to choose:
 
-    **Quick option:** Get a free Gemini API key from [aistudio.google.com](https://aistudio.google.com) — 20 requests per minute at no cost.
+    - **Connect your plan**: sign in with your publik account. publik Balanced becomes the default model. You pay publik per use.
+    - **Use my own key**: add your own API key or a local model.
+
+    **Quick option for your own key:** get a free Gemini API key from [aistudio.google.com](https://aistudio.google.com).
 
     <Card title="Configure your LLM" icon="key" href="/features/bring-your-own-llm">
       Set up Gemini, Claude, OpenAI, or run models locally with Ollama
@@ -29,13 +32,13 @@ Welcome to BrowserOS! Let's get you set up.
   </Step>
 
   <Step title="Try it out">
-    Open any webpage and click the **Assistant** button in the toolbar.
+    Type a question in the new tab (the answer engine), or open any webpage and click the **Assistant** button in the toolbar.
 
     - **Chat Mode:** Ask questions about the page
     - **Agent Mode:** Describe a task and watch it execute
 
     <Note>
-    For Agent Mode, use Claude Opus 4.5 or Sonnet 4.5. Local models work great for Chat but aren't powerful enough for agents yet.
+    For Agent Mode, use a strong model such as publik Smart, publik Balanced, or Claude Sonnet 4.5. Small local models work well for Chat, but often fail at multi-step agent tasks.
     </Note>
   </Step>
 </Steps>
@@ -43,16 +46,16 @@ Welcome to BrowserOS! Let's get you set up.
 ## You're all set!
 
 <Tip>
-**Block ads with uBlock Origin** — Chrome dropped support for the full uBlock Origin extension, but BrowserOS brought it back. [Install it from the Chrome Web Store](https://chromewebstore.google.com/detail/ublock-origin/cjpalhdlnbpafiamejdnhcphjbkeiagm) and browse ad-free. [Learn more →](/features/ad-blocking)
+**Block ads with uBlock Origin**: Astro runs on BrowserOS's Chromium build, which keeps support for the full (Manifest V2) uBlock Origin extension. [Install it from the Chrome Web Store](https://chromewebstore.google.com/detail/ublock-origin/cjpalhdlnbpafiamejdnhcphjbkeiagm). [Learn more →](/features/ad-blocking)
 </Tip>
 
-Explore what BrowserOS can do:
+Explore what Astro can do:
 
 <Columns cols={2}>
   <Card title="Cowork" icon="user-group" href="/features/cowork">
     Hand off a multi-step task and combine browser automation with local files
   </Card>
   <Card title="Use with Claude Code" icon="terminal" href="/features/use-with-claude-code">
-    Control BrowserOS from Claude Code or Gemini CLI
+    Control Astro from Claude Code or Gemini CLI
   </Card>
 </Columns>

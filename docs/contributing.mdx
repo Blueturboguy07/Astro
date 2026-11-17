@@ -1,26 +1,25 @@
 ---
-title: "Contributing to BrowserOS"
-description: "Guide to contributing to BrowserOS"
+title: "Contributing to Astro"
+description: "Guide to contributing to Astro"
 ---
 
-BrowserOS has two main parts you can contribute to:
+Astro has two main parts:
 
-- **Agent** — The AI features, UI, and browser automation (TypeScript/React)
-- **Browser** — The custom Chromium build (C++/Python)
+- **Agent** — The AI features, UI, answer engine, and browser automation (TypeScript/React), in `packages/browseros-agent`
+- **Browser** — Astro does not build Chromium. A release re-cuts BrowserOS's prebuilt browser (see [RELEASING.md](https://github.com/Blueturboguy07/Astro/blob/main/RELEASING.md)). Chromium-level changes belong upstream in [BrowserOS](https://github.com/browseros-ai/BrowserOS).
 
-Most contributors work on the Agent since it's much easier to set up.
+Almost all contributions to Astro are in the Agent.
 
 ## Quick Links
 
-- [GitHub Repository](https://github.com/BrowserOS-ai/BrowserOS)
-- [Discord Community](https://discord.gg/YKwjt5vuKr)
-- [Report Issues](https://github.com/BrowserOS-ai/BrowserOS/issues)
+- [GitHub Repository](https://github.com/Blueturboguy07/Astro)
+- [Report Issues](https://github.com/Blueturboguy07/Astro/issues)
 
 ## Ways to Contribute
 
-**Report bugs** — [Open an issue](https://github.com/browseros-ai/BrowserOS/issues/new) with steps to reproduce, expected vs actual behavior, and screenshots.
+**Report bugs** — [Open an issue](https://github.com/Blueturboguy07/Astro/issues/new) with steps to reproduce, expected vs actual behavior, and screenshots.
 
-**Suggest features** — Share ideas on [GitHub](https://github.com/browseros-ai/BrowserOS/issues/99) or [Discord](https://discord.gg/YKwjt5vuKr).
+**Suggest features** — Open an issue on [GitHub](https://github.com/Blueturboguy07/Astro/issues).
 
 **Improve docs** — Docs live in `docs/` and use Mintlify. Edit pages and update `docs/docs.json` for navigation.
 
@@ -38,14 +37,14 @@ The Agent is a monorepo with 3 components:
 
 ### Architecture
 
-<img src="/images/contributing--architecture.png" alt="BrowserOS Agent architecture diagram" />
+<img src="/images/contributing--architecture.png" alt="Astro agent architecture diagram" />
 
 ### Setup
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR-USERNAME/BrowserOS.git
-cd BrowserOS/packages/browseros-agent
+git clone https://github.com/YOUR-USERNAME/Astro.git
+cd Astro/packages/browseros-agent
 
 # Install dependencies
 bun install
@@ -87,7 +86,7 @@ Then load the extension in BrowserOS:
 
 ## Path 2: Browser Development
 
-Only go down this path if you're working on Chromium-level features like patches to the browser itself.
+This path builds upstream BrowserOS's Chromium. Astro releases do not use a Chromium you build: they re-cut BrowserOS's prebuilt browser. Only go down this path to work on a Chromium patch for BrowserOS.
 
 **Requirements:**
 - ~100GB disk space
@@ -258,9 +257,7 @@ I have read the CLA Document and I hereby sign the CLA
 
 ## Getting Help
 
-- **Discord** — [discord.gg/YKwjt5vuKr](https://discord.gg/YKwjt5vuKr)
-- **GitHub Issues** — [github.com/BrowserOS-ai/BrowserOS/issues](https://github.com/BrowserOS-ai/BrowserOS/issues)
-- **GitHub Discussions** — [github.com/BrowserOS-ai/BrowserOS/discussions](https://github.com/BrowserOS-ai/BrowserOS/discussions)
+- **GitHub Issues** — [github.com/Blueturboguy07/Astro/issues](https://github.com/Blueturboguy07/Astro/issues)
 
 ---
 

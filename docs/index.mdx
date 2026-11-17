@@ -1,48 +1,48 @@
 ---
-title: "BrowserOS"
+title: "Astro"
 description: "The open-source AI browser that turns your words into actions"
 ---
 
 <Frame>
-  <img src="/images/hero-dark.png" alt="BrowserOS in action" />
+  <img src="/images/hero-dark.png" alt="Astro in action" />
 </Frame>
 
-BrowserOS is an AI-native browser that lets you automate any web task by describing it in plain English. Built on Chromium, it runs AI agents locally on your machine—keeping your data private while giving you superpowers for browsing.
+Astro is an AI browser built on Chromium. Its new tab is an answer engine that searches the web and cites its sources. Its side panel assistant answers questions about the page you are on, or does a task for you in the browser. Astro is a fork of [BrowserOS](https://github.com/browseros-ai/BrowserOS).
 
-**Open source. Privacy-first. The browser for the AI era.**
+**Open source. Your keys and chats stay on your computer.**
 
-## Three Ways to Use AI
+## Two Ways to Use the Assistant
 
-<Columns cols={3}>
+<Columns cols={2}>
   <Card title="Chat Mode" icon="message">
     Ask questions about the page you're viewing. Summarize articles, extract data, translate content—without leaving the page.
   </Card>
   <Card title="Agent Mode" icon="robot">
     Describe a task and watch AI execute it: clicking, typing, navigating. Automate form filling, data extraction, and multi-step workflows.
   </Card>
-  <Card title="Graph Mode" icon="sitemap">
-    Build reliable, repeatable workflows as visual graphs. Edit steps, save, and run anytime. *Coming soon.*
-  </Card>
 </Columns>
 
 ## Quick Start
 
 <Steps>
-  <Step title="Download BrowserOS">
-    Get the latest release from [browseros.com](https://browseros.com) for macOS, Windows, or Linux.
+  <Step title="Download Astro">
+    Get Astro from [publikhq.com/astro](https://publikhq.com/astro). Install guides: [Mac](https://publikhq.com/astro/install/mac), [Windows](https://publikhq.com/astro/install/windows). For Linux, see [SETUP.md](https://github.com/Blueturboguy07/Astro/blob/main/SETUP.md).
   </Step>
   <Step title="Import from Chrome">
     Navigate to `chrome://settings/importData` and import your bookmarks, passwords, and settings in one click.
   </Step>
-  <Step title="Configure your AI">
-    BrowserOS includes a default AI model with limited daily usage for testing. For the full experience, bring your own API keys.
+  <Step title="Choose your AI">
+    At the first start, Astro asks you to choose:
+
+    - **Connect your plan**: sign in with your publik account. publik Balanced becomes the default model. publik Smart is also available, and publik Fast in the new tab. You pay publik per use.
+    - **Use my own key**: add your own API keys or a local model.
 
     <Card title="Set up your LLM provider" icon="key" href="/features/bring-your-own-llm">
       Configure Gemini, Claude, OpenAI, or run models locally with Ollama
     </Card>
   </Step>
   <Step title="Try it out">
-    Open any webpage and press the **Assistant** button in the toolbar. Ask a question about the page, or describe a task to automate.
+    Type a question in the new tab, or open any webpage and press the **Assistant** button in the toolbar. Ask a question about the page, or describe a task to automate.
   </Step>
 </Steps>
 
@@ -50,57 +50,56 @@ BrowserOS is an AI-native browser that lets you automate any web task by describ
 
 <Tabs>
   <Tab title="For Chat Mode">
-    **Any model works great**, including local LLMs.
+    **Any model works**, including local LLMs.
 
-    - **Ollama** or **LM Studio** — Free, runs locally, great for quick questions
-    - **Gemini Flash** — Fast and affordable
-    - **Claude or GPT-4** — Best quality responses
+    - **publik Balanced**: the default after **Connect your plan**
+    - **Ollama** or **LM Studio**: free, runs locally, good for quick questions
+    - **Gemini Flash**: fast and affordable
+    - **Claude or GPT-5**: high-quality responses
 
     Chat Mode just needs to understand the page and answer questions—local models handle this well.
   </Tab>
   <Tab title="For Agent Mode">
-    **Use Claude Opus 4.5 for best results.**
+    **Use a strong cloud model for the best results.**
 
     | Model | Speed | Quality |
     |-------|-------|---------|
+    | publik Smart | Slower | Best of the publik models |
+    | publik Balanced | Medium | Great |
     | Claude Opus 4.5 | Slower | Best |
     | Claude Sonnet 4.5 | Medium | Great |
-    | Claude Haiku 4.5 | Fast | Good |
     | Gemini Flash | Fast | Good |
 
     <Warning>
-    Local LLMs are not yet powerful enough for Agent Mode. The model needs strong reasoning to click the right elements and handle multi-step tasks.
+    Small local models run Agent Mode, but they often pick the wrong element or stop early on multi-step tasks. Use them for simple tasks.
     </Warning>
   </Tab>
 </Tabs>
 
-## Why BrowserOS?
+## Why Astro?
 
 <Columns cols={2}>
-  <Card title="Privacy-First" icon="shield-check">
-    Run AI locally with Ollama, or bring your own API keys. Your browsing data never leaves your machine unless you choose.
+  <Card title="Your Choice of Model" icon="shield-check">
+    Use your publik plan, bring your own API keys, or run AI locally with Ollama.
   </Card>
   <Card title="Open Source" icon="code-branch">
     100% open source under AGPL-3.0. Inspect the code, contribute features, or fork it for your needs.
   </Card>
   <Card title="Works with Your Tools" icon="plug">
-    Built-in MCP servers for Gmail, Calendar, Docs, Sheets, Notion. Connect to Claude Code or Gemini CLI for developer workflows.
+    Connect Apps links the assistant to 45 apps such as Gmail, Google Calendar, Google Docs, Google Sheets and Notion. Connect Claude Code or Gemini CLI for developer workflows.
   </Card>
   <Card title="Chrome Compatible" icon="chrome">
-    All your Chrome extensions work. Import bookmarks, passwords, and settings in one click.
+    Chrome extensions work. Import bookmarks, passwords, and settings in one click.
   </Card>
 </Columns>
 
 ## Community
 
-<Columns cols={3}>
-  <Card title="Discord" icon="discord" href="https://discord.gg/YKwjt5vuKr">
-    Get help and share feedback
+<Columns cols={2}>
+  <Card title="GitHub" icon="github" href="https://github.com/Blueturboguy07/Astro">
+    Source code and releases
   </Card>
-  <Card title="GitHub" icon="github" href="https://github.com/BrowserOS-ai/BrowserOS">
-    Star us and contribute
-  </Card>
-  <Card title="Twitter" icon="x-twitter" href="https://x.com/browserOS_ai">
-    Follow for updates
+  <Card title="Issues" icon="bug" href="https://github.com/Blueturboguy07/Astro/issues">
+    Report a bug or ask for help
   </Card>
 </Columns>

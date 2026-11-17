@@ -1,17 +1,19 @@
 ---
 title: "Has Agent Crashed?"
-description: "How to fix connection issues when the BrowserOS agent is not responding"
+description: "How to fix connection issues when Astro's local server is not responding"
 ---
 
-If you see **"Failed to Fetch"** or **"Unable to connect to BrowserOS agent"**, your agent has been killed.
+If the side panel says **"Connection failed. Astro could not reach its local server"** (or **"Astro lost the connection to its local server during the answer"**), or the new tab says **"Can't reach the local Astro server"**, Astro's local server has stopped. It restarts by itself: try again after a few seconds. If that does not help, use the steps below.
+
+<Note>On Windows, Task Manager and the firewall show Astro's local server as **BrowserOS Agent** (`browseros_server.exe`), its upstream name.</Note>
 
 <Frame>
   <img src="/troubleshooting/failed-to-fetch-error.png" alt="Failed to fetch error" />
 </Frame>
 
-## Windows: Did you allow the BrowserOS Agent?
+## Windows: Did you allow the BrowserOS Agent (Astro's local server)?
 
-When BrowserOS starts for the first time on Windows, a popup will ask if you want to allow **BrowserOS Agent** to access the network. Click **Allow** — the agent runs as a separate process alongside the browser and needs this permission to work. If you clicked **Cancel** or missed this prompt, the agent won't be able to connect.
+When Astro starts for the first time on Windows, a popup may ask if you want to allow **BrowserOS Agent** (Astro's local server) to access the network. Click **Allow** — the agent runs as a separate process alongside the browser and needs this permission to work. If you clicked **Cancel** or missed this prompt, the agent won't be able to connect.
 
 <Frame>
   <img src="/troubleshooting/windows-installation-allow-browseros-agent.png" alt="Allow BrowserOS Agent network access prompt" />
@@ -22,8 +24,8 @@ To fix this, go to **Windows Security → Allow an app through your network sett
 ## Fix It
 
 <Steps>
-  <Step title="Go to Settings → MCP Server and click Restart">
-    Open **Settings** from the sidebar, scroll to the MCP Server section, and click **Restart**. Wait a couple of minutes.
+  <Step title="Go to Settings → Astro as MCP and click Restart server">
+    Open **Settings** from the sidebar, open **Astro as MCP**, and click **Restart server**. Wait a couple of minutes.
 
     <Frame>
       <img src="/troubleshooting/mcp-server-restart.png" alt="Click Restart in MCP Server Settings" />
@@ -36,16 +38,16 @@ To fix this, go to **Windows Security → Allow an app through your network sett
         1. Open **Task Manager** — press `Ctrl + Shift + Esc` or right-click the taskbar and select **Task Manager**.
         2. In the search bar at the top, type **browseros agent**.
         3. Right-click **BrowserOS Agent** and select **End task**.
-        4. Reopen **BrowserOS** — the agent will restart automatically.
+        4. Reopen **Astro** — the agent will restart automatically.
 
         <Frame>
           <img src="/troubleshooting/troubleshoot-search-restart-agent-task-manager.png" alt="Search for BrowserOS Agent in Task Manager and restart it" />
         </Frame>
 
-        <Note>If the agent still doesn't reconnect, end both **BrowserOS** and **BrowserOS Agent** in Task Manager, then reopen the app.</Note>
+        <Note>If the agent still doesn't reconnect, end both **Astro** and **BrowserOS Agent** in Task Manager, then reopen the app.</Note>
       </Tab>
       <Tab title="macOS">
-        Right-click BrowserOS in the Dock → **Quit**, then reopen the app.
+        Right-click Astro in the Dock → **Quit**, then reopen the app.
       </Tab>
     </Tabs>
   </Step>
@@ -55,7 +57,7 @@ To fix this, go to **Windows Security → Allow an app through your network sett
 
 <AccordionGroup>
   <Accordion title="Check if another application is using the port">
-    The agent runs on port `9100` by default. If another application is using this port, BrowserOS cannot start the agent.
+    The agent runs on port `9100` by default. If another application is using this port, Astro cannot start the agent.
 
     <Tabs>
       <Tab title="macOS/Linux">
@@ -82,13 +84,13 @@ To fix this, go to **Windows Security → Allow an app through your network sett
       </Tab>
     </Tabs>
 
-    Then restart BrowserOS.
+    Then restart Astro.
   </Accordion>
 
   <Accordion title="Check your firewall or antivirus settings">
     Some firewalls may block local connections. Make sure your firewall allows connections to `127.0.0.1:9100`.
 
-    **Windows users:** Antivirus software sometimes triggers a false positive. Try temporarily disabling your antivirus and restarting BrowserOS.
+    **Windows users:** Antivirus software sometimes triggers a false positive. Try temporarily disabling your antivirus and restarting Astro.
   </Accordion>
 </AccordionGroup>
 
@@ -96,11 +98,6 @@ To fix this, go to **Windows Security → Allow an app through your network sett
 
 If you're still experiencing issues, reach out:
 
-<CardGroup cols={2}>
-  <Card title="Discord" icon="discord" href="https://discord.gg/YKwjt5vuKr">
-    Get help from the community
-  </Card>
-  <Card title="Slack" icon="slack" href="https://dub.sh/browserOS-slack">
-    Join our Slack
-  </Card>
-</CardGroup>
+<Card title="GitHub Issues" icon="github" href="https://github.com/Blueturboguy07/Astro/issues">
+  Report the problem with the steps to reproduce it
+</Card>

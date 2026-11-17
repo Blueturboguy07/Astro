@@ -1,9 +1,9 @@
 ---
 title: "Bring Your Own LLM"
-description: "Connect your own AI models to BrowserOS"
+description: "Connect your own AI models to Astro"
 ---
 
-BrowserOS includes a default AI model you can use right away, but it has strict rate limits. For the best experience, bring your own API keys or run models locally.
+At the first start, Astro asks you to choose **Connect your plan** or **Use my own key**. With **Connect your plan**, your publik account pays per use and publik Balanced is the default model (publik Smart is also available, and publik Fast in the new tab). With **Use my own key**, you add your own API keys or run models locally. You can add your own keys at any time, also with a publik plan.
 
 See how to connect your own LLM in under a minute:
 
@@ -15,7 +15,7 @@ See how to connect your own LLM in under a minute:
 
 ## Use Your Existing Subscription
 
-Already paying for ChatGPT Pro or GitHub Copilot? Connect your existing account to BrowserOS with a single sign-in — no API keys, no extra cost.
+Already paying for ChatGPT Pro or GitHub Copilot? Connect your existing account to Astro with a single sign-in — no API keys, no extra cost.
 
 <CardGroup cols={2}>
   <Card href="/features/chatgpt-pro-oauth">
@@ -38,58 +38,31 @@ Already paying for ChatGPT Pro or GitHub Copilot? Connect your existing account 
 
 | Mode | What works | Recommendation |
 |------|------------|----------------|
-| **Chat Mode** | Any model, including local | Ollama or Gemini Flash |
-| **Agent Mode** | Cloud models only | Claude Opus 4.5, GPT-5, or Kimi K2.5 (open source) |
+| **Chat Mode** | Any model, including local | publik Balanced, Ollama, or Gemini Flash |
+| **Agent Mode** | Any model with tool calling | publik Smart, publik Balanced, Claude Opus 4.5, or GPT-5 |
 
 <Warning>
-**Local LLMs aren't powerful for most agentic tasks yet.** They're great for Chat — asking questions about a page, summarizing, etc. But agent tasks need strong reasoning to click the right elements and handle multi-step workflows. Use Claude Opus 4.5, GPT-5, or Kimi K2.5 for agents.
+**Small local models often fail at agent tasks.** They are good for Chat — asking questions about a page, summarizing, etc. Agent tasks need strong reasoning to click the right elements and handle multi-step workflows. Use publik Smart, publik Balanced, Claude Opus 4.5, or GPT-5 for agents.
 </Warning>
 
 ---
 
-## Kimi K2.5 — In Partnership with Moonshot AI
-
-{/* <img src="/images/moonshot-partnership-banner.png" alt="BrowserOS x Moonshot AI" className="rounded-xl" /> */}
-
-BrowserOS has partnered with [Moonshot AI](https://www.kimi.com) to bring **Kimi K2.5** as a first-class provider. Kimi K2.5 is now the **recommended model** in BrowserOS and is set as the default provider.
-
-For a limited time, BrowserOS users get **extended usage limits** powered by Kimi K2.5. This means you can use the AI agent, chat, and other AI-powered features with increased limits at no cost.
-
-<CardGroup cols={2}>
-  <Card title="Open Source" icon="code-branch">
-    Fully open-source model you can inspect and trust.
-  </Card>
-  <Card title="Multimodal" icon="image">
-    Supports images out of the box, including screenshots and visual context.
-  </Card>
-  <Card title="Great for Agents" icon="robot">
-    Strong reasoning for browser automation, form filling, and multi-step workflows.
-  </Card>
-  <Card title="Affordable" icon="piggy-bank">
-    Excellent agentic performance at a fraction of the cost of other frontier models.
-  </Card>
-</CardGroup>
+## Moonshot AI (Kimi)
 
 <div id="moonshot" />
 
-### Why Kimi K2.5?
-
-Kimi K2.5 offers excellent performance for agentic tasks at a fraction of the cost of other frontier models. It supports images, has a 128,000 token context window, and delivers strong results on browser automation tasks. Combined with BrowserOS's open-source agent framework, this makes for a powerful and affordable AI browsing experience.
-
-### Bring Your Own Kimi API Key
-
-You can also bring your own Kimi API key if you want to use Kimi K2.5 beyond the extended usage period, or if you want your own dedicated limits.
+Astro has a **Moonshot AI** template for Kimi models with your own key. It is not the default model, and Astro gives no free Kimi usage.
 
 **Get your API key:**
 1. Go to [platform.moonshot.ai](https://platform.moonshot.ai) and create an account
 2. Navigate to the **API keys** section in your dashboard
 3. Click **Create new API key** and copy the key
 
-**Add to BrowserOS:**
+**Add to Astro:**
 1. Go to `chrome://browseros/settings`
 2. Click **USE** on the **Moonshot AI** card
-3. Enter your API key (it will be encrypted and stored locally on your machine)
-4. The model is pre-configured to `kimi-k2.5` with a 128,000 context window
+3. Enter your API key (it is stored locally on your machine)
+4. The model is pre-configured to `kimi-k2.5` with a 200,000 context window
 5. Click **Save**
 
 <Tip>
@@ -114,7 +87,7 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
 
     ![Get Gemini API key](/images/gemini-get-api-key.png)
 
-    **Add to BrowserOS:**
+    **Add to Astro:**
     1. Go to `chrome://browseros/settings`
     2. Click **USE** on the Gemini card
     3. Set **Model ID** to `gemini-2.5-flash` (or `gemini-2.5-pro`, `gemini-3-pro-preview`, `gemini-3-flash-preview`)
@@ -136,7 +109,7 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
 
     ![Get Claude API key](/images/claude-api-keys.png)
 
-    **Add to BrowserOS:**
+    **Add to Astro:**
     1. Go to `chrome://browseros/settings`
     2. Click **USE** on the Anthropic card
     3. Set **Model ID** to `claude-opus-4-5-20251101` (or `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`)
@@ -158,7 +131,7 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
 
     ![Get OpenAI API key](/images/openai-api-keys.png)
 
-    **Add to BrowserOS:**
+    **Add to Astro:**
     1. Go to `chrome://browseros/settings`
     2. Click **USE** on the OpenAI card
     3. Set **Model ID** to `gpt-5` (or `gpt-5.2`, `gpt-5-mini`, `gpt-4.1`, `o4-mini`)
@@ -182,7 +155,7 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
 
     ![OpenRouter models](/images/openrouter-models.png)
 
-    **Add to BrowserOS:**
+    **Add to Astro:**
     1. Go to `chrome://browseros/settings`
     2. Click **USE** on the OpenRouter card
     3. Paste the model ID and your API key
@@ -205,7 +178,7 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
     2. Navigate to **Keys and Endpoint**
     3. Copy **Key 1** and your **Endpoint URL**
 
-    **Add to BrowserOS:**
+    **Add to Astro:**
     1. Go to `chrome://browseros/settings`
     2. Click **USE** on the Azure card
     3. Set **Base URL** to your Azure endpoint (e.g., `https://your-resource.openai.azure.com/openai/deployments/your-deployment`)
@@ -228,7 +201,7 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
     2. Create or use an existing access key with Bedrock permissions
     3. Note your **Access Key ID**, **Secret Access Key**, and **Region**
 
-    **Add to BrowserOS:**
+    **Add to Astro:**
     1. Go to `chrome://browseros/settings`
     2. Click **USE** on the AWS Bedrock card
     3. Set **Base URL** to your Bedrock endpoint (region-specific)
@@ -242,7 +215,7 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
   <Accordion title="OpenAI Compatible" icon="plug">
     Connect to any provider that implements the OpenAI-compatible API format (e.g., Together AI, Fireworks, Groq, Perplexity).
 
-    **Add to BrowserOS:**
+    **Add to Astro:**
     1. Go to `chrome://browseros/settings`
     2. Click **USE** on the OpenAI Compatible card
     3. Set **Base URL** to the provider's API endpoint
@@ -270,6 +243,8 @@ Connect to powerful AI models using your API keys. Your keys stay on your machin
 ## Switching Between Models
 
 Use the model switcher in the Assistant panel to change providers anytime. The default provider is highlighted.
+
+The new tab (the answer engine) has its own list of connections. To add one there, click the gear at the bottom left, open **Models**, and click **Add Connection**. Use the model button in the question box to pick the model for an answer.
 
 ![Model switcher](/images/byollm--switcher.png)
 

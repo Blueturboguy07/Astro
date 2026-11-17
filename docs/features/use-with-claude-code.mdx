@@ -1,21 +1,21 @@
 ---
 title: "MCP Clients (Claude Code, OpenClaw)"
-description: "Control your browser and 40+ apps from Claude Code, OpenClaw, Gemini CLI, or any MCP client"
+description: "Control your browser and 45 apps from Claude Code, OpenClaw, Gemini CLI, or any MCP client"
 ---
 
-BrowserOS is the best browser for AI coding agents. It comes with a built-in MCP server that gives your AI agent **full browser control** and **direct access to 40+ external services** — Gmail, Slack, GitHub, Google Calendar, Linear, Notion, and more — all through a single MCP connection.
+Astro comes with a built-in MCP server that gives your AI agent **full browser control** and **direct access to 45 external services** — Gmail, Slack, GitHub, Google Calendar, Linear, Notion, and more — all through a single MCP connection.
 
 <Note>
-Unlike Chrome DevTools MCP which requires setting up debug profiles and running separate servers, BrowserOS MCP works out of the box. Just copy the URL from settings and connect.
+Unlike Chrome DevTools MCP which requires setting up debug profiles and running separate servers, Astro MCP works out of the box. Just copy the URL from settings and connect.
 </Note>
 
-## Why Use BrowserOS with Claude Code?
+## Why Use Astro with Claude Code?
 
 <CardGroup cols={2}>
   <Card title="Agentic Coding" icon="code">
-    Claude tests your web app, reads console errors, and fixes the code — all in one loop.
+    Claude tests your web app, checks what the page shows, and fixes the code — all in one loop.
   </Card>
-  <Card title="40+ App Integrations" icon="grid-2">
+  <Card title="45 App Integrations" icon="grid-2">
     Gmail, Slack, GitHub, Jira, Notion, Google Sheets, and more — accessible directly from your AI agent.
   </Card>
   <Card title="Data Extraction" icon="download">
@@ -24,28 +24,28 @@ Unlike Chrome DevTools MCP which requires setting up debug profiles and running 
   <Card title="Task Automation" icon="repeat">
     Fill forms, navigate multi-step workflows, and automate repetitive browser tasks.
   </Card>
-  <Card title="53+ MCP Tools" icon="wrench">
-    Full browser control: tabs, navigation, clicks, typing, screenshots, bookmarks, history, tab groups, and window management.
+  <Card title="23 MCP Tools" icon="wrench">
+    Full browser control: tabs, navigation, clicks, typing, screenshots, downloads, uploads, PDFs, tab groups, and window management, plus the tools for your connected apps.
   </Card>
   <Card title="Zero Config Auth" icon="lock">
-    Connect external services via OAuth — credentials are managed securely, never stored in BrowserOS.
+    Connect external services via OAuth — the sign-in tokens are kept by the hosted Klavis service (llm.browseros.com, operated by BrowserOS), not in Astro.
   </Card>
 </CardGroup>
 
 <Tip>
-Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser automation tools? See our [detailed feature comparison](/comparisons/chrome-devtools-mcp) covering 53 browser tools, 40+ app integrations, and why BrowserOS MCP gives developers more out of the box.
+Wondering how Astro MCP compares to Chrome DevTools MCP or other browser automation tools? See our [detailed feature comparison](/comparisons/chrome-devtools-mcp) covering the 23 MCP tools, 45 app integrations, and why Astro MCP gives developers more out of the box.
 </Tip>
 
 ## Getting Started
 
 <Steps>
-  <Step title="Open BrowserOS Settings">
-    Navigate to `chrome://browseros/mcp` or click **Settings** → **BrowserOS as MCP** in the sidebar.
+  <Step title="Open Astro Settings">
+    Navigate to `chrome://browseros/mcp` or click **Settings** → **Astro as MCP** in the sidebar.
   </Step>
   <Step title="Copy the MCP URL">
     Copy the Server URL shown on the page (e.g., `http://127.0.0.1:9239/mcp`).
 
-    <img src="/images/features--browseros-mcp-settings.png" alt="BrowserOS MCP settings page showing Server URL" />
+    <img src="/images/features--browseros-mcp-settings.png" alt="Astro MCP settings page showing Server URL" />
   </Step>
   <Step title="Connect your MCP client">
     Use the tabs below to connect your preferred client.
@@ -54,7 +54,7 @@ Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser aut
 
 <Tabs>
   <Tab title="Claude Code">
-    Add BrowserOS to Claude Code:
+    Add Astro to Claude Code:
     ```bash
     claude mcp add --transport http browseros <mcp_url> --scope user
     # Example: claude mcp add --transport http browseros http://127.0.0.1:9239/mcp --scope user
@@ -63,7 +63,7 @@ Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser aut
     Start Claude Code and try it:
     ```bash
     claude
-    > Open amazon.com in BrowserOS
+    > Open amazon.com in Astro
     ```
 
     <Tip>
@@ -76,21 +76,21 @@ Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser aut
     ```
   </Tab>
   <Tab title="Gemini CLI">
-    Add BrowserOS to Gemini CLI:
+    Add Astro to Gemini CLI:
     ```bash
     gemini mcp add local-server <mcp_url> --transport http --scope user
     # Example: gemini mcp add local-server http://127.0.0.1:9239/mcp --transport http --scope user
     ```
   </Tab>
   <Tab title="Codex">
-    Add BrowserOS to OpenAI Codex CLI:
+    Add Astro to OpenAI Codex CLI:
     ```bash
     codex mcp add browseros <mcp_url> --transport http
     # Example: codex mcp add browseros http://127.0.0.1:9239/mcp --transport http
     ```
   </Tab>
   <Tab title="OpenClaw">
-    Add BrowserOS to [OpenClaw](https://openclaw.ai/) by adding it to the `mcpServers` section in your `openclaw.json` config file:
+    Add Astro to [OpenClaw](https://openclaw.ai/) by adding it to the `mcpServers` section in your `openclaw.json` config file:
     ```json
     {
       "mcpServers": {
@@ -101,7 +101,7 @@ Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser aut
     }
     ```
 
-    Replace the URL with your BrowserOS MCP URL from settings.
+    Replace the URL with your Astro MCP URL from settings.
   </Tab>
   <Tab title="Claude Desktop">
     Open your Claude Desktop config file:
@@ -109,7 +109,7 @@ Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser aut
     ~/Library/Application Support/Claude/claude_desktop_config.json
     ```
 
-    Add BrowserOS:
+    Add Astro:
     ```json
     {
       "mcpServers": {
@@ -122,7 +122,7 @@ Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser aut
     ```
 
     <Warning>
-    Do not add BrowserOS to `claude_desktop_config.json` as a raw `{ "url": "..." }` entry. Claude Desktop local config expects a command wrapper here, so use `npx mcp-remote <mcp_url>`.
+    Do not add Astro to `claude_desktop_config.json` as a raw `{ "url": "..." }` entry. Claude Desktop local config expects a command wrapper here, so use `npx mcp-remote <mcp_url>`.
     </Warning>
 
     Restart Claude Desktop to connect.
@@ -131,7 +131,7 @@ Wondering how BrowserOS MCP compares to Chrome DevTools MCP or other browser aut
 
 ## Connect from a Remote Machine
 
-The BrowserOS MCP server only listens on `127.0.0.1`, so by default only programs on the same computer can reach it. If your agent runs somewhere else — for example a [Hermes](https://github.com/NousResearch) or OpenClaw agent on a VPS controlling BrowserOS on your laptop — you need a reverse tunnel that forwards requests from the remote machine to the MCP server on your laptop.
+The Astro MCP server only listens on `127.0.0.1`, so by default only programs on the same computer can reach it. If your agent runs somewhere else — for example a [Hermes](https://github.com/NousResearch) or OpenClaw agent on a VPS controlling Astro on your laptop — you need a reverse tunnel that forwards requests from the remote machine to the MCP server on your laptop.
 
 <Warning>
 Anyone who can reach this URL has full control of your browser, including every account you are signed into. Prefer a private tunnel like Tailscale over a public URL, and treat public tunnel URLs like passwords.
@@ -182,7 +182,7 @@ All commands below use port `9239` — replace it with the port shown on your `c
 </Tabs>
 
 <Note>
-The connection only works while your laptop is awake, BrowserOS is running, and the tunnel process is alive. If a remote agent that was working suddenly stops connecting, check those three first — and if you use ngrok or a Cloudflare quick tunnel, remember the URL rotates on every restart, so your agent may be pointing at a dead URL. Tailscale avoids this because its hostnames are stable.
+The connection only works while your laptop is awake, Astro is running, and the tunnel process is alive. If a remote agent that was working suddenly stops connecting, check those three first — and if you use ngrok or a Cloudflare quick tunnel, remember the URL rotates on every restart, so your agent may be pointing at a dead URL. Tailscale avoids this because its hostnames are stable.
 </Note>
 
 ## Example Prompts
@@ -190,22 +190,17 @@ The connection only works while your laptop is awake, BrowserOS is running, and 
 <Accordion title="Try these prompts once connected" icon="message">
   Extract structured data from any page you're logged into — no scraping setup needed.
   ```
-  Open my LinkedIn profile in BrowserOS and extract my work experience as JSON
+  Open my LinkedIn profile in Astro and extract my work experience as JSON
   ```
 
   Test your web app end-to-end without leaving the terminal — Claude navigates, interacts, and reports errors back.
   ```
-  In BrowserOS, go to localhost:3000, click the login button, and check for console errors
+  In Astro, go to localhost:3000, click the login button, and tell me what the page shows
   ```
 
   Capture visual snapshots of any page for debugging, documentation, or design review.
   ```
-  Take a screenshot of the current page in BrowserOS and save it to screenshots/
-  ```
-
-  Search through your real browsing history to find pages you visited earlier.
-  ```
-  Search my BrowserOS history for "invoice" and list the recent matches
+  Take a screenshot of the current page in Astro and save it to screenshots/
   ```
 
   Access your email directly from the agent — read, search, and summarize without switching windows.
@@ -223,117 +218,72 @@ The connection only works while your laptop is awake, BrowserOS is running, and 
 
 ## Browser Automation Tools
 
-BrowserOS exposes **53 browser automation tools** to MCP clients, organized into the following categories:
+Astro exposes **23 MCP tools**: 16 browser tools and 7 tools for the apps you connect. There are no bookmark or history tools.
 
 <AccordionGroup>
-  <Accordion title="Navigation & Tabs (8 tools)" icon="window-restore">
+  <Accordion title="Pages, Tabs & Windows (5 tools)" icon="window-restore">
     | Tool | Description |
     |------|-------------|
-    | `get_active_page` | Get the currently focused page/tab |
-    | `list_pages` | List all open pages with title, URL, and tab ID |
-    | `navigate_page` | Navigate to a URL, or go back/forward/reload |
-    | `new_page` | Open a new tab (with optional background/hidden mode) |
-    | `new_hidden_page` | Open a hidden tab for background automation |
-    | `show_page` | Restore a hidden page to visible state |
-    | `move_page` | Move a tab to a different window or position |
-    | `close_page` | Close a tab |
+    | `tabs` | List, open, close, or find the active tab. Your tabs, the user's tabs, and other agents' tabs are shown apart |
+    | `navigate` | Load a URL, or go back, forward, or reload; returns a fresh snapshot |
+    | `windows` | List, create, close, or activate a browser window |
+    | `tab_groups` | List groups, group tabs, update a group (title, color, collapsed), ungroup, or close a group |
+    | `wait` | Wait for a time, a text, or a selector |
   </Accordion>
 
-  <Accordion title="Content & Observation (8 tools)" icon="eye">
+  <Accordion title="Reading the Page (6 tools)" icon="eye">
     | Tool | Description |
     |------|-------------|
-    | `take_snapshot` | Get accessibility tree with interactive element IDs |
-    | `take_enhanced_snapshot` | Detailed accessibility tree with structural context |
-    | `get_page_content` | Extract page as clean Markdown (headers, links, tables) |
-    | `get_page_links` | Extract all links from a page with deduplication |
-    | `get_dom` | Get raw HTML DOM with optional CSS selector scoping |
-    | `search_dom` | Search DOM by text, CSS selector, or XPath |
-    | `take_screenshot` | Capture page screenshot (PNG/JPEG/WebP, full-page option) |
-    | `evaluate_script` | Execute JavaScript in the page context |
+    | `snapshot` | Accessibility tree with a `[ref=eN]` handle on each element you can act on |
+    | `diff` | What changed since the last snapshot |
+    | `read` | Page content as Markdown, plain text, or a list of links |
+    | `grep` | Search the snapshot or the visible text without dumping the page |
+    | `screenshot` | Screenshot of the page, returned inline |
+    | `evaluate` | Run JavaScript in the page |
   </Accordion>
 
-  <Accordion title="Interaction & Input (14 tools)" icon="hand-pointer">
+  <Accordion title="Acting on the Page (3 tools)" icon="hand-pointer">
     | Tool | Description |
     |------|-------------|
-    | `click` | Click an element by ID from snapshot |
-    | `click_at` | Click at specific X,Y coordinates |
-    | `hover` | Hover over an element |
-    | `focus` | Focus an element (scrolls into view) |
-    | `fill` | Type text into an input (with optional clear) |
-    | `clear` | Clear text from input/textarea |
-    | `check` | Check a checkbox or radio button |
-    | `uncheck` | Uncheck a checkbox |
-    | `select_option` | Select a dropdown option by value or text |
-    | `press_key` | Press a key or key combination (Enter, Ctrl+A, etc.) |
-    | `drag` | Drag an element to another element or coordinates |
-    | `scroll` | Scroll page or element (up/down/left/right) |
-    | `upload_file` | Upload files to a file input element |
-    | `handle_dialog` | Accept or dismiss JavaScript dialogs |
+    | `act` | Click, type, fill, press a key, hover, focus, check, uncheck, select, scroll, drag, or answer a JavaScript dialog, using refs from the snapshot |
+    | `upload` | Set local files on a file input |
+    | `run` | Run a JavaScript script against the browser for multi-step flows |
   </Accordion>
 
-  <Accordion title="File & Export (3 tools)" icon="file-export">
+  <Accordion title="Files (2 tools)" icon="file-export">
     | Tool | Description |
     |------|-------------|
-    | `save_pdf` | Print current page to a PDF file |
-    | `save_screenshot` | Capture and save a screenshot to disk |
-    | `download_file` | Click an element to trigger a download and save it |
+    | `download` | Click an element to start a download and save the file |
+    | `pdf` | Print the page to a PDF file |
   </Accordion>
 
-  <Accordion title="Window Management (5 tools)" icon="window-maximize">
+  <Accordion title="Connected Apps (7 tools)" icon="plug">
     | Tool | Description |
     |------|-------------|
-    | `list_windows` | List all browser windows |
-    | `create_window` | Create a new browser window |
-    | `create_hidden_window` | Create a hidden window for background tasks |
-    | `close_window` | Close a window by ID |
-    | `activate_window` | Focus and activate a window |
-  </Accordion>
-
-  <Accordion title="Tab Groups (5 tools)" icon="layer-group">
-    | Tool | Description |
-    |------|-------------|
-    | `list_tab_groups` | List all tab groups |
-    | `group_tabs` | Create a tab group with optional title and color |
-    | `update_tab_group` | Update group title, color, or collapsed state |
-    | `ungroup_tabs` | Remove tabs from groups |
-    | `close_tab_group` | Close a group and all its tabs |
-  </Accordion>
-
-  <Accordion title="Bookmarks (6 tools)" icon="bookmark">
-    | Tool | Description |
-    |------|-------------|
-    | `get_bookmarks` | List all bookmarks |
-    | `create_bookmark` | Create a bookmark or folder |
-    | `remove_bookmark` | Delete a bookmark or folder |
-    | `update_bookmark` | Update bookmark title or URL |
-    | `move_bookmark` | Move a bookmark to a different folder |
-    | `search_bookmarks` | Search bookmarks by title or URL |
-  </Accordion>
-
-  <Accordion title="History (4 tools)" icon="clock-rotate-left">
-    | Tool | Description |
-    |------|-------------|
-    | `search_history` | Search browser history by text query |
-    | `get_recent_history` | Get the most recent history items |
-    | `delete_history_url` | Delete a specific URL from history |
-    | `delete_history_range` | Delete history within a time range |
+    | `connector_mcp_servers` | Show which apps are connected, and the sign-in link for an app that is not |
+    | `discover_server_categories_or_actions` | Find the actions an app offers |
+    | `get_category_actions` | List the actions in a category |
+    | `get_action_details` | Show the parameters of an action |
+    | `execute_action` | Run an action in a connected app |
+    | `search_documentation` | Search an app's action documentation |
+    | `handle_auth_failure` | Get a new sign-in link after an app's sign-in fails |
   </Accordion>
 </AccordionGroup>
 
 ---
 
-## 40+ External App Integrations
+## 45 External App Integrations
 
-BrowserOS connects your AI agent directly to the tools you already use — no separate MCP servers to install or configure. Everything is accessible through the same BrowserOS MCP connection.
+Astro connects your AI agent directly to the tools you already use — no separate MCP servers to install or configure. Everything is accessible through the same Astro MCP connection.
 
 ### How It Works
 
 <Steps>
   <Step title="Agent calls an external service tool">
-    Your AI agent calls a tool like `gmail_search_messages` through the BrowserOS MCP.
+    Your AI agent calls a tool like `gmail_search_messages` through the Astro MCP.
   </Step>
   <Step title="OAuth login (first time only)">
-    If this is your first time using that service, BrowserOS opens an OAuth login page in the browser. Log in and authorize access.
+    If this is your first time using that service, Astro opens an OAuth login page in the browser. Log in and authorize access.
   </Step>
   <Step title="Tool executes and returns results">
     Once authenticated, the tool runs and returns results to your agent. Future calls to the same service work automatically — no re-authentication needed.
@@ -341,7 +291,7 @@ BrowserOS connects your AI agent directly to the tools you already use — no se
 </Steps>
 
 <Note>
-Your credentials are managed securely via OAuth and are **never stored in BrowserOS**. Tokens are refreshed transparently, and you can revoke access at any time from the service provider.
+App sign-ins use OAuth. The tokens are kept by the hosted Klavis service (llm.browseros.com, operated by BrowserOS), **not in Astro**. You can revoke access at any time from the service provider.
 </Note>
 
 ### Supported Services
@@ -417,7 +367,6 @@ Your credentials are managed securely via OAuth and are **never stored in Browse
     | Service | What you can do |
     |---------|----------------|
     | **Figma** | Access and manage design files |
-    | **Canva** | Create and manage designs |
   </Accordion>
 
   <Accordion title="CRM & Marketing" icon="chart-line">
@@ -452,7 +401,6 @@ Your credentials are managed securely via OAuth and are **never stored in Browse
     | Service | What you can do |
     |---------|----------------|
     | **Brave Search** | Search the web privately |
-    | **Exa** | AI-powered semantic web search |
     | **Mem0** | Store and retrieve AI memory |
   </Accordion>
 

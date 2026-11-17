@@ -1,9 +1,9 @@
 ---
 title: "Connect Apps"
-description: "Connect 40+ apps to BrowserOS so the assistant can work with your email, calendar, projects, and more"
+description: "Connect 45 apps to Astro so the assistant can work with your email, calendar, projects, and more"
 ---
 
-Connect your favorite apps to BrowserOS and let the assistant work across all of them. Read emails, check your calendar, create tasks, post messages, manage files, and more, all through natural conversation.
+Connect your favorite apps to Astro and let the assistant work across all of them. Read emails, check your calendar, create tasks, post messages, manage files, and more, all through natural conversation.
 
 <video
   controls
@@ -13,7 +13,7 @@ Connect your favorite apps to BrowserOS and let the assistant work across all of
 
 ## How It Works
 
-BrowserOS uses the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) to connect your apps. You do not need to install anything or manage API keys. Just sign in once and the assistant handles the rest.
+Astro uses the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) to connect your apps. The built-in apps run through a hosted Klavis service at llm.browseros.com, which Astro operates. You do not need to install anything or manage API keys. Just sign in once and the assistant handles the rest.
 
 
 ## Smart App Connection
@@ -62,9 +62,9 @@ You can also connect apps ahead of time from the sidebar if you prefer.
   <img src="/images/connect-apps-settings.png" alt="Connected Apps settings page" />
 </Frame>
 
-## 40+ Supported Apps
+## 45 Supported Apps
 
-BrowserOS connects to over 40 apps across every category you need.
+Astro connects to 45 apps.
 
 <AccordionGroup>
   <Accordion title="Email" icon="envelope">
@@ -137,7 +137,6 @@ BrowserOS connects to over 40 apps across every category you need.
     | App | What you can do |
     |-----|----------------|
     | **Figma** | Access and manage design files |
-    | **Canva** | Create and manage designs |
   </Accordion>
 
   <Accordion title="CRM and Marketing" icon="chart-line">
@@ -172,7 +171,6 @@ BrowserOS connects to over 40 apps across every category you need.
     | App | What you can do |
     |-----|----------------|
     | **Brave Search** | Search the web privately |
-    | **Exa** | AI-powered semantic web search |
     | **Mem0** | Store and retrieve AI memory |
   </Accordion>
 
@@ -251,7 +249,7 @@ The real power of connected apps is combining them in a single request. The assi
 
 You can connect any MCP-compatible server that exposes an SSE endpoint.
 
-1. Go to **Settings > Connected Apps**
+1. Open **Connect Apps** in the sidebar
 2. Click **Add custom app**
 3. Enter your server URL (e.g., `http://localhost:8000/sse`) and give it a name
 
@@ -269,10 +267,10 @@ Some remote MCP servers (like Atlassian Jira, GitHub, etc.) require OAuth authen
 npx -y supergateway --stdio "npx -y mcp-remote https://mcp.atlassian.com/v1/sse" --port 8000
 ```
 
-A browser window will open to sign in. Once authenticated, add `http://localhost:8000/sse` as a custom MCP in BrowserOS.
+A browser window will open to sign in. Once authenticated, add `http://localhost:8000/sse` as a custom MCP in Astro.
 
 <Note>
-Keep the terminal running while you use BrowserOS. The local server handles authentication and proxies requests to the remote MCP server.
+Keep the terminal running while you use Astro. The local server handles authentication and proxies requests to the remote MCP server.
 </Note>
 
 <AccordionGroup>
@@ -294,7 +292,7 @@ Keep the terminal running while you use BrowserOS. The local server handles auth
 
 <Columns cols={2}>
   <Card title="Secure OAuth" icon="shield-check">
-    All apps use OAuth sign-in. BrowserOS never sees or stores your passwords.
+    All apps use OAuth sign-in. Astro never sees or stores your passwords.
   </Card>
   <Card title="On-demand only" icon="clock">
     Apps are only accessed when you ask. Nothing runs in the background.
@@ -302,7 +300,7 @@ Keep the terminal running while you use BrowserOS. The local server handles auth
   <Card title="You control access" icon="toggle-on">
     Connect or disconnect any app at any time from Settings.
   </Card>
-  <Card title="Credentials stay local" icon="lock">
-    Your authentication tokens are managed securely and stored locally on your machine.
+  <Card title="Where the tokens are" icon="lock">
+    The sign-in tokens of the built-in apps are kept by the hosted Klavis service, not on your machine. Custom MCP servers keep their own credentials.
   </Card>
 </Columns>

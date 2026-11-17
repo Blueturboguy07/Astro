@@ -1,39 +1,20 @@
 ---
 title: "Ad Blocking"
-description: "BrowserOS supports full ad blocking with uBlock Origin"
+description: "Install the full uBlock Origin extension in Astro"
 ---
 
-BrowserOS supports full ad blocking through [uBlock Origin](https://ublockorigin.com/), the most powerful open-source ad blocker available — the full extension, not the watered-down "Lite" version.
+Astro has no ad blocker of its own. You can install the full [uBlock Origin](https://ublockorigin.com/) extension — not the reduced "Lite" version.
 
-## Why BrowserOS?
+## Why This Works in Astro
 
-Chrome [killed support](https://developer.chrome.com/docs/extensions/develop/migrate/mv2-deprecation-timeline) for uBlock Origin by phasing out Manifest V2 extensions. The only option left on Chrome is "uBlock Origin Lite," a significantly weaker version that can't use advanced filtering rules.
+Chrome [removed support](https://developer.chrome.com/docs/extensions/develop/migrate/mv2-deprecation-timeline) for Manifest V2 extensions, so Chrome users can only install "uBlock Origin Lite", which cannot use the advanced filtering rules.
 
-**BrowserOS re-enabled full Manifest V2 support**, so you can install and run the original uBlock Origin at full power — the same extension Chrome no longer allows.
+Astro runs on BrowserOS's Chromium build, which keeps Manifest V2 support. So you can install and run the original uBlock Origin.
 
 <Card title="Install uBlock Origin" icon="shield-check" href="https://chromewebstore.google.com/detail/ublock-origin/cjpalhdlnbpafiamejdnhcphjbkeiagm">
-  Install the full uBlock Origin extension from the Chrome Web Store. Works on BrowserOS out of the box.
+  Install the full uBlock Origin extension from the Chrome Web Store.
 </Card>
-
-## BrowserOS vs Chrome
-
-We ran both browsers through [adblock.turtlecute.org](https://adblock.turtlecute.org/), a test that measures how effectively a browser blocks ads and tracking scripts.
-
-<CardGroup cols={2}>
-  <Card title="BrowserOS — 68%">
-    <img src="/images/adblock-browseros.png" alt="BrowserOS blocking 68% of ads" />
-  </Card>
-  <Card title="Chrome — 7%">
-    <img src="/images/adblock-chrome.png" alt="Chrome blocking only 7% of ads" />
-  </Card>
-</CardGroup>
-
-Out of 133 ad-related requests:
-- **BrowserOS** blocked 91 (68%)
-- **Chrome** blocked 9 (7%)
-
-That's roughly **10x more protection** with zero configuration.
 
 ## What This Means
 
-Fewer ads means faster page loads, less bandwidth usage, and significantly reduced tracking. BrowserOS handles this natively so you can focus on browsing.
+Fewer ads means faster page loads, less bandwidth usage, and less tracking.

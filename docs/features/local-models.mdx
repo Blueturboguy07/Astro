@@ -3,23 +3,17 @@ title: "Bring Your Local Model"
 description: "Run AI models locally with Ollama or LM Studio for free, private, offline use"
 ---
 
-BrowserOS works great with local models for Chat Mode. Run models completely offline — your data never leaves your machine.
+Astro works with local models in Chat Mode, Agent Mode, and the new tab (the answer engine). Run models completely offline — your data never leaves your machine.
 
 ## Context Length
 
-<Warning>
-**Ollama defaults to 4,096 tokens of context — this is too low for BrowserOS.** Below 15K tokens, the context overflows and the agent gets stuck in a loop constantly trying to recover. Only Chat Mode will work at low context lengths. Set at least **15,000–20,000 tokens** for local models to function properly.
-</Warning>
-
-Set context length when starting Ollama:
-
-```bash
-OLLAMA_CONTEXT_LENGTH=20000 ollama serve
-```
-
 <Info>
-Increasing context length uses more VRAM. Run `ollama ps` to check your current allocation. See the [Ollama context length docs](https://docs.ollama.com/context-length) for more details.
+**You do not need to change Ollama's context setting.** Ollama's own default is 4,096 tokens, which is too small for the assistant. Astro asks Ollama for a 32,000-token context on every request (side panel and new tab), so both Chat Mode and Agent Mode work with Ollama's default settings. A larger context uses more memory: run `ollama ps` to check your current allocation. See the [Ollama context length docs](https://docs.ollama.com/context-length) for more details.
 </Info>
+
+<Warning>
+LM Studio does not take the context size from Astro. Load the model in LM Studio with a context length of at least 20,000 tokens.
+</Warning>
 
 ---
 
@@ -35,22 +29,24 @@ Increasing context length uses more VRAM. Run `ollama ps` to check your current 
       </Step>
       <Step title="Pull a model">
         ```bash
-        ollama pull qwen/qwen3-4b
+        ollama pull qwen2.5:7b
         ```
+        On a machine with 8 GB RAM, use `qwen2.5:3b`.
       </Step>
-      <Step title="Start Ollama with higher context">
-        ```bash
-        OLLAMA_CONTEXT_LENGTH=20000 ollama serve
-        ```
+      <Step title="Start Ollama">
+        Open the Ollama app, or run `ollama serve`. No context setting is needed.
       </Step>
-      <Step title="Configure in BrowserOS">
+      <Step title="Configure in Astro (side panel)">
         1. Go to `chrome://browseros/settings`
         2. Click **USE** on the Ollama card
-        3. Set **Model ID** to `qwen/qwen3-4b`
-        4. Set **Context Window** to `20000`
+        3. Set **Model ID** to `qwen2.5:7b`
+        4. Set **Context Window** to `32000`
         5. Click **Save**
 
-        ![Ollama in BrowserOS](/images/byollm--ollama-config.png)
+        ![Ollama in Astro](/images/byollm--ollama-config.png)
+      </Step>
+      <Step title="Configure in Astro (new tab)">
+        In the new tab, click the gear at the bottom left, open **Models**, click **Add Connection**, and choose **Ollama**. Astro lists the models you pulled.
       </Step>
     </Steps>
   </Tab>
@@ -66,7 +62,7 @@ Increasing context length uses more VRAM. Run `ollama ps` to check your current 
 
         ![LM Studio](/images/setting-up-lm-studio/lmstudio-step1.png)
       </Step>
-      <Step title="Configure in BrowserOS">
+      <Step title="Configure in Astro">
         1. Go to `chrome://browseros/settings`
         2. Click **USE** on the **OpenAI Compatible** card
         3. Set **Base URL** to `http://localhost:1234/v1/`
@@ -74,7 +70,7 @@ Increasing context length uses more VRAM. Run `ollama ps` to check your current 
         5. Set **Context Window** to at least `20000`
         6. Click **Save**
 
-        ![LM Studio in BrowserOS](/images/byollm--lmstudio-config.png)
+        ![LM Studio in Astro](/images/byollm--lmstudio-config.png)
       </Step>
     </Steps>
   </Tab>

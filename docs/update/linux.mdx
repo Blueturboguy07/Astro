@@ -1,22 +1,16 @@
 ---
 title: "Update on Linux"
-description: "How to update BrowserOS on Linux"
+description: "How to update Astro on Linux"
 ---
 
+Astro has no standalone Linux build. On Linux, Astro's UI and agent run on top of an installed BrowserOS (see [SETUP.md](https://github.com/Blueturboguy07/Astro/blob/main/SETUP.md)).
+
 <Steps>
-  <Step title="Check for updates">
-    Click the **BrowserOS Feedback** extension (bug icon) in the toolbar, then click **Check for Updates**.
-
-    <Frame>
-      <img src="/images/check-for-updates.png" alt="BrowserOS Feedback extension showing Check for Updates button" />
-    </Frame>
+  <Step title="Update BrowserOS">
+    Download the latest BrowserOS AppImage or `.deb` (links in [SETUP.md](https://github.com/Blueturboguy07/Astro/blob/main/SETUP.md)) and replace your old copy.
   </Step>
 
-  <Step title="Download the latest version">
-    Download the Linux build from [GitHub Releases](https://github.com/browseros-ai/BrowserOS/releases).
-  </Step>
-
-  <Step title="Install">
-    Extract and run the binary. Your settings and data will be preserved.
+  <Step title="Update Astro">
+    In your Astro checkout, pull the latest code (`git pull`) and start Astro again as described in SETUP.md.
   </Step>
 </Steps>

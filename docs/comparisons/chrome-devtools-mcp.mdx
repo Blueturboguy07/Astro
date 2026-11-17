@@ -1,9 +1,9 @@
 ---
 title: "Chrome DevTools MCP"
-description: "A developer-focused comparison of BrowserOS MCP and Chrome DevTools MCP for browser automation"
+description: "A developer-focused comparison of Astro MCP and Chrome DevTools MCP for browser automation"
 ---
 
-Both BrowserOS MCP and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) give AI agents control over a browser via the Model Context Protocol. But they're built for different scopes. Chrome DevTools MCP focuses on debugging and inspection, while BrowserOS MCP is a complete browser automation and app integration platform.
+Both Astro MCP and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) give AI agents control over a browser via the Model Context Protocol. But they're built for different scopes. Chrome DevTools MCP focuses on debugging and inspection, while Astro MCP focuses on browser automation and app integrations.
 
 This page breaks down the differences for developers evaluating which to use with Claude Code, Gemini CLI, Cursor, or any MCP client.
 
@@ -11,10 +11,10 @@ This page breaks down the differences for developers evaluating which to use wit
 
 ## At a Glance
 
-| | **BrowserOS MCP** | **Chrome DevTools MCP** |
+| | **Astro MCP** | **Chrome DevTools MCP** |
 |---|---|---|
-| **Total MCP tools** | 53 | 29 |
-| **External app integrations** | 40+ (Gmail, Slack, GitHub, etc.) | None |
+| **Total MCP tools** | 23 (16 browser tools, 7 connected-app tools) | 29 |
+| **External app integrations** | 45 (Gmail, Slack, GitHub, etc.) | None |
 | **Setup** | Copy URL from settings, works instantly | Requires `--remote-debugging-port` flag and separate server process |
 | **Browser session** | Your real browser with cookies, logins, extensions | Attached debug session (some sites block WebDriver-controlled browsers) |
 | **Architecture** | Built into the browser | External Node.js process connecting via CDP |
@@ -23,117 +23,69 @@ This page breaks down the differences for developers evaluating which to use wit
 
 ## Feature Comparison
 
+Astro MCP has fewer tools, and each tool has several actions (for example, `act` clicks, types, fills, scrolls and drags).
+
 ### Navigation & Tab Management
 
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
+| Feature | Astro MCP | Chrome DevTools MCP |
 |---------|:---:|:---:|
-| Navigate to URL / back / forward / reload | `navigate_page` | `navigate_page` |
-| Open new tab | `new_page` | `new_page` |
-| Close tab | `close_page` | `close_page` |
-| List open tabs | `list_pages` | `list_pages` |
-| Switch to tab | `show_page` | `select_page` |
-| Hidden/background tabs | `new_hidden_page` | - |
-| Move tab between windows | `move_page` | - |
-| Get active/focused tab | `get_active_page` | - |
-| Wait for condition | - | `wait_for` |
+| Navigate to URL / back / forward / reload | `navigate` | `navigate_page` |
+| Open, close, list tabs; get the active tab | `tabs` | `new_page`, `close_page`, `list_pages` |
+| Switch to tab | - | `select_page` |
+| Wait for a time, text, or selector | `wait` | `wait_for` |
 
 ### Content & Observation
 
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
+| Feature | Astro MCP | Chrome DevTools MCP |
 |---------|:---:|:---:|
-| Accessibility tree snapshot | `take_snapshot` | `take_snapshot` |
-| Enhanced structural snapshot | `take_enhanced_snapshot` | - |
-| Page content as Markdown | `get_page_content` | - |
-| Extract all page links | `get_page_links` | - |
-| Raw HTML / DOM access | `get_dom` | - |
-| Search DOM (text / CSS / XPath) | `search_dom` | - |
-| Screenshot | `take_screenshot` | `take_screenshot` |
-| Execute JavaScript | `evaluate_script` | `evaluate_script` |
+| Accessibility tree snapshot | `snapshot` | `take_snapshot` |
+| What changed since the last snapshot | `diff` | - |
+| Page content as Markdown, text, or links | `read` | - |
+| Search the page text or snapshot | `grep` | - |
+| Screenshot | `screenshot` | `take_screenshot` |
+| Execute JavaScript in the page | `evaluate` | `evaluate_script` |
+| Run a multi-step script against the browser | `run` | - |
 
 ### Interaction & Input
 
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
+| Feature | Astro MCP | Chrome DevTools MCP |
 |---------|:---:|:---:|
-| Click element | `click` | `click` |
-| Click at coordinates | `click_at` | - |
-| Type / fill text | `fill` | `fill` |
-| Fill entire form | - | `fill_form` |
-| Type text (raw keystrokes) | - | `type_text` |
-| Clear input | `clear` | - |
-| Hover | `hover` | `hover` |
-| Drag | `drag` | `drag` |
-| Press key / key combo | `press_key` | `press_key` |
-| Check / uncheck checkbox | `check` / `uncheck` | - |
-| Select dropdown option | `select_option` | - |
-| Focus element | `focus` | - |
-| Scroll (directional) | `scroll` | - |
-| Upload file | `upload_file` | `upload_file` |
-| Handle dialog (alert/confirm) | `handle_dialog` | `handle_dialog` |
+| Click, type, fill, hover, drag, press key | `act` | `click`, `fill`, `hover`, `drag`, `press_key` |
+| Check / uncheck, select option, focus, scroll | `act` | - |
+| Fill entire form | `act` (several fields) | `fill_form` |
+| Upload file | `upload` | `upload_file` |
+| Handle dialog (alert/confirm) | `act` (`dialog`) | `handle_dialog` |
 
 ### File & Export
 
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
+| Feature | Astro MCP | Chrome DevTools MCP |
 |---------|:---:|:---:|
-| Save page as PDF | `save_pdf` | - |
-| Save screenshot to disk | `save_screenshot` | - |
-| Download file via click | `download_file` | - |
+| Save page as PDF | `pdf` | - |
+| Download file via click | `download` | - |
 
-### Window Management
+### Windows & Tab Groups
 
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
+| Feature | Astro MCP | Chrome DevTools MCP |
 |---------|:---:|:---:|
-| List windows | `list_windows` | - |
-| Create window | `create_window` | - |
-| Create hidden window | `create_hidden_window` | - |
-| Close window | `close_window` | - |
-| Activate / focus window | `activate_window` | - |
-
-### Tab Groups
-
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
-|---------|:---:|:---:|
-| List tab groups | `list_tab_groups` | - |
-| Create tab group | `group_tabs` | - |
-| Update group (title/color) | `update_tab_group` | - |
-| Ungroup tabs | `ungroup_tabs` | - |
-| Close tab group | `close_tab_group` | - |
-
-### Bookmarks
-
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
-|---------|:---:|:---:|
-| List bookmarks | `get_bookmarks` | - |
-| Create bookmark / folder | `create_bookmark` | - |
-| Remove bookmark | `remove_bookmark` | - |
-| Update bookmark | `update_bookmark` | - |
-| Move bookmark | `move_bookmark` | - |
-| Search bookmarks | `search_bookmarks` | - |
-
-### History
-
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
-|---------|:---:|:---:|
-| Search history | `search_history` | - |
-| Get recent history | `get_recent_history` | - |
-| Delete URL from history | `delete_history_url` | - |
-| Delete history range | `delete_history_range` | - |
+| List, create, close, activate windows | `windows` | - |
+| List, create, update, ungroup, close tab groups | `tab_groups` | - |
 
 ### Debugging & Performance
 
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
+| Feature | Astro MCP | Chrome DevTools MCP |
 |---------|:---:|:---:|
-| Console messages | Coming soon | `get_console_message` / `list_console_messages` |
-| Network request inspection | Coming soon | `get_network_request` / `list_network_requests` |
-| Performance tracing | Coming soon | `performance_start_trace` / `performance_stop_trace` |
-| Performance analysis | Coming soon | `performance_analyze_insight` |
-| Memory snapshot | Coming soon | `take_memory_snapshot` |
-| Lighthouse audit | Coming soon | `lighthouse_audit` |
-| Device / network emulation | Coming soon | `emulate` |
-| Resize viewport | Coming soon | `resize_page` |
+| Console messages | No | `get_console_message` / `list_console_messages` |
+| Network request inspection | No | `get_network_request` / `list_network_requests` |
+| Performance tracing | No | `performance_start_trace` / `performance_stop_trace` |
+| Performance analysis | No | `performance_analyze_insight` |
+| Memory snapshot | No | `take_memory_snapshot` |
+| Lighthouse audit | No | `lighthouse_audit` |
+| Device / network emulation | No | `emulate` |
+| Resize viewport | No | `resize_page` |
 
 ### External App Integrations
 
-| Feature | BrowserOS MCP | Chrome DevTools MCP |
+| Feature | Astro MCP | Chrome DevTools MCP |
 |---------|:---:|:---:|
 | Gmail, Outlook | Yes | - |
 | Google Calendar, Outlook Calendar | Yes | - |
@@ -141,25 +93,27 @@ This page breaks down the differences for developers evaluating which to use wit
 | GitHub, GitLab | Yes | - |
 | Linear, Jira, Asana, Monday, ClickUp | Yes | - |
 | Notion, Google Docs/Sheets/Drive | Yes | - |
-| Figma, Canva | Yes | - |
+| Figma | Yes | - |
 | Salesforce, HubSpot | Yes | - |
 | Shopify, Stripe | Yes | - |
 | 20+ more services | Yes | - |
+
+The app integrations run through a hosted Klavis service (llm.browseros.com, operated by BrowserOS).
 
 ---
 
 ## Setup Comparison
 
 <Tabs>
-  <Tab title="BrowserOS MCP">
-    BrowserOS MCP is built into the browser. No separate process, no debug flags.
+  <Tab title="Astro MCP">
+    Astro MCP is built into the browser. No separate process, no debug flags.
 
     ```bash
-    # One command, done
+    # One command, done (use the port shown on your settings page)
     claude mcp add --transport http browseros http://127.0.0.1:9239/mcp --scope user
     ```
 
-    The server URL is available at `chrome://browseros/mcp`. Copy it and connect.
+    The server URL is shown at `chrome://browseros/mcp` (Settings → **Astro as MCP**). Copy it and connect.
   </Tab>
   <Tab title="Chrome DevTools MCP">
     Chrome DevTools MCP requires launching Chrome with remote debugging enabled and running a separate Node.js server.
@@ -182,20 +136,20 @@ This page breaks down the differences for developers evaluating which to use wit
 
 ## Summary
 
-| Dimension | BrowserOS MCP | Chrome DevTools MCP |
+| Dimension | Astro MCP | Chrome DevTools MCP |
 |-----------|:---:|:---:|
-| Browser automation tools | **54** | **29** |
-| External app integrations | **40+** | **0** |
+| MCP tools | **23** | **29** |
+| External app integrations | **45** | **0** |
 | Window management | Yes | No |
 | Tab groups | Yes | No |
-| Bookmarks & history | Yes | No |
-| File export (PDF, screenshots, downloads) | Yes | No |
-| Content extraction (Markdown, links, DOM) | Yes | No |
-| Console / network inspection | Coming soon | Yes |
-| Performance tracing & Lighthouse | Coming soon | Yes |
-| Memory snapshots | Coming soon | Yes |
-| Device emulation | Coming soon | Yes |
+| Bookmarks & history | No | No |
+| File export (PDF, downloads) | Yes | No |
+| Content extraction (Markdown, text, links) | Yes | No |
+| Console / network inspection | No | Yes |
+| Performance tracing & Lighthouse | No | Yes |
+| Memory snapshots | No | Yes |
+| Device emulation | No | Yes |
 | Setup complexity | Copy URL | Debug port + Node server |
 | Browser session | Real (cookies, extensions) | Debug-attached (WebDriver flags) |
 
-BrowserOS MCP gives you a broader automation surface: browser control, content extraction, file operations, and 40+ app integrations through a single connection. Debugging and performance tools are coming soon to BrowserOS MCP, which will close the remaining gap with Chrome DevTools MCP. For most AI agent workflows, BrowserOS MCP already covers more ground out of the box.
+Astro MCP is the better fit for automation and app integrations through a single connection. Chrome DevTools MCP is the better fit for debugging and performance work.

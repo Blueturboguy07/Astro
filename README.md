@@ -7,9 +7,9 @@
 **An answer engine that can actually use your browser**
 
 Perplexity-style search, deep research and multi-model comparison — on top of a
-browser its agent can genuinely drive. Bring your own key, or reuse a
-subscription you already pay for. Search costs nothing and never leaves your
-machine.
+browser its agent can genuinely drive. Connect your publik plan, bring your own
+key, or reuse a subscription you already pay for. Search needs no search API
+key and costs no search fee.
 
 [Setup](SETUP.md) · [Attribution](packages/browseros-agent/apps/app/screens/simplicity/ATTRIBUTION.md)
 
@@ -32,11 +32,11 @@ tabs, click, read and fill forms — in the same window.
 
 | | |
 |---|---|
-| **Search** | Free and private. A local [SearXNG](https://searxng.org) is provisioned on first use — no Docker, no account, no search API key |
+| **Search** | A local [SearXNG](https://searxng.org) is provisioned on first use — no Docker, no search API key. SearXNG sends your query to public search engines, and a model writes the answer |
 | **Deep Research** | Plans queries, searches in parallel, reads the best sources in full, refines, and cites |
 | **Model Council** | Several models answer from one shared retrieval; a chair compares them and surfaces the disagreements |
 | **Browser use** | 16 CDP tools — tabs, navigation, clicking, reading, forms, screenshots |
-| **Your models** | Claude Code, Codex and Copilot subscriptions; any API key; or fully local via Ollama / LM Studio |
+| **Your models** | Your publik plan; Claude Code, Codex and Copilot subscriptions; any API key; or fully local via Ollama / LM Studio |
 
 Scraped page content is fenced as untrusted data before it reaches a model, so a
 web page cannot issue instructions to your agent.
@@ -53,12 +53,17 @@ If you also run BrowserOS, use one or the other: they share a bundle
 identifier, so they share a profile, and BrowserOS deletes Astro's agent
 extension from it.
 
-### Windows and Linux
+### Windows
 
-No standalone build yet — a branded Chromium is roughly 100 GB per platform and
-cannot be cross-compiled, so a Windows build needs Windows and a Linux build
-needs Linux. Until then, run Astro on top of an installed BrowserOS. About ten
-minutes:
+Download `Astro-Setup.exe` from the [latest release](https://github.com/Blueturboguy07/Astro/releases/latest),
+or follow the [Windows install guide](https://publikhq.com/astro/install/windows).
+The installer is unsigned: in SmartScreen click **More info**, then **Run anyway**.
+
+### Linux (and Astro from source)
+
+No standalone Linux build yet — a branded Chromium is roughly 100 GB per
+platform and cannot be cross-compiled, so a Linux build needs Linux. Until then,
+run Astro on top of an installed BrowserOS. About ten minutes:
 
 ### [→ Full setup guide](SETUP.md)
 
@@ -82,7 +87,9 @@ In short:
    ```bash
    bun run dev:watch          # add -- --new for a throwaway profile
    ```
-5. **Add a model** in Settings. Search already works without one.
+5. **Choose a model**: connect your publik plan, or add your own key in
+   Settings. Without a model, the new tab shows "No AI connection yet …" and
+   has no question box: search needs a model to write the answer.
 
 ## Usage counts
 

@@ -3,7 +3,7 @@ title: "n8n Integration"
 description: "Build AI workflows that control your browser"
 ---
 
-Connect BrowserOS to n8n to build automated workflows. Your n8n AI agents can control the browser—open pages, click buttons, extract data, and fill forms.
+Connect Astro to n8n to build automated workflows. Your n8n AI agents can control the browser—open pages, click buttons, extract data, and fill forms.
 
 ## What You Can Build
 
@@ -15,7 +15,7 @@ Connect BrowserOS to n8n to build automated workflows. Your n8n AI agents can co
 ## Prerequisites
 
 Before you start:
-- BrowserOS running with MCP server enabled (Settings → BrowserOS as MCP)
+- Astro running with MCP server enabled (Settings → Astro as MCP)
 - n8n running locally (`npx n8n` or install globally with `npm install -g n8n`)
 
 ## Setup
@@ -43,21 +43,21 @@ In the AI Agent node, set **Source for Prompt** to **Connected Chat Trigger Node
 
 <img src="/images/n8n-step4-agent-prompt.png" alt="AI Agent prompt configuration" />
 
-### 4. Connect to BrowserOS
+### 4. Connect to Astro
 
 Click on the MCP Client node and configure:
 
-- **Endpoint**: Your BrowserOS MCP URL (find it in Settings → BrowserOS as MCP)
+- **Endpoint**: Your Astro MCP URL (find it in Settings → Astro as MCP)
 - **Server Transport**: `HTTP Streamable`
 
-<img src="/images/n8n-step5-mcp-client.png" alt="MCP Client configuration with BrowserOS URL" />
+<img src="/images/n8n-step5-mcp-client.png" alt="MCP Client configuration with Astro URL" />
 
 ### 5. Test it
 
 Save the workflow, click **Open chat**, and try:
 
 ```
-open google.com in BrowserOS
+open google.com in Astro
 ```
 
 <img src="/images/n8n-step6-test.png" alt="Testing the workflow" />
@@ -65,6 +65,6 @@ open google.com in BrowserOS
 ## Troubleshooting
 
 If the connection fails:
-- Make sure BrowserOS is running
-- Check that MCP server is enabled in BrowserOS settings
-- Verify the port number matches your BrowserOS MCP URL
+- Make sure Astro is running
+- Check that MCP server is enabled in Astro settings
+- Verify the port number matches your Astro MCP URL

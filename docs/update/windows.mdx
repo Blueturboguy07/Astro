@@ -1,45 +1,27 @@
 ---
 title: "Update on Windows"
-description: "How to update BrowserOS on Windows"
+description: "How to update Astro on Windows"
 ---
 
 <Steps>
-  <Step title="Check for updates">
-    Click the **BrowserOS Feedback** extension (bug icon) in the toolbar, then click **Check for Updates**.
-
-    <Frame>
-      <img src="/images/check-for-updates.png" alt="BrowserOS Feedback extension showing Check for Updates button" />
-    </Frame>
+  <Step title="Download the latest version">
+    Follow the [Windows install guide](https://publikhq.com/astro/install/windows) to download the latest Astro installer, or get it from [GitHub Releases](https://github.com/Blueturboguy07/Astro/releases).
   </Step>
 
-  <Step title="Download the latest version">
-    Download the Windows installer from [GitHub Releases](https://github.com/browseros-ai/BrowserOS/releases).
+  <Step title="Close Astro">
+    Quit Astro completely before you run the installer.
   </Step>
 
   <Step title="Run the installer">
-    Double-click the downloaded installer to start the update. You'll see a temporary folder appear — this is normal and expected on Windows.
+    Double-click the downloaded installer. Windows SmartScreen may warn you: click **More info**, then **Run anyway**.
 
-    <Frame>
-      <img src="/images/windows-installation/windows-installation-installer-tmp-folder.png" alt="Temporary folder created by the installer" />
-    </Frame>
-
-    Wait about 30–40 seconds. The temporary folder will disappear on its own, and the updated **BrowserOS** app will automatically appear on your desktop.
-
-    <Frame>
-      <img src="/images/windows-installation/windows-installation-app-on-desktop.jpeg" alt="BrowserOS app appears on the desktop after installation" />
-    </Frame>
-
-    <Note>If BrowserOS was already running, close it completely and reopen it for the update to take effect.</Note>
+    <Note>The install guide shows each step and the warnings you can expect.</Note>
   </Step>
 
-  <Step title="Allow the BrowserOS Agent">
-    When BrowserOS opens, you may see a popup asking to allow **BrowserOS Agent** to access the network. Click **Allow** — the agent runs as a separate process alongside the browser and needs this permission to work.
+  <Step title="Allow network access">
+    When Astro opens, Windows may ask to allow its local server (`browseros_server`) to access the network. Click **Allow**. The assistant runs as a separate process next to the browser and needs this permission.
 
-    <Frame>
-      <img src="/images/windows-installation/windows-installation-allow-browseros-agent.png" alt="Allow BrowserOS Agent network access prompt" />
-    </Frame>
-
-    <Warning>If you click Cancel, the agent won't be able to connect and you'll see a "Failed to Fetch" error. If this happens, go to **Windows Security → Allow an app through your network settings** and enable **BrowserOS Agent**.</Warning>
+    <Warning>If you click Cancel, the assistant cannot reach its local server. Go to **Windows Security → Allow an app through firewall** and allow it.</Warning>
   </Step>
 </Steps>
 
