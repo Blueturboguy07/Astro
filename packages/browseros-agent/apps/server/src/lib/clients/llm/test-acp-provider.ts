@@ -10,7 +10,28 @@ import {
   type ServerAcpxProbeInput,
   type ServerAcpxProbeResult,
 } from '../../../api/services/acpx-probe/probeAgent'
+import {
+  checkClaudeCodeSignedIn,
+  findClaudeBinary,
+  type SignInCheck,
+} from '../../simplicity/models/providers/claudecode/claudeCodeLLM'
 import type { ProviderTestResult } from './test-provider'
+
+/* The ACP probe answers with the adapter's model list even when the
+   `claude` CLI is missing or signed out, so the Test button said
+   "Connected… 4 model(s)" for a connection that cannot answer (Astro 0.2.4
+   QA, F-037). */
+async function claudeCodeSignIn(): Promise<SignInCheck> {
+  const binary = findClaudeBinary()
+  if (!binary) {
+    return {
+      ok: false,
+      message:
+        'Claude Code is not installed. Install it, then run `claude` once in a terminal and sign in.',
+    }
+  }
+  return checkClaudeCodeSignedIn(binary)
+}
 
 export type ProbeAcpAgentFn = (
   input: ServerAcpxProbeInput,
@@ -58,6 +79,7 @@ export async function testAcpProvider(
   options: {
     probe?: ProbeAcpAgentFn
     resourcesDir?: string | null
+    claudeSignIn?: () => Promise<SignInCheck>
   } = {},
 ): Promise<ProviderTestResult> {
   const probe = options.probe ?? probeAcpAgent
@@ -76,6 +98,16 @@ export async function testAcpProvider(
       success: false,
       message: `Unknown ACP provider type: ${input.provider}`,
       responseTime: Math.round(performance.now() - startTime),
+    }
+  }
+  if (input.provider === LLM_PROVIDERS.CLAUDE_CODE) {
+    const signIn = await (options.claudeSignIn ?? claudeCodeSignIn)()
+    if (!signIn.ok) {
+      return {
+        success: false,
+        message: signIn.message,
+        responseTime: Math.round(performance.now() - startTime),
+      }
     }
   }
   const probeResult = await probe({

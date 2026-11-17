@@ -28,7 +28,10 @@ const probeStub = async (
 }
 
 const runTest = (input: TestAcpProviderInput) =>
-  testAcpProvider(input, { probe: probeStub })
+  testAcpProvider(input, {
+    probe: probeStub,
+    claudeSignIn: async () => ({ ok: true }),
+  })
 
 beforeEach(() => {
   nextProbeResult = null
@@ -174,5 +177,40 @@ describe('testAcpProvider — failure modes', () => {
     })
     expect(result.success).toBe(false)
     expect(result.message).toContain('agent id')
+  })
+})
+
+/* Astro 0.2.4 QA, F-037. */
+describe('testAcpProvider: Claude Code sign-in', () => {
+  it('fails when the claude CLI is signed out, before the probe', async () => {
+    let probed = false
+    const result = await testAcpProvider(
+      { provider: 'claude-code' },
+      {
+        probe: async () => {
+          probed = true
+          throw new Error('no probe expected')
+        },
+        claudeSignIn: async () => ({
+          ok: false,
+          message: 'Claude Code is not signed in.',
+        }),
+      },
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('Claude Code is not signed in.')
+    expect(probed).toBe(false)
+  })
+
+  it('does not check Claude sign-in for Codex', async () => {
+    nextProbeResult = probeOK()
+    const result = await testAcpProvider(
+      { provider: 'codex' },
+      {
+        probe: probeStub,
+        claudeSignIn: async () => ({ ok: false, message: 'not used' }),
+      },
+    )
+    expect(result.success).toBe(true)
   })
 })
