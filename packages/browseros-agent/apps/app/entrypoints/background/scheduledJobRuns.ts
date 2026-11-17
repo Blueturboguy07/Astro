@@ -1,6 +1,11 @@
+import { getAgentServerUrl } from '@/lib/browseros/helpers'
 import { onScheduleMessage } from '@/lib/messaging/schedules/scheduleMessages'
 import { createAlarmFromJob } from '@/lib/schedules/createAlarmFromJob'
 import { getChatServerResponse } from '@/lib/schedules/getChatServerResponse'
+import {
+  settleInterruptedRuns,
+  waitForAgentServer,
+} from '@/lib/schedules/run-recovery'
 import {
   scheduledJobRunStorage,
   scheduledJobStorage,
@@ -8,32 +13,16 @@ import {
 import type { ScheduledJobRun } from '@/lib/schedules/scheduleTypes'
 
 const MAX_RUNS_PER_JOB = 15
-const STALE_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000
 
 const runAbortControllers = new Map<string, AbortController>()
 
 export const scheduledJobRuns = async () => {
-  const cleanupStaleJobRuns = async () => {
+  const cleanupStaleJobRuns = async (atStartup = false) => {
     const current = (await scheduledJobRunStorage.getValue()) ?? []
-    const now = Date.now()
-
-    const updated = current.map((run) => {
-      if (run.status !== 'running') return run
-
-      const startedAt = new Date(run.startedAt).getTime()
-      if (now - startedAt > STALE_TIMEOUT_MS) {
-        return {
-          ...run,
-          status: 'failed' as const,
-          completedAt: new Date().toISOString(),
-          result: 'Job timed out!',
-        }
-      }
-      return run
-    })
-
-    await scheduledJobRunStorage.setValue(updated)
+    await scheduledJobRunStorage.setValue(
+      settleInterruptedRuns(current, Date.now(), atStartup),
+    )
   }
 
   const syncAlarmState = async () => {
@@ -114,6 +103,9 @@ export const scheduledJobRuns = async () => {
     runAbortControllers.set(jobRun.id, abortController)
 
     try {
+      await waitForAgentServer(getAgentServerUrl, {
+        signal: abortController.signal,
+      })
       const response = await getChatServerResponse({
         message: job.query,
         signal: abortController.signal,
@@ -220,6 +212,19 @@ export const scheduledJobRuns = async () => {
   onScheduleMessage('cancelScheduledJobRun', async ({ data }) => {
     const controller = runAbortControllers.get(data.runId)
     if (!controller) {
+      /* No live run behind it (the browser closed during it): settle the
+         record, so Cancel does something (F-026). */
+      const runs = (await scheduledJobRunStorage.getValue()) ?? []
+      const run = runs.find((r) => r.id === data.runId)
+      if (run?.status === 'running') {
+        await updateJobRun(run.id, {
+          status: 'failed',
+          completedAt: new Date().toISOString(),
+          result: 'Cancelled by user',
+          error: 'Cancelled by user',
+        })
+        return { success: true }
+      }
       return { success: false, error: 'Run not found or already completed' }
     }
     controller.abort()
@@ -227,13 +232,13 @@ export const scheduledJobRuns = async () => {
   })
 
   chrome.runtime.onStartup.addListener(async () => {
-    await cleanupStaleJobRuns()
+    await cleanupStaleJobRuns(true)
     await syncAlarmState()
     await runMissedJobs()
   })
 
   chrome.runtime.onInstalled.addListener(async () => {
-    await cleanupStaleJobRuns()
+    await cleanupStaleJobRuns(true)
     await syncAlarmState()
     await runMissedJobs()
   })
