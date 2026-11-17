@@ -13,6 +13,8 @@ export const KLAVIS_PROXY_RETRY_BACKOFF_MS = [
 export const TIMEOUTS = {
   // Agent/Tool execution
   TOOL_CALL: 120_000,
+  // Longest gap between two events of a model stream (F-045)
+  MODEL_STREAM_IDLE: 90_000,
   TOOL_POST_ACTION: 2_000,
   TAB_GROUP_OP: 10_000,
   TEST_PROVIDER: 15_000,

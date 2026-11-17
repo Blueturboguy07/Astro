@@ -37,6 +37,7 @@ import {
 import { buildNudgeToolSet } from './nudge-tools'
 import { buildSystemPrompt } from './prompt'
 import { createLanguageModel } from './provider-factory'
+import { streamIdleTimeoutMiddleware } from './stream-idle-timeout'
 import { buildBrowserToolSet } from './tool-adapter'
 import type { ResolvedAgentConfig } from './types'
 
@@ -176,11 +177,22 @@ export class AiSdkAgent {
       rawModel.specificationVersion === 'v3'
 
     let model = rawModel
+    /* ACP agents run their own tools inside the stream and can be silent
+       for minutes, so only direct model streams get the idle limit. */
+    const middleware: LanguageModelV3Middleware[] = []
+    if (isV3Model && !isAcpProvider(config.resolvedConfig.provider)) {
+      middleware.push(streamIdleTimeoutMiddleware())
+    }
     if (isV3Model && config.aiSdkDevtoolsEnabled) {
+      middleware.push(devToolsMiddleware() as LanguageModelV3Middleware)
+    }
+    if (middleware.length > 0) {
       model = wrapLanguageModel({
         model: rawModel as LanguageModelV3,
-        middleware: devToolsMiddleware() as LanguageModelV3Middleware,
+        middleware,
       })
+    }
+    if (isV3Model && config.aiSdkDevtoolsEnabled) {
       logger.info('AI SDK DevTools middleware enabled', {
         conversationId: config.resolvedConfig.conversationId,
         provider: config.resolvedConfig.provider,
