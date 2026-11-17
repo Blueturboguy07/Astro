@@ -26,6 +26,7 @@ import {
 } from '@/screens/simplicity/pages/NotBuiltPage'
 import { SimplicityApp } from '@/screens/simplicity/SimplicityApp'
 import { UsagePage } from '@/screens/usage/UsagePage'
+import { CHROME_PAGE_REDIRECTS } from './chrome-page-redirects'
 
 // Agent management moved into AI & Agents settings; conversations live under
 // /home/agents. Keep old /agents links alive.
@@ -144,6 +145,13 @@ export const App: FC = () => {
           />
           <Route path="/agents/:agentId" element={<LegacyAgentRedirect />} />
           <Route path="/options/*" element={<OptionsRedirect />} />
+          {Object.entries(CHROME_PAGE_REDIRECTS).map(([from, to]) => (
+            <Route
+              key={from}
+              path={from}
+              element={<Navigate to={to} replace />}
+            />
+          ))}
 
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
