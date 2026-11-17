@@ -25,6 +25,7 @@ import {
   plutilArgs,
   SERVER_BINARY_PATH,
   sparklePlistOps,
+  TELEMETRY_MARKERS,
   UPSTREAM_AGENT_EXTENSION_ID,
   UPSTREAM_APPCAST_URL,
   VISIBLE_STRING_PATCHES,
@@ -296,6 +297,31 @@ describe('phone-home neutralization (the maintainer must not reach browseros.com
     expect(countAscii(buf, 'cdn.browseros.com/extensions/')).toBe(0)
     expect(countAscii(buf, 'cdn.browseros.com/appcast-server')).toBe(0)
     for (const { to } of PHONE_HOME_PATCHES) expect(out).toContain(to)
+  })
+
+  /* QA F-011: the framework posts events to BrowserOS's PostHog and crash
+     reports to BrowserOS's Sentry. */
+  it('sends upstream PostHog and Sentry traffic to dead .invalid hosts', () => {
+    const buf = ascii(
+      'x https://us.i.posthog.com/i/v0/e/\0 y https://o4510545525932032.ingest.us.sentry.io/api/4510938172620800/minidump/?sentry_key=k\0',
+    )
+    applyPhoneHomePatches(buf)
+    const out = new TextDecoder().decode(buf)
+    for (const marker of TELEMETRY_MARKERS) {
+      expect(countAscii(buf, marker)).toBe(0)
+    }
+    expect(out).toContain('https://ph.astro.invalid/i/v0/e/')
+    expect(out).toContain(
+      'https://sentry-crashreports-off.astro.invalid/api/4510938172620800/minidump/',
+    )
+    for (const { to } of PHONE_HOME_PATCHES.slice(-2)) {
+      expect(new URL(to).hostname.endsWith('.invalid')).toBe(true)
+    }
+  })
+
+  it('fails the re-cut when a telemetry host survives', () => {
+    const buf = ascii('https://us.i.posthog.com/batch/')
+    expect(() => applyPhoneHomePatches(buf)).toThrow(/us\.i\.posthog\.com/)
   })
 
   it('tolerates a source that was already patched (a previous Astro.app)', () => {

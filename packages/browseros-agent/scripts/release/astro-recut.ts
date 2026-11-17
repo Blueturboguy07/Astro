@@ -105,7 +105,26 @@ export const PHONE_HOME_PATCHES: readonly { from: string; to: string }[] = [
     from: 'https://cdn.browseros.com/appcast-server.alpha.xml',
     to: 'https://publikhq.com/astro/update-server.alpha.xml',
   },
+  /* Upstream's own telemetry, compiled into the framework (QA F-011): the
+     browser's metrics service posts events to BrowserOS's PostHog project
+     and crash reports go to BrowserOS's Sentry, neither with a switch or a
+     pref to turn them off. Moving the host to .invalid makes both fail to
+     resolve; nothing leaves the machine. */
+  {
+    from: 'https://us.i.posthog.com/i/v0/e/',
+    to: 'https://ph.astro.invalid/i/v0/e/',
+  },
+  {
+    from: 'https://o4510545525932032.ingest.us.sentry.io/',
+    to: 'https://sentry-crashreports-off.astro.invalid/',
+  },
 ]
+
+/* Telemetry hosts that must not survive a re-cut (see PHONE_HOME_PATCHES). */
+export const TELEMETRY_MARKERS = [
+  'us.i.posthog.com',
+  'o4510545525932032.ingest.us.sentry.io',
+] as const
 
 /**
  * Same-length swaps for user-visible BrowserOS strings baked into the
@@ -337,6 +356,7 @@ export function applyPhoneHomePatches(
   for (const marker of [
     'cdn.browseros.com/extensions/',
     'cdn.browseros.com/appcast-server',
+    ...TELEMETRY_MARKERS,
   ]) {
     if (countAscii(buf, marker) > 0) {
       throw new Error(
