@@ -767,10 +767,16 @@ function writeFailure(dataDir: string, message: string): void {
  * parent, still listening (Astro 0.2.4 QA, F-073); the stop paths also kill
  * it (`shutdown`, and on process exit).
  */
-export function flaskWithParentWatch(host: string, port: number): string {
+export function flaskWithParentWatch(
+  host: string,
+  port: number,
+  parentPid: number = process.pid,
+): string {
   return [
     'import os, runpy, sys, threading, time',
-    'parent = os.getppid()',
+    /* The server's pid, not getppid() at start: if the server is already
+       gone then, getppid() is 1 and the watch would never fire. */
+    `parent = ${Math.trunc(parentPid)}`,
     'def watch():',
     '    while True:',
     '        time.sleep(2)',
