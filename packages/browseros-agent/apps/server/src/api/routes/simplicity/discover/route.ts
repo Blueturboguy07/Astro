@@ -1,4 +1,7 @@
-import { searchSearxng } from '../../../../lib/simplicity/searxng';
+import {
+  searchSearxng,
+  searxngURLWithoutWaiting,
+} from '../../../../lib/simplicity/searxng';
 
 const websitesForTopic = {
   tech: {
@@ -34,6 +37,12 @@ export const GET = async (req: Request) => {
     const topic: Topic = (params.get('topic') as Topic) || 'tech';
 
     const selectedTopic = websitesForTopic[topic];
+
+    /* The page loads by itself: no waiting for the one-time search setup
+       (it starts once in the background), no 500 while it runs (F-025). */
+    if (!searxngURLWithoutWaiting()) {
+      return Response.json({ blogs: [], settingUp: true }, { status: 200 });
+    }
 
     let data = [];
 

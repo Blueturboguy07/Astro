@@ -15,20 +15,20 @@ import { clearQuarantine } from '../../../src/lib/searxng/provision'
 // downloaded, unsigned python-build-standalone CPython — see clearQuarantine's
 // doc comment in provision.ts.
 describe('clearQuarantine', () => {
-  it('is a no-op on non-macOS platforms (never shells out to /usr/bin/xattr)', () => {
+  it('is a no-op on non-macOS platforms (never shells out to /usr/bin/xattr)', async () => {
     if (process.platform === 'darwin') return
 
     const dir = mkdtempSync(join(tmpdir(), 'clear-quarantine-'))
     try {
       // Would throw (ENOENT, no such binary) on Linux/Windows if the darwin
       // guard didn't short-circuit before reaching execFileSync.
-      expect(() => clearQuarantine(dir)).not.toThrow()
+      await expect(clearQuarantine(dir)).resolves.toBeUndefined()
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
   })
 
-  it('removes a real com.apple.quarantine attribute recursively', () => {
+  it('removes a real com.apple.quarantine attribute recursively', async () => {
     if (process.platform !== 'darwin') return
 
     const dir = mkdtempSync(join(tmpdir(), 'clear-quarantine-'))
@@ -45,7 +45,7 @@ describe('clearQuarantine', () => {
         'com.apple.quarantine',
       )
 
-      clearQuarantine(dir)
+      await clearQuarantine(dir)
 
       expect(execFileSync('/usr/bin/xattr', [file]).toString().trim()).toBe('')
     } finally {
@@ -53,12 +53,12 @@ describe('clearQuarantine', () => {
     }
   })
 
-  it('does not throw when there is nothing to clear', () => {
+  it('does not throw when there is nothing to clear', async () => {
     if (process.platform !== 'darwin') return
 
     const dir = mkdtempSync(join(tmpdir(), 'clear-quarantine-'))
     try {
-      expect(() => clearQuarantine(dir)).not.toThrow()
+      await expect(clearQuarantine(dir)).resolves.toBeUndefined()
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

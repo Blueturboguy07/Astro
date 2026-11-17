@@ -20,7 +20,7 @@
  * `flask run` is what upstream actually serves.
  */
 
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
@@ -347,11 +347,14 @@ async function extract(tgz: string, into: string, excludes: string[] = []) {
    before execution, the same way Homebrew and other tool-downloading apps do
    for binaries they fetch into their own private data directory. Only runs
    on macOS. `xattr -dr` exits 0 whether or not anything was quarantined. */
-export function clearQuarantine(dir: string) {
+export async function clearQuarantine(dir: string): Promise<void> {
   if (process.platform !== 'darwin') return
+  /* A child process, not execFileSync: on the pip tree (thousands of files)
+     xattr takes long enough to matter, and nothing may block the server's
+     event loop during the setup (F-025). */
   try {
-    execFileSync('/usr/bin/xattr', ['-dr', 'com.apple.quarantine', dir], {
-      stdio: 'ignore',
+    await runProcess('/usr/bin/xattr', ['-dr', 'com.apple.quarantine', dir], {
+      timeoutMs: 120_000,
     })
   } catch (err) {
     logger.warn('Could not clear quarantine on downloaded Python runtime', {
@@ -517,9 +520,9 @@ async function provision(
     await download(await resolvePythonURL(), tgz, 'the Python runtime', (pct) =>
       settingUp('python', pct),
     )
-    clearQuarantine(tgz)
+    await clearQuarantine(tgz)
     await extract(tgz, p.python)
-    clearQuarantine(p.python)
+    await clearQuarantine(p.python)
     await runProcess(pythonBin(p), ['-c', 'import ssl, sqlite3'], {
       timeoutMs: 60_000,
     })
@@ -557,7 +560,7 @@ async function provision(
     ],
     { env: pipEnv(), timeoutMs: PIP_TIMEOUT_MS },
   )
-  clearQuarantine(p.python)
+  await clearQuarantine(p.python)
   await runProcess(
     py,
     [
@@ -571,7 +574,7 @@ async function provision(
     ],
     { env: pipEnv(), timeoutMs: PIP_TIMEOUT_MS },
   )
-  clearQuarantine(p.root)
+  await clearQuarantine(p.root)
 
   writeSettings(p)
   fs.writeFileSync(p.marker, new Date().toISOString())

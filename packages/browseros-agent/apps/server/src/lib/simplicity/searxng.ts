@@ -1,5 +1,13 @@
 import { getSearxngURL } from './config/serverRegistry';
 import { getRunningURL, start } from '../searxng/provision';
+import { makeSearxngURLWithoutWaiting } from './searxng-background';
+
+/** See searxng-background.ts: for pages that must not wait for the setup. */
+export const searxngURLWithoutWaiting = makeSearxngURLWithoutWaiting({
+  configuredURL: getSearxngURL,
+  runningURL: getRunningURL,
+  start: () => start(),
+});
 
 export interface SearxngSearchOptions {
   categories?: string[];
