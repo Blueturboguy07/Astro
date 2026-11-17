@@ -13,9 +13,11 @@ mock.module('@wxt-dev/storage', () => ({
 
 mock.module('@/lib/env', () => ({ env: {} }))
 
-const { defaultAfterPublikRemoved, withPublikAgentProviders } = await import(
-  './agent-provider-list'
-)
+const {
+  agentProviderAfterFastRemoved,
+  defaultAfterPublikRemoved,
+  withPublikAgentProviders,
+} = await import('./agent-provider-list')
 const { isPublikAgentProviderId } = await import('./agent-provider-ids')
 
 /* Astro 0.2.4 QA. F-017: the side panel offered one "publik API" entry
@@ -54,7 +56,6 @@ describe('withPublikAgentProviders', () => {
     expect(list.map((p) => [p.id, p.name, p.modelId])).toEqual([
       ['browseros', 'Astro', 'browseros-auto'],
       ['publik-api', 'publik Balanced', 'publik-balanced'],
-      ['publik-api-fast', 'publik Fast', 'publik-fast'],
       ['publik-api-smart', 'publik Smart', 'publik-smart'],
     ])
     expect(
@@ -77,10 +78,28 @@ describe('withPublikAgentProviders', () => {
     expect(list.map((p) => p.id)).toEqual([
       'publik-api',
       'my-anthropic',
-      'publik-api-fast',
       'publik-api-smart',
     ])
     expect(list[0]).toMatchObject({ name: 'publik Balanced', createdAt: 3 })
+  })
+
+  /* F-034: publik Fast stalls on tool calls, and the agent always sends tools. */
+  it('removes a stored publik Fast entry and moves its selection to Balanced', () => {
+    const fast = {
+      ...placeholder,
+      id: 'publik-api-fast',
+      type: 'openai-compatible' as const,
+      name: 'publik Fast',
+      modelId: 'publik-fast',
+    }
+    const list = withPublikAgentProviders([fast, ownKey], 'https://x', 'k', 9)
+    expect(list.map((p) => p.id)).toEqual([
+      'my-anthropic',
+      'publik-api',
+      'publik-api-smart',
+    ])
+    expect(agentProviderAfterFastRemoved('publik-api-fast')).toBe('publik-api')
+    expect(agentProviderAfterFastRemoved('my-anthropic')).toBe(null)
   })
 })
 

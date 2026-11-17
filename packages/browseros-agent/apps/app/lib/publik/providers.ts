@@ -10,6 +10,7 @@ import {
   PUBLIK_AGENT_PROVIDER_ID,
 } from './agent-provider-ids'
 import {
+  agentProviderAfterFastRemoved,
   defaultAfterPublikRemoved,
   withPublikAgentProviders,
 } from './agent-provider-list'
@@ -80,6 +81,8 @@ async function upsertAgentProvider(baseUrl: string, key: string) {
   if (!currentDefault || currentDefault === DEFAULT_PROVIDER_ID) {
     await defaultProviderIdStorage.setValue(PUBLIK_AGENT_PROVIDER_ID)
   }
+  const fromFast = agentProviderAfterFastRemoved(currentDefault)
+  if (fromFast) await defaultProviderIdStorage.setValue(fromFast)
 }
 
 async function removeAgentProvider() {
