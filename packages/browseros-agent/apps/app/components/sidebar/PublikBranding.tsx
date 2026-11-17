@@ -1,5 +1,6 @@
-import { ChevronDown, ExternalLink } from 'lucide-react'
+import { ChevronDown, ExternalLink, LogOut } from 'lucide-react'
 import type { FC } from 'react'
+import { useNavigate } from 'react-router'
 import ProductLogo from '@/assets/product_logo.svg'
 import { ThemeToggle } from '@/components/elements/theme-toggle'
 import {
@@ -26,6 +27,7 @@ export const PUBLIK_DASHBOARD_URL = 'https://publikhq.com/dashboard'
 export const PublikBranding: FC<{ expanded?: boolean }> = ({
   expanded = true,
 }) => {
+  const navigate = useNavigate()
   const { account, choice } = usePublikAccount()
   const footer = accountFooter(account, choice)
   const manage = publikLink(account?.top_up_url) ?? PUBLIK_DASHBOARD_URL
@@ -87,6 +89,15 @@ export const PublikBranding: FC<{ expanded?: boolean }> = ({
           >
             <ExternalLink className="mr-2 size-4" />
             Manage your publik account
+          </DropdownMenuItem>
+          {/* A real publik sign-out: the key is revoked and the gate shows
+              again (F-086). */}
+          <DropdownMenuItem
+            onClick={() => navigate('/logout')}
+            variant="destructive"
+          >
+            <LogOut className="mr-2 size-4" />
+            Sign out of publik
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

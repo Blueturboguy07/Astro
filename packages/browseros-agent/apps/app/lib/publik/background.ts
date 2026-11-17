@@ -19,6 +19,7 @@ import {
   refreshAccount,
   selfTest,
   sendEvent,
+  signOut,
   startTelemetry,
 } from './publik'
 
@@ -198,6 +199,16 @@ export function startPublik(): void {
     line: await selfTest(),
   }))
   onRuntimeMessage(RuntimeMessageType.publikSync, () => syncProviders())
+  /* F-086: the choice watcher below removes the publik connections; the
+     gate runs again and shows "Sign in with publik". */
+  onRuntimeMessage(RuntimeMessageType.publikSignOut, async () => {
+    await signOut()
+    await applyChoice(null)
+    await gateStorage.setValue(null)
+    run = null
+    tabEnsured = false
+    void runGate()
+  })
   onRuntimeMessage(RuntimeMessageType.publikRefresh, async () => {
     if ((await gateStorage.getValue())?.status === 'done') {
       await refreshAccount()

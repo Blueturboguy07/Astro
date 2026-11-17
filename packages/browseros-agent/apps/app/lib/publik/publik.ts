@@ -203,6 +203,28 @@ export async function readCredential(): Promise<PublikCredential | null> {
 async function writeCredential(c: PublikCredential | null): Promise<void> {
   await credentialStorage.setValue(c)
 }
+/**
+ * Sign out of publik on this computer (Astro 0.2.4 QA, F-086). publik
+ * revokes this install's key (POST /installs/revoke with the key: 204,
+ * idempotent); then the key, the plan choice, the account and the last 402
+ * are forgotten here, so the gate asks for "Sign in with publik" again. A
+ * failed revoke (offline) still signs out here. The person's own-key
+ * connections stay.
+ */
+export async function signOut(): Promise<void> {
+  const c = await readCredential()
+  if (c) {
+    await fetch(`${ORIGIN}/api/v1/installs/revoke`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${c.key}` },
+      signal: AbortSignal.timeout(15_000),
+    }).catch(() => null)
+  }
+  await writeCredential(null)
+  await choiceStorage.setValue(null)
+  await accountStorage.setValue(null)
+  await moneyStorage.setValue(null)
+}
 /** The person's answer to the plan screen. Settings call it to change the answer; null asks again at the next start. */
 export async function setChoice(choice: Choice | null): Promise<void> {
   await choiceStorage.setValue(choice)

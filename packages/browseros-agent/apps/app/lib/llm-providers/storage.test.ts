@@ -60,9 +60,21 @@ mock.module('./uploadLlmProvidersToGraphql', () => ({
 
 let loadProviders: typeof import('./storage').loadProviders
 let providersStorage: typeof import('./storage').providersStorage
+let createDefaultProvidersConfig: typeof import('./storage').createDefaultProvidersConfig
 
 beforeAll(async () => {
-  ;({ loadProviders, providersStorage } = await import('./storage'))
+  ;({ loadProviders, providersStorage, createDefaultProvidersConfig } =
+    await import('./storage'))
+})
+
+/* F-086: after Sign out the defaults were the upstream api.browseros.com. */
+describe('the default provider list', () => {
+  it('never names the upstream host', () => {
+    for (const p of createDefaultProvidersConfig()) {
+      expect(p.baseUrl ?? '').not.toContain('browseros.com')
+      expect(p.baseUrl).toBe('https://astro.invalid/v1')
+    }
+  })
 })
 
 beforeEach(() => {

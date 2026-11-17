@@ -15,6 +15,8 @@ export const RuntimeMessageType = {
   publikSync: 'runtime.publikSync',
   /* Read the wallet again: the left rail shows the balance. */
   publikRefresh: 'runtime.publikRefresh',
+  /* Sign out of publik on this computer, then show the gate (F-086). */
+  publikSignOut: 'runtime.publikSignOut',
 } as const
 
 export interface RuntimePublikGateData {
@@ -49,6 +51,7 @@ type RuntimeMessagesProtocol = {
   [RuntimeMessageType.publikSelfTest](): RuntimePublikSelfTestResponse
   [RuntimeMessageType.publikSync](): void
   [RuntimeMessageType.publikRefresh](): void
+  [RuntimeMessageType.publikSignOut](): void
 }
 
 const { sendMessage, onMessage } =

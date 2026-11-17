@@ -113,6 +113,7 @@ const requests: Request[] = []
 let wallets: Wallet[] = [anonymous]
 let walletStatus = 200
 let installsStatus = 201
+let revokeStatus = 204
 let telemetryStatus = 204
 let walletOkAfterInstalls = Number.POSITIVE_INFINITY
 let origin = ''
@@ -174,6 +175,9 @@ beforeAll(async () => {
           linked_at: null,
         })
       }
+      if (url.pathname === '/api/v1/installs/revoke') {
+        return new Response(null, { status: revokeStatus })
+      }
       if (url.pathname === '/api/v1/telemetry') {
         return new Response(null, { status: telemetryStatus })
       }
@@ -196,6 +200,7 @@ beforeEach(() => {
   walletStatus = 200
   installsStatus = 201
   telemetryStatus = 204
+  revokeStatus = 204
   walletOkAfterInstalls = Number.POSITIVE_INFINITY
   token = 'pat_astro_gatetest'
 })
@@ -531,6 +536,52 @@ describe('the gate against a fake publik', () => {
     ).toBeGreaterThanOrEqual(2)
     expect(gate.choice).toBe('publik')
     expect(second.screens).toEqual([])
+  })
+})
+
+/* F-086: "Sign out" kept the publik session and fell back to upstream. */
+describe('signOut', () => {
+  it('revokes this install key at publik and forgets it here', async () => {
+    wallets = [claimedPlan]
+    const h = harness({ [WORDS.connectTitle]: WORDS.connect })
+    await m.ensureSignedIn(h.ui)
+    expect(await m.readCredential()).not.toBeNull()
+
+    requests.length = 0
+    await m.signOut()
+    expect(requests.filter((r) => r.url !== '/api/v1/telemetry')).toEqual([
+      {
+        method: 'POST',
+        url: '/api/v1/installs/revoke',
+        auth: 'Bearer pk_live_gatetest',
+        body: '',
+      },
+    ])
+    expect(await m.readCredential()).toBeNull()
+    expect(await m.choiceStorage.getValue()).toBeNull()
+    expect(await m.accountStorage.getValue()).toBeNull()
+  })
+
+  it('signs out here even when publik cannot be reached', async () => {
+    wallets = [claimedPlan]
+    await m.ensureSignedIn(harness({ [WORDS.connectTitle]: WORDS.connect }).ui)
+    revokeStatus = 500
+    await m.signOut()
+    expect(await m.readCredential()).toBeNull()
+    expect(await m.choiceStorage.getValue()).toBeNull()
+  })
+
+  it('then the gate asks for Sign in with publik again', async () => {
+    wallets = [claimedPlan]
+    await m.ensureSignedIn(harness({ [WORDS.connectTitle]: WORDS.connect }).ui)
+    await m.signOut()
+    wallets = [anonymous]
+    requests.length = 0
+    const after = harness({ [WORDS.title]: WORDS.signInButton })
+    await expect(m.ensureSignedIn(after.ui)).rejects.toThrow('gave up')
+    expect(requests[0]?.url).toBe('/api/v1/installs')
+    expect(after.screens[0]?.title).toBe(WORDS.title)
+    expect(after.screens[0]?.buttons).toContain(WORDS.signInButton)
   })
 })
 

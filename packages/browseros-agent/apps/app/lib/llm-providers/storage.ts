@@ -120,6 +120,10 @@ export async function loadProviders(): Promise<LlmProviderConfig[]> {
   return normalizedProviders
 }
 
+/** The placeholder's endpoint: a name that never resolves (RFC 6761), like
+    the server's BROWSEROS_CONFIG_URL (astro.invalid). */
+export const NO_HOSTED_MODEL_URL = 'https://astro.invalid/v1'
+
 /** Creates the default Astro provider configuration */
 export function createDefaultAstroProvider(): LlmProviderConfig {
   const timestamp = Date.now()
@@ -127,7 +131,9 @@ export function createDefaultAstroProvider(): LlmProviderConfig {
     id: DEFAULT_PROVIDER_ID,
     type: 'browseros',
     name: DEFAULT_PROVIDER_NAME,
-    baseUrl: 'https://api.browseros.com/v1',
+    /* No hosted model ships with Astro (F-086, F-039): the placeholder never
+       names the upstream api.browseros.com, which answered for BrowserOS. */
+    baseUrl: NO_HOSTED_MODEL_URL,
     modelId: 'browseros-auto',
     supportsImages: true,
     contextWindow: 200000,
