@@ -24,11 +24,15 @@ export interface ChatErrorProps {
 
 const PUBLIK_PLANS_URL = 'https://publikhq.com/wallet/add'
 
+const STREAM_DROPPED =
+  /\bnetwork ?error\b|ERR_(CONNECTION_(REFUSED|RESET|CLOSED)|EMPTY_RESPONSE|NETWORK_CHANGED)|\bLoad failed\b/i
+
 /**
  * publik's 402 as the local server passes it on (chat-error-text.ts): the
  * gateway body with its message and one top-up link (Astro 0.2.4 QA, F-021).
  * Only a publikhq.com link is kept.
  */
+
 export function parsePublikMoneyError(
   message: string,
 ): { text: string; url: string } | null {
@@ -80,6 +84,15 @@ function parseErrorMessage(
       /* No upstream docs link: it pointed at docs.browseros.com and the
          text promised instructions that were not there (F-046). */
       text: 'Astro could not reach its local server. It restarts by itself: try again in a few seconds. If this keeps happening, quit and reopen Astro.',
+      isConnectionError: true,
+    }
+  }
+
+  /* The server died while the answer streamed: Chrome ends the body with
+     "network error" (Astro 0.2.4 QA). */
+  if (STREAM_DROPPED.test(message)) {
+    return {
+      text: 'Astro lost the connection to its local server during the answer. It restarts by itself: try again in a few seconds. If this keeps happening, quit and reopen Astro.',
       isConnectionError: true,
     }
   }

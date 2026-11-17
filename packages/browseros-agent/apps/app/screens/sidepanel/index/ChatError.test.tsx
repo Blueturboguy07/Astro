@@ -140,3 +140,23 @@ describe('ChatError: F-045, F-046, F-050', () => {
     expect(html).toContain('Try again')
   })
 })
+
+describe('ChatError: server died during the answer', () => {
+  it('a dropped stream gets the restart advice and Try again', () => {
+    const html = renderError(new TypeError('network error'))
+    expect(html).toContain('Connection failed')
+    expect(html).toContain('lost the connection to its local server')
+    expect(html).toContain('quit and reopen Astro')
+    expect(html).toContain('Try again')
+    expect(html).not.toContain('>network error<')
+  })
+
+  it('also for a refused or reset connection', () => {
+    for (const text of [
+      'net::ERR_CONNECTION_REFUSED',
+      'net::ERR_CONNECTION_RESET',
+    ]) {
+      expect(renderError(new Error(text))).toContain('quit and reopen Astro')
+    }
+  })
+})
