@@ -1,3 +1,4 @@
+import { describeDialogs } from '@browseros/browser-core/core/dialogs'
 import type { BrowserSession } from '@browseros/browser-core/core/session'
 import type { TypeOf, ZodObject, ZodRawShape } from 'zod'
 import {
@@ -163,11 +164,15 @@ export async function executeTool(
   }
 
   const response = new ToolResponse()
+  /* JavaScript dialogs are answered while a tool call runs (F-067). An
+     act kind=dialog call sets the answer itself, so an open dialog waits. */
+  const args = parsed.data as Record<string, unknown>
+  const dialogs = ctx.session.dialogs
+  const endDialogs = dialogs?.begin({
+    answerOpen: !(def.name === 'act' && args.kind === 'dialog'),
+  })
   try {
-    const result = await abortable(
-      def.handler(parsed.data as Record<string, unknown>, ctx, response),
-      ctx.signal,
-    )
+    const result = await abortable(def.handler(args, ctx, response), ctx.signal)
     if (result) response.appendResult(result)
     throwIfAborted(ctx.signal)
   } catch (err) {
@@ -175,7 +180,11 @@ export async function executeTool(
     response.error(
       `${def.name} failed: ${err instanceof Error ? err.message : String(err)}`,
     )
+  } finally {
+    endDialogs?.()
   }
+  const answered = dialogs?.takeRecords() ?? []
+  if (answered.length > 0) response.text(describeDialogs(answered))
 
   throwIfAborted(ctx.signal)
   const result = await abortable(

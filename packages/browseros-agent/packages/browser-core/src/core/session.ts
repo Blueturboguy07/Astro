@@ -1,5 +1,6 @@
 import type { ProtocolApi } from '@browseros/cdp-protocol/protocol-api'
 import type { CdpConnection } from './connection'
+import { DialogGuard } from './dialogs'
 import { Input } from './input/input'
 import { Navigation } from './navigation'
 import { FrameRegistry } from './observer/frames'
@@ -18,6 +19,8 @@ export interface BrowserSessionHooks extends PageManagerHooks {}
 export class BrowserSession {
   readonly pages: PageManager
   readonly windows: WindowManager
+  /** Answers JavaScript dialogs so they never block a page the agent uses. */
+  readonly dialogs = new DialogGuard()
   private readonly frames: FrameRegistry
   private readonly observers = new Map<number, Observer>()
 
@@ -30,6 +33,7 @@ export class BrowserSession {
     this.pages = new PageManager(connection, {
       ...hooks,
       onSessionAttached: async (session, pageId, sessionId) => {
+        this.dialogs.watch(session, pageId)
         await this.frames.registerPage(session, pageId, sessionId)
         await hooks.onSessionAttached?.(session, pageId, sessionId)
       },

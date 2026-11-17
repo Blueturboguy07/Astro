@@ -14,7 +14,7 @@ type InputApi = ReturnType<BrowserSession['input']>
 export const act = defineTool({
   name: 'act',
   description:
-    'Act on the page using refs from the last snapshot. kinds: click, type (into focused element), fill (one field via ref+value, or many via fields[]), press (a key/combo), hover, focus, check, uncheck, select (an option value), scroll, drag. Reads back a diff of what changed - re-snapshot if you need fresh refs.',
+    'Act on the page using refs from the last snapshot. kinds: click, type (into focused element), fill (one field via ref+value, or many via fields[]), press (a key/combo), hover, focus, check, uncheck, select (an option value), scroll, drag, dialog. Reads back a diff of what changed - re-snapshot if you need fresh refs. JavaScript dialogs (alert/confirm/prompt) never block the page: Astro answers them (OK; a prompt gets its default text) and reports it in the result. To answer one differently, call kind=dialog with accept (false = Cancel) and text (the prompt answer) BEFORE the action that opens it; it also answers a dialog that is open now.',
   input: z.object({
     page: z.number().int(),
     kind: z.enum([
@@ -33,6 +33,7 @@ export const act = defineTool({
       'scroll',
       'drag',
       'drag_at',
+      'dialog',
     ]),
     ref: z.string().optional().describe('Target element ref, e.g. "e12".'),
     text: z.string().optional().describe('Text for kind=type.'),
@@ -60,12 +61,29 @@ export const act = defineTool({
     button: z.enum(['left', 'middle', 'right']).optional(),
     clickCount: z.number().int().optional(),
     clear: z.boolean().optional(),
+    accept: z
+      .boolean()
+      .optional()
+      .describe('kind=dialog: true = OK (default), false = Cancel.'),
   }),
   annotations: {
     title: 'Interact with page',
     destructiveHint: true,
   },
   handler: async (args, ctx, response) => {
+    if (args.kind === 'dialog') {
+      const answer = {
+        accept: args.accept ?? true,
+        ...(args.text !== undefined && { promptText: args.text }),
+      }
+      const now = await ctx.session.dialogs.preset(args.page, answer)
+      response.data({ kind: args.kind })
+      return textResult(
+        now
+          ? 'The open dialog was answered.'
+          : `The next dialog on page ${args.page} will be answered ${answer.accept ? 'OK' : 'Cancel'}${answer.promptText !== undefined ? ` with ${JSON.stringify(answer.promptText)}` : ''}.`,
+      )
+    }
     const input = ctx.session.input(args.page)
 
     const err = await runKind(args, input)
