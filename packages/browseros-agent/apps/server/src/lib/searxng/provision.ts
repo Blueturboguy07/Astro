@@ -414,8 +414,18 @@ export async function ensureNoQuarantine(
   } = {},
 ): Promise<void> {
   if ((deps.platform ?? process.platform) !== 'darwin') return
+  const find = deps.find ?? findQuarantined
+  const first = await find(dir)
+  if (!first) return
   await (deps.clear ?? clearQuarantine)(dir)
-  const left = await (deps.find ?? findQuarantined)(dir)
+  logger.info(
+    'Cleared the macOS download flag before running downloaded code',
+    {
+      dir,
+      example: path.relative(dir, first),
+    },
+  )
+  const left = await find(dir)
   if (left) {
     throw new Error(
       `macOS still marks ${path.relative(dir, left) || left} as downloaded, so Astro did not run it`,
