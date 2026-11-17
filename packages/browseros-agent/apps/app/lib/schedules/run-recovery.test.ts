@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import {
   INTERRUPTED_TEXT,
+  readWithIdleLimit,
   settleInterruptedRuns,
   waitForAgentServer,
 } from './run-recovery'
@@ -73,5 +74,21 @@ describe('waitForAgentServer', () => {
       delayMs: 1,
     })
     expect(calls).toBe(4)
+  })
+})
+
+describe('readWithIdleLimit (F-071)', () => {
+  it('passes a stream that keeps sending', async () => {
+    const reader = {
+      read: async () => ({ done: true as const, value: undefined }),
+    }
+    expect((await readWithIdleLimit(reader, 50)).done).toBe(true)
+  })
+
+  it('stops a stream that sends nothing', async () => {
+    const reader = { read: () => new Promise<never>(() => {}) }
+    await expect(readWithIdleLimit(reader, 20)).rejects.toThrow(
+      'Stopped: no progress from the agent',
+    )
   })
 })

@@ -3,12 +3,40 @@ import type { ScheduledJobRun } from './scheduleTypes'
 const STALE_TIMEOUT_MS = 10 * 60 * 1000
 
 export const INTERRUPTED_TEXT =
-  'Interrupted: Astro was closed while this task ran.'
+  'Interrupted: Astro or its background worker stopped while this task ran.'
+
+/* A scheduled run never waits for ever (F-071): over 15 minutes in all, or
+   5 minutes without any progress from the agent, it stops with a reason. */
+export const RUN_LIMIT_MS = 15 * 60 * 1000
+export const RUN_IDLE_MS = 5 * 60 * 1000
+export const RUN_LIMIT_TEXT =
+  'Stopped: the task ran longer than 15 minutes. Try a smaller task.'
+export const runIdleText = (ms: number) =>
+  `Stopped: no progress from the agent for ${Math.round(ms / 60_000)} minutes.`
+
+/** reader.read() with a limit on the wait for the next piece. */
+export async function readWithIdleLimit<T>(
+  reader: { read(): Promise<ReadableStreamReadResult<T>> },
+  idleMs: number,
+): Promise<ReadableStreamReadResult<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(runIdleText(idleMs))), idleMs)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 /**
- * Runs that can no longer finish. At browser start every "running" run is
- * one the closed browser cut off: nothing is left to finish it, and it
- * stayed "running" forever (Astro 0.2.4 QA, F-026). Later, only runs past
+ * Runs that can no longer finish. When the browser or the background
+ * worker starts, every "running" run is one that a closed browser or a
+ * stopped worker cut off: the code that ran it is gone, and it stayed
+ * "running" for ever (Astro 0.2.4 QA, F-026, F-071). Later, only runs past
  * the stale limit count.
  */
 export function settleInterruptedRuns(

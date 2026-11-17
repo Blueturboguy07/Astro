@@ -14,6 +14,7 @@ import {
   resolveCloudChatProvider,
 } from '../llm-providers/provider-runtime'
 import { personalizationStorage } from '../personalization/personalizationStorage'
+import { RUN_IDLE_MS, readWithIdleLimit } from './run-recovery'
 import { scheduleSystemPrompt } from './scheduleSystemPrompt'
 import type { ToolCallExecution } from './scheduleTypes'
 
@@ -31,6 +32,8 @@ export interface ChatServerRequest {
   activeTab?: ActiveTab
   signal?: AbortSignal
   providerId?: string
+  /* Longest wait for the next piece of the answer stream (F-071). */
+  idleMs?: number
 }
 
 export interface ChatServerResponse {
@@ -149,7 +152,10 @@ export async function getChatServerResponse(
     )
   }
 
-  const parsed = await parseUIMessageStream(response)
+  const parsed = await parseUIMessageStream(
+    response,
+    request.idleMs ?? RUN_IDLE_MS,
+  )
 
   if (parsed.error) {
     throw new Error(parsed.error)
@@ -203,6 +209,7 @@ function processEvent(event: UIMessageEvent, state: StreamParseState): void {
 
 async function parseUIMessageStream(
   response: Response,
+  idleMs: number,
 ): Promise<ParsedStreamResult> {
   if (!response.body) {
     throw new Error('Response body is not readable')
@@ -236,7 +243,7 @@ async function parseUIMessageStream(
     const decoder = new TextDecoder()
 
     while (true) {
-      const { done, value } = await reader.read()
+      const { done, value } = await readWithIdleLimit(reader, idleMs)
 
       if (done) break
 

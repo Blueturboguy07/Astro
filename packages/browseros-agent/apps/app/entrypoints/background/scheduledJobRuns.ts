@@ -3,6 +3,8 @@ import { onScheduleMessage } from '@/lib/messaging/schedules/scheduleMessages'
 import { createAlarmFromJob } from '@/lib/schedules/createAlarmFromJob'
 import { getChatServerResponse } from '@/lib/schedules/getChatServerResponse'
 import {
+  RUN_LIMIT_MS,
+  RUN_LIMIT_TEXT,
   settleInterruptedRuns,
   waitForAgentServer,
 } from '@/lib/schedules/run-recovery'
@@ -24,6 +26,11 @@ export const scheduledJobRuns = async () => {
       settleInterruptedRuns(current, Date.now(), atStartup),
     )
   }
+
+  /* This worker just started: no run of this worker exists yet, so every
+     "running" row belongs to a worker that stopped (F-071). New runs wait
+     for this, so it never overwrites them. */
+  const workerStart = cleanupStaleJobRuns(true).catch(() => {})
 
   const syncAlarmState = async () => {
     const jobs = (await scheduledJobStorage.getValue()).filter(
@@ -98,9 +105,21 @@ export const scheduledJobRuns = async () => {
       throw new Error(`Job not found: ${jobId}`)
     }
 
+    await workerStart
     const jobRun = await createJobRun(jobId, 'running')
     const abortController = new AbortController()
     runAbortControllers.set(jobRun.id, abortController)
+    let overLimit = false
+    const limit = setTimeout(() => {
+      overLimit = true
+      abortController.abort()
+    }, RUN_LIMIT_MS)
+    /* An extension API call keeps the background worker alive while the
+       run waits on the agent; a stopped worker lost the run and its Cancel
+       (F-071). */
+    const keepAlive = setInterval(() => {
+      chrome.runtime.getPlatformInfo().catch(() => {})
+    }, 20_000)
 
     try {
       await waitForAgentServer(getAgentServerUrl, {
@@ -122,11 +141,13 @@ export const scheduledJobRuns = async () => {
       })
     } catch (e) {
       const isCancelled = abortController.signal.aborted
-      const errorMessage = isCancelled
-        ? 'Cancelled by user'
-        : e instanceof Error
-          ? e.message
-          : String(e)
+      const errorMessage = overLimit
+        ? RUN_LIMIT_TEXT
+        : isCancelled
+          ? 'Cancelled by user'
+          : e instanceof Error
+            ? e.message
+            : String(e)
       await updateJobRun(jobRun.id, {
         status: 'failed',
         completedAt: new Date().toISOString(),
@@ -134,6 +155,8 @@ export const scheduledJobRuns = async () => {
         error: errorMessage,
       })
     } finally {
+      clearTimeout(limit)
+      clearInterval(keepAlive)
       runAbortControllers.delete(jobRun.id)
       await updateJobLastRunAt(jobId)
     }
