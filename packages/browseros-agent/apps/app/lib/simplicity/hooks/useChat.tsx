@@ -974,7 +974,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       setMessages((prev) =>
         prev.map((msg) =>
           msg.messageId === messageId && msg.status === 'answering'
-            ? { ...msg, status: 'completed' as const }
+            ? { ...msg, status: 'cancelled' as const }
             : msg,
         ),
       )

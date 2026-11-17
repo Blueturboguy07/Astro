@@ -342,6 +342,30 @@ const MessageBox = ({
               )
             })}
 
+          {/* Stopped before any answer text (Stop, or a reload, which ends
+              the server's turn): say so and offer Retry instead of a bare
+              question (0.0.109 UI run). */}
+          {section.message.status === 'cancelled' &&
+            !section.message.responseBlocks.some(
+              (b) =>
+                (b.type === 'text' && String(b.data ?? '').trim()) ||
+                b.type === 'error',
+            ) && (
+              <div className="flex items-start gap-3 rounded-xl border border-light-200 bg-light-secondary p-4 dark:border-dark-200 dark:bg-dark-secondary">
+                <p className="flex-1 text-black/70 text-sm dark:text-white/70">
+                  This answer was stopped before it finished (Stop, or the
+                  page reloaded while it ran).
+                </p>
+                <button
+                  type="button"
+                  onClick={() => rewrite(section.message.messageId)}
+                  className="shrink-0 rounded-lg bg-light-200 px-3 py-1.5 font-medium text-black text-xs transition hover:bg-light-300 dark:bg-dark-200 dark:text-white dark:hover:bg-dark-300"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
           {section.widgets.length > 0 && <Renderer widgets={section.widgets} />}
 
           {/* No text block at all yet — nothing renders the answer slot, so the

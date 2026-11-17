@@ -22,7 +22,8 @@ export interface Message extends BaseMessage {
   backendId: string
   query: string
   responseBlocks: Block[]
-  status: 'answering' | 'completed' | 'error'
+  /* 'cancelled': Stop, or the page reloaded and the server stopped. */
+  status: 'answering' | 'completed' | 'error' | 'cancelled'
 }
 
 export interface File {
