@@ -13,6 +13,7 @@ import {
   clearQuarantine,
   ensureNoQuarantine,
   findQuarantined,
+  flaskWithParentWatch,
 } from '../../../src/lib/searxng/provision'
 
 // Regression coverage for the macOS Gatekeeper block reported against the
@@ -129,5 +130,46 @@ describe('ensureNoQuarantine', () => {
         rmSync(dir, { recursive: true, force: true })
       }
     },
+  )
+})
+
+/* F-073: SearXNG stayed alive with no parent after the server was killed. */
+describe('flaskWithParentWatch', () => {
+  it.skipIf(process.platform === 'win32')(
+    'the child exits when its parent is gone',
+    async () => {
+      const { spawn } = await import('node:child_process')
+      const src = flaskWithParentWatch('127.0.0.1', 1).replace(
+        "runpy.run_module('flask', run_name='__main__', alter_sys=True)",
+        'time.sleep(30)',
+      )
+      /* sh starts python in the background and exits at once: python's
+         parent is then gone. */
+      const sh = spawn(
+        '/bin/sh',
+        ['-c', `python3 -c "$SRC" >/dev/null 2>&1 & echo $!`],
+        {
+          env: { ...process.env, SRC: src },
+          stdio: ['ignore', 'pipe', 'ignore'],
+        },
+      )
+      let out = ''
+      sh.stdout?.on('data', (d) => {
+        out += String(d)
+      })
+      await new Promise((r) => sh.on('close', r))
+      const pid = Number(out.trim())
+      expect(pid).toBeGreaterThan(0)
+      await new Promise((r) => setTimeout(r, 4500))
+      let alive = true
+      try {
+        process.kill(pid, 0)
+      } catch {
+        alive = false
+      }
+      if (alive) process.kill(pid, 'SIGKILL')
+      expect(alive).toBe(false)
+    },
+    15_000,
   )
 })

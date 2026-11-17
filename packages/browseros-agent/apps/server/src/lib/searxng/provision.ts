@@ -761,6 +761,29 @@ function writeFailure(dataDir: string, message: string): void {
   } catch {}
 }
 
+/**
+ * `python -c` source that runs `flask run` and exits when its parent (the
+ * server) is gone. A server that was killed left SearXNG running with no
+ * parent, still listening (Astro 0.2.4 QA, F-073); the stop paths also kill
+ * it (`shutdown`, and on process exit).
+ */
+export function flaskWithParentWatch(host: string, port: number): string {
+  return [
+    'import os, runpy, sys, threading, time',
+    'parent = os.getppid()',
+    'def watch():',
+    '    while True:',
+    '        time.sleep(2)',
+    '        if os.getppid() != parent:',
+    '            os._exit(0)',
+    'threading.Thread(target=watch, daemon=True).start()',
+    `sys.argv = ['flask', 'run', '--host', ${JSON.stringify(host)}, '--port', ${JSON.stringify(String(port))}]`,
+    "runpy.run_module('flask', run_name='__main__', alter_sys=True)",
+  ].join('\n')
+}
+
+let exitHookInstalled = false
+
 async function startOnce(dataDir: string): Promise<string> {
   if (runningURL && (await isServing(runningURL))) return runningURL
 
@@ -789,24 +812,24 @@ async function startOnce(dataDir: string): Promise<string> {
     fs.mkdirSync(logDir, { recursive: true })
     const fd = fs.openSync(path.join(logDir, 'searxng.log'), 'a')
 
-    proc = spawn(
-      pythonBin(p),
-      ['-m', 'flask', 'run', '--host', HOST, '--port', String(port)],
-      {
-        cwd: p.src,
-        env: {
-          ...process.env,
-          FLASK_APP: 'searx/webapp.py',
-          SEARXNG_SETTINGS_PATH: p.settings,
-        },
-        stdio: ['ignore', fd, fd],
-        detached: false,
+    proc = spawn(pythonBin(p), ['-c', flaskWithParentWatch(HOST, port)], {
+      cwd: p.src,
+      env: {
+        ...process.env,
+        FLASK_APP: 'searx/webapp.py',
+        SEARXNG_SETTINGS_PATH: p.settings,
       },
-    )
+      stdio: ['ignore', fd, fd],
+      detached: false,
+    })
     proc.on('exit', () => {
       proc = null
       runningURL = null
     })
+    if (!exitHookInstalled) {
+      exitHookInstalled = true
+      process.on('exit', shutdown)
+    }
 
     if (!(await waitUntilServing(url))) {
       throw new Error("the search engine started but isn't responding")

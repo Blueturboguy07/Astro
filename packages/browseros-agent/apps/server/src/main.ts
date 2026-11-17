@@ -33,6 +33,7 @@ import { logger } from './lib/logger'
 import { selfHealMcpLinks } from './lib/mcp-manager'
 import { metrics } from './lib/metrics'
 import { isPortInUseError } from './lib/port-binding'
+import { shutdown as stopSearxng } from './lib/searxng/provision'
 import { Sentry } from './lib/sentry'
 import { VERSION } from './version'
 
@@ -144,6 +145,8 @@ export class Application {
   stop(reason?: string): void {
     logger.info('Shutting down server...', { reason })
     removeServerConfigSync()
+    /* SearXNG must not outlive the server (F-073). */
+    stopSearxng()
 
     // Immediate exit keeps the port free; signal exits stay non-zero so Chromium restarts us.
     const code =
