@@ -2,6 +2,7 @@
 
 import { note402 } from '@/lib/publik/publik'
 import { randomHex } from '@/lib/simplicity/random-id'
+import { chatToOpen } from '@/lib/simplicity/route-chat'
 import {
   createContext,
   useContext,
@@ -628,9 +629,14 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('searchMode', mode)
   }
 
+  /* The route id seen last: only a route change opens a chat (F-056). */
+  const lastRouteChatId = useRef(params.chatId)
   useEffect(() => {
-    if (params.chatId && params.chatId !== chatId) {
-      setChatId(params.chatId)
+    const previousRouteId = lastRouteChatId.current
+    lastRouteChatId.current = params.chatId
+    const next = chatToOpen(previousRouteId, params.chatId, chatId)
+    if (next) {
+      setChatId(next)
       setMessages([])
       chatHistory.current = []
       setFiles([])
