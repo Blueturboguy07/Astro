@@ -240,7 +240,7 @@ const ModelSelector = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.1, ease: 'easeOut' }}
-                  className="flex w-full origin-top-right flex-col overflow-hidden rounded-xl border border-light-200 bg-light-primary shadow-lg dark:border-dark-200 dark:bg-dark-primary"
+                  className="flex w-full origin-top-right flex-col overflow-hidden rounded-xl border border-light-200 bg-popover text-popover-foreground shadow-lg dark:border-dark-200"
                 >
                   <div className="max-h-[360px] overflow-y-auto p-1.5">
                     {isLoading ? (

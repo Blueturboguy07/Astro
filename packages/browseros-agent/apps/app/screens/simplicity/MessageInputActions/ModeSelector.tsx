@@ -102,7 +102,7 @@ const ModeSelector = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.1, ease: 'easeOut' }}
-                  className="flex w-full origin-top-right flex-col rounded-lg border border-light-200 bg-light-primary p-1 shadow-lg dark:border-dark-200 dark:bg-dark-primary"
+                  className="flex w-full origin-top-right flex-col rounded-lg border border-light-200 bg-popover text-popover-foreground p-1 shadow-lg dark:border-dark-200"
                 >
                   {modeList.map((m) => {
                     const disabled = m.key === 'council' && !councilAvailable

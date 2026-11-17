@@ -92,7 +92,7 @@ const Attach = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.1, ease: 'easeOut' }}
-                  className="flex max-h-[200px] w-full origin-top-right flex-col overflow-y-auto rounded-md border border-light-200 bg-light-primary md:max-h-none dark:border-dark-200 dark:bg-dark-primary"
+                  className="flex max-h-[200px] w-full origin-top-right flex-col overflow-y-auto rounded-md border border-light-200 bg-popover text-popover-foreground md:max-h-none dark:border-dark-200"
                 >
                   <div className="flex flex-row items-center justify-between px-3 py-2">
                     <h4 className="text-black/70 text-sm dark:text-white/70">

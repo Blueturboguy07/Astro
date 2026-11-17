@@ -66,7 +66,7 @@ const Optimization = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.1, ease: 'easeOut' }}
-                  className="flex max-h-[200px] w-full origin-top-left flex-col space-y-2 overflow-y-auto rounded-lg border border-light-200 bg-light-primary p-2 md:max-h-none dark:border-dark-200 dark:bg-dark-primary"
+                  className="flex max-h-[200px] w-full origin-top-left flex-col space-y-2 overflow-y-auto rounded-lg border border-light-200 bg-popover text-popover-foreground p-2 md:max-h-none dark:border-dark-200"
                 >
                   {OptimizationModes.map((mode, i) => (
                     <PopoverButton

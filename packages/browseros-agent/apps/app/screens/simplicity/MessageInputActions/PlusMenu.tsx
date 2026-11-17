@@ -141,7 +141,7 @@ const PlusMenu = () => {
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 4 }}
                   transition={{ duration: 0.1, ease: 'easeOut' }}
-                  className="flex w-full origin-bottom-left flex-col overflow-hidden rounded-lg border border-light-200 bg-light-primary p-1 shadow-lg dark:border-dark-200 dark:bg-dark-primary"
+                  className="flex w-full origin-bottom-left flex-col overflow-hidden rounded-lg border border-light-200 bg-popover text-popover-foreground p-1 shadow-lg dark:border-dark-200"
                 >
                   {!showConnectors ? (
                     <>
