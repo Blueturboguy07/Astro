@@ -25,7 +25,11 @@ import {
 } from '../models/catalog'
 import type { MinimalProvider } from '../models/types'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
-import { readTurnStream, TURN_LOST_TEXT } from '@/lib/simplicity/read-turn-stream'
+import {
+  needsReconnect,
+  readTurnStream,
+  TURN_LOST_TEXT,
+} from '@/lib/simplicity/read-turn-stream'
 import {
   readOptimizationMode,
   readSources,
@@ -512,6 +516,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   }, [messages])
 
   const isReconnectingRef = useRef(false)
+  /* Turns this page streams right now; see needsReconnect. */
+  const liveTurnsRef = useRef<Set<string>>(new Set())
   const handledMessageEndRef = useRef<Set<string>>(new Set())
   /* A turn whose stream ended without messageEnd or error (the local
      server stopped, the page reloaded) must not show "Brainstorming..."
@@ -547,7 +553,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1]
 
-      if (lastMsg.status === 'answering') {
+      if (needsReconnect(lastMsg, liveTurnsRef.current)) {
         setLoading(true)
         setResearchEnded(false)
         setMessageAppeared(false)
@@ -901,6 +907,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     /* Rewrite sends the same messageId again: the earlier messageEnd must
        not swallow the new one (Rewrite never ended, F-063). */
     handledMessageEndRef.current.delete(messageId)
+    liveTurnsRef.current.add(messageId)
 
     const newMessage: Message = {
       messageId,
@@ -952,7 +959,22 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         systemInstructions: localStorage.getItem('systemInstructions'),
         thinking: localStorage.getItem('thinkingEnabled') !== '0',
       }),
-    })
+    }).catch((err: unknown) =>
+      err instanceof Error ? err : new Error(String(err)),
+    )
+
+    /* The local server is down or Stop came before the answer started. */
+    if (res instanceof Error) {
+      liveTurnsRef.current.delete(messageId)
+      abortRef.current = null
+      if (res.name === 'AbortError') {
+        setResearchEnded(true)
+        setLoading(false)
+      } else {
+        failTurn(messageId, TURN_LOST_TEXT)
+      }
+      return
+    }
 
     /* A pre-flight rejection (invalid body, or Model council's server-side
        backstop when a stale client still has it selected with <2 connected
@@ -960,6 +982,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
        not the SSE stream. Surface it as a toast instead of hanging on a
        spinner forever waiting for stream events that will never arrive. */
     if (!res.ok) {
+      liveTurnsRef.current.delete(messageId)
       const body = await res.json().catch(() => null)
       void note402(body?.message)
       const text = body?.message ?? 'That request failed. Try again.'
@@ -989,6 +1012,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     if (!res.body) {
+      liveTurnsRef.current.delete(messageId)
       failTurn(messageId, TURN_LOST_TEXT)
       return
     }
@@ -1009,6 +1033,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       }
     } finally {
       abortRef.current = null
+      liveTurnsRef.current.delete(messageId)
     }
   }
 

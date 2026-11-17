@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { readTurnStream } from './read-turn-stream'
+import { needsReconnect, readTurnStream } from './read-turn-stream'
 
 const streamOf = (...parts: string[]) =>
   new ReadableStream<Uint8Array>({
@@ -39,5 +39,15 @@ describe('readTurnStream (F-059, F-060)', () => {
       (e) => seen.push(e.n as number),
     )
     expect(seen).toEqual([1, 2])
+  })
+})
+
+describe('needsReconnect', () => {
+  it('skips a turn this page streams, reconnects one it does not', () => {
+    const live = new Set(['m1'])
+    expect(needsReconnect({ status: 'answering', messageId: 'm1' }, live)).toBe(false)
+    expect(needsReconnect({ status: 'answering', messageId: 'm2' }, live)).toBe(true)
+    expect(needsReconnect({ status: 'completed', messageId: 'm2' }, live)).toBe(false)
+    expect(needsReconnect(undefined, live)).toBe(false)
   })
 })

@@ -45,3 +45,16 @@ export async function readTurnStream(
   handle(buffer + decoder.decode())
   return settled ? 'settled' : 'lost'
 }
+
+/**
+ * Reconnect only to a turn that this page does not stream itself. A turn
+ * sent from this page carries the client's own backendId (the server keys
+ * the session by its own id), so a reconnect got a 404 and ended a live
+ * answer as failed (follow-ups in a chat opened from History, 0.0.109).
+ */
+export function needsReconnect(
+  last: { status?: string; messageId: string } | undefined,
+  liveTurns: ReadonlySet<string>,
+): boolean {
+  return last?.status === 'answering' && !liveTurns.has(last.messageId)
+}
