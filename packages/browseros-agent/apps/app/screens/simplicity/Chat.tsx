@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
+import { pageTitle } from '@/lib/simplicity/page-title'
 import MessageBox from './MessageBox'
 import MessageInput from './MessageInput'
 
@@ -48,7 +49,7 @@ const Chat = () => {
     }
 
     if (messages.length === 1) {
-      document.title = `${messages[0].query.substring(0, 30)} - Astro`
+      document.title = pageTitle(messages[0].query)
     }
 
     if (sections.length > lastScrolledRef.current) {

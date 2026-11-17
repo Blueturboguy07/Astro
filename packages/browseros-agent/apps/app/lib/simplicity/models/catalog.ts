@@ -190,6 +190,44 @@ export const availableRows = (providers: MinimalProvider[]): ResolvedRow[] =>
     (r): r is ResolvedRow => r !== null,
   )
 
+/* Names that are never chat models (raw lists carry them). */
+const NOT_CHAT = /embed|whisper|tts|guard|rerank|moderation|transcri/i
+const MAX_CONNECTION_ROWS = 20
+
+/* Models of a connection that matches no catalog row (a custom
+   OpenAI-compatible endpoint, a local server with other models): listed
+   below the divider by their own name, so the person can pick what they
+   added (Astro 0.2.4 QA round 3: such models could not be chosen).
+   Connections that back a catalog row keep the curated list only. */
+export const connectionRows = (
+  providers: MinimalProvider[],
+): ResolvedRow[] => {
+  const backing = new Set(availableRows(providers).map((r) => r.providerId))
+  const out: ResolvedRow[] = []
+  for (const p of providers) {
+    if (p.type === 'browseros' || backing.has(p.id)) continue
+    const models = p.chatModels
+      /* 'error' is how a signed-out provider reports itself. */
+      .filter((m) => m.key !== 'error' && !NOT_CHAT.test(m.key))
+      .slice(0, MAX_CONNECTION_ROWS)
+    for (const m of models) {
+      out.push({
+        row: {
+          id: `connection:${p.id}:${m.key}`,
+          name: `${m.name || m.key} (${p.name})`,
+          icon: p.type,
+          extra: true,
+          candidates: [{ providerType: p.type, key: m.key }],
+        },
+        providerId: p.id,
+        key: m.key,
+        free: p.type === 'ollama' || p.type === 'lmstudio',
+      })
+    }
+  }
+  return out
+}
+
 /* The sentinel for automatic selection. */
 export const BEST_KEY = '__best__'
 

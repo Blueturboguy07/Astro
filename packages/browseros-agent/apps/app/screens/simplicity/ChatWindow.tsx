@@ -7,6 +7,7 @@ import {
   usePublikMoney,
 } from '@/lib/publik/useGate'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
+import { pageTitle } from '@/lib/simplicity/page-title'
 import type { Block } from '@/lib/simplicity/types'
 import { PublikMoneyBanner } from '@/screens/simplicity/Publik/PublikCard'
 import Chat from './Chat'
@@ -46,6 +47,11 @@ const ChatWindow = () => {
     useChat()
   const { money, dismiss } = usePublikMoney()
   const { choice } = usePublikAccount()
+
+  /* An empty home (New, or a deleted chat) is "Astro", not the last chat. */
+  useEffect(() => {
+    if (messages.length === 0) document.title = pageTitle()
+  }, [messages.length])
 
   /* "Can't reach the local Astro server" stayed until Retry was pressed,
      also when the server came up seconds later. Try again every 5 s for

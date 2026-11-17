@@ -26,5 +26,13 @@ describe('answer prefs (F-065)', () => {
     s.setItem('answerSources', '{bad')
     expect(readOptimizationMode(s)).toBe('speed')
     expect(readSources(s)).toEqual(['web'])
+    s.setItem('answerSources', '["junk"]')
+    expect(readSources(s)).toEqual(['web'])
+  })
+
+  it('keeps every source off after a reload', () => {
+    const s = memory()
+    saveAnswerPref('answerSources', [], s)
+    expect(readSources(s)).toEqual([])
   })
 })

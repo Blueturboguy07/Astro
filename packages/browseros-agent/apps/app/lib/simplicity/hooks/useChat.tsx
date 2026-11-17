@@ -2,6 +2,7 @@
 
 import { errorToastText } from '@/lib/publik/limit-error'
 import { answerWasPaid } from '@/lib/publik/money-banner'
+import { pageTitle } from '@/lib/simplicity/page-title'
 import { clear402, note402 } from '@/lib/publik/publik'
 import { randomHex } from '@/lib/simplicity/random-id'
 import { chatToOpen } from '@/lib/simplicity/route-chat'
@@ -312,7 +313,7 @@ const loadMessages = async (
   })
 
   if (messages.length > 0) {
-    document.title = messages[0].query
+    document.title = pageTitle(messages[0].query)
   }
 
   const files = data.chat.files.map((file: any) => {

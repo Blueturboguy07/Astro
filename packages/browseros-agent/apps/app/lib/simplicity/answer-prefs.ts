@@ -29,6 +29,9 @@ export function readSources(
   try {
     const v = JSON.parse(store?.getItem('answerSources') ?? 'null')
     if (Array.isArray(v)) {
+      /* [] is a choice (every source off): keep it, or the composer shows
+         "Web" and searches the web after a reload (round 3 note). */
+      if (v.length === 0) return []
       const ok = v.filter((s) => (SOURCES as readonly string[]).includes(s))
       if (ok.length > 0) return ok
     }

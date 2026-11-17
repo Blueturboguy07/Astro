@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import {
   availableRows,
+  connectionRows,
   parseChosenChatModel,
   resolveBest,
   resolveChatModel,
@@ -125,5 +126,27 @@ describe('the model picker rows', () => {
   it('shows the Thinking switch for publik Smart', () => {
     const smart = availableRows([publik]).find((r) => r.key === 'publik-smart')
     expect(smart?.row.thinking).toBe(true)
+  })
+
+  it('lists the models of a custom connection by name, below the divider', () => {
+    const custom: MinimalProvider = {
+      id: 'x1',
+      type: 'openai',
+      name: 'My vLLM',
+      chatModels: [
+        { key: 'my-model', name: 'my-model' },
+        { key: 'text-embedding-3-small', name: 'embed' },
+      ],
+      embeddingModels: [],
+    }
+    const rows = connectionRows([publik, custom, signedOutClaude, ollama])
+    expect(rows.map((r) => [r.providerId, r.key, r.row.name])).toEqual([
+      ['x1', 'my-model', 'my-model (My vLLM)'],
+    ])
+    expect(rows[0].row.extra).toBe(true)
+    /* A chosen custom model is sent as chosen. */
+    expect(
+      resolveChatModel([publik, custom], { providerId: 'x1', key: 'my-model' }),
+    ).toEqual({ providerId: 'x1', key: 'my-model' })
   })
 })

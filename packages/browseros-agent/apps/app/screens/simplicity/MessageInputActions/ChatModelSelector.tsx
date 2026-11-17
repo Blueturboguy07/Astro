@@ -9,6 +9,7 @@ import { useChat } from '@/lib/simplicity/hooks/useChat'
 import {
   availableRows,
   CHOSEN_CHAT_MODEL_STORAGE_KEY,
+  connectionRows,
   parseChosenChatModel,
   type ResolvedRow,
   resolveBest,
@@ -58,7 +59,10 @@ const ModelSelector = () => {
     return publikServerProviderIdStorage.watch(() => loadProviders())
   }, [])
 
-  const rows = useMemo(() => availableRows(providers), [providers])
+  const rows = useMemo(
+    () => [...availableRows(providers), ...connectionRows(providers)],
+    [providers],
+  )
   const mainRows = rows.filter((r) => !r.row.extra)
   const extraRows = rows.filter((r) => r.row.extra)
 
