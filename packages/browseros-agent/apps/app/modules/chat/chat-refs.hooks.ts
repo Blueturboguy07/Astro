@@ -15,6 +15,7 @@ import {
   resolveSidepanelChatTarget,
   type SidepanelChatTarget,
   type SidepanelChatTargetSelection,
+  withoutHostedPlaceholder,
 } from './sidepanel-chat-targets'
 
 const constructMcpServers = (servers: McpServer[]) => {
@@ -59,7 +60,7 @@ export const useChatRefs = () => {
   const chatTargets = useMemo(
     () =>
       buildSidepanelChatTargets({
-        providers: llmProviders,
+        providers: withoutHostedPlaceholder(llmProviders),
         adapters,
         agents: harnessAgents,
       }),

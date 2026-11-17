@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="publik">
+  <!-- The publik tab icon (publikhq.com app/icon.svg): white P on the blue tile. -->
+  <rect width="512" height="512" rx="112" fill="#315cf5" />
+  <g transform="translate(125.5 106) scale(2.1428)">
+    <path d="M18 4 H66 C98 4 119 26 119 56 C119 86 98 108 66 108 H50 V136 H18 Z" fill="#ffffff" />
+    <ellipse cx="72" cy="52" rx="27" ry="19" fill="#315cf5" />
+    <circle cx="61" cy="56" r="11" fill="#ffffff" />
+    <circle cx="55" cy="48" r="4.5" fill="#315cf5" />
+  </g>
+</svg>

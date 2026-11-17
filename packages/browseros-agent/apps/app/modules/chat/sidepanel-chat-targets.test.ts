@@ -13,6 +13,7 @@ import {
   saveSidepanelChatTargetSelection,
   toLlmProviderConfig,
   watchSidepanelChatTargetSelection,
+  withoutHostedPlaceholder,
 } from './sidepanel-chat-targets'
 
 const timestamp = 1000
@@ -370,5 +371,25 @@ describe('watchSidepanelChatTargetSelection', () => {
     await store.setValue(null)
 
     expect(seen).toEqual([{ kind: 'acp', id: 'agent-codex' }])
+  })
+})
+
+/* Astro 0.2.4 QA, F-018: after "Use my own key" the side panel used the
+   built-in placeholder, upstream's hosted model on a dead config host. */
+describe('withoutHostedPlaceholder', () => {
+  it('drops the built-in placeholder and keeps real connections', () => {
+    expect(withoutHostedPlaceholder(providers).map((p) => p.id)).toEqual([
+      'anthropic-sonnet',
+    ])
+  })
+
+  it('leaves no target when the placeholder is the only provider', () => {
+    expect(
+      buildSidepanelChatTargets({
+        providers: withoutHostedPlaceholder([providers[0]]),
+        adapters,
+        agents: [],
+      }),
+    ).toEqual([])
   })
 })

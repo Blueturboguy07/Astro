@@ -26,7 +26,8 @@ import type { Provider } from './chatComponentTypes'
 
 export interface ChatProviderSelectorProps {
   providers: Provider[]
-  selectedProvider: Provider
+  /* Undefined when the person has no AI connection yet (F-018). */
+  selectedProvider?: Provider
   onSelectProvider: (provider: Provider) => void
 }
 
@@ -50,7 +51,7 @@ export const ChatProviderSelector: FC<
             {groups.map((group) => (
               <CommandGroup key={group.key} heading={group.label}>
                 {group.options.map((provider) => {
-                  const isSelected = selectedProvider.id === provider.id
+                  const isSelected = selectedProvider?.id === provider.id
                   const subtitle = getProviderSubtitle(provider)
                   return (
                     <CommandItem
@@ -109,5 +110,11 @@ export const ChatProviderSelector: FC<
 function ProviderOptionIcon({ provider }: { provider: Provider }) {
   if (provider.kind === 'acp') return <Bot size={18} />
   if (provider.type === 'browseros') return <AstroIcon size={18} />
-  return <ProviderIcon type={provider.type as ProviderType} size={18} />
+  return (
+    <ProviderIcon
+      type={provider.type as ProviderType}
+      providerId={provider.id}
+      size={18}
+    />
+  )
 }

@@ -27,6 +27,7 @@ import { ChatEmptyState } from './ChatEmptyState'
 import { ChatError } from './ChatError'
 import { ChatFooter } from './ChatFooter'
 import { ChatMessages } from './ChatMessages'
+import { ChatNoConnection } from './ChatNoConnection'
 
 /**
  * @public
@@ -43,6 +44,7 @@ export const Chat = () => {
     chatError,
     canSend,
     selectedProvider,
+    noConnection,
     getActionForMessage,
     liked,
     onClickLike,
@@ -219,6 +221,8 @@ export const Chat = () => {
           <div className="flex flex-1 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : messages.length === 0 && noConnection ? (
+          <ChatNoConnection />
         ) : messages.length === 0 ? (
           <ChatEmptyState
             mode={mode}

@@ -13,6 +13,8 @@ import {
 import { Bot, Github } from 'lucide-react'
 import type { FC, SVGProps } from 'react'
 import ProductLogoSvg from '@/assets/product_logo.svg'
+import PublikLogoSvg from '@/assets/publik_logo.svg'
+import { isPublikAgentProviderId } from '@/lib/publik/agent-provider-ids'
 import type { ProviderType } from './types'
 
 interface IconProps extends SVGProps<SVGSVGElement> {
@@ -43,6 +45,8 @@ const providerIconMap: Record<ProviderType, IconComponent | null> = {
 
 export interface ProviderIconProps {
   type: ProviderType
+  /** A publik tier entry is openai-compatible; its id picks the publik mark. */
+  providerId?: string
   size?: number
   className?: string
 }
@@ -53,9 +57,13 @@ export interface ProviderIconProps {
  */
 export const ProviderIcon: FC<ProviderIconProps> = ({
   type,
+  providerId,
   size = 20,
   className,
 }) => {
+  if (isPublikAgentProviderId(providerId)) {
+    return <PublikIcon size={size} className={className} />
+  }
   const IconComponent = providerIconMap[type]
 
   if (IconComponent) {
@@ -83,3 +91,20 @@ export const AstroIcon: FC<{ size?: number; className?: string }> = ({
     />
   )
 }
+
+/**
+ * publik mark for the publik API tiers
+ * @public
+ */
+export const PublikIcon: FC<{ size?: number; className?: string }> = ({
+  size = 20,
+  className,
+}) => (
+  <img
+    src={PublikLogoSvg}
+    alt="publik"
+    width={size}
+    height={size}
+    className={className}
+  />
+)

@@ -6,13 +6,17 @@ import {
   SiHuggingface,
   SiOllama,
 } from '@icons-pack/react-simple-icons'
+import PublikLogoSvg from '@/assets/publik_logo.svg'
 import { cn } from '@/lib/simplicity/utils'
 
 /* Marks for the providers we accept. simple-icons doesn't publish one for Groq,
    LM Studio or Lemonade, so those fall back to a lettermark rather than a
    made-up logo. Everything renders in currentColor so it reads correctly in
    both themes without per-brand colour handling. */
-const brands: Record<string, { icon?: IconType; letters?: string }> = {
+const brands: Record<
+  string,
+  { icon?: IconType; image?: string; letters?: string }
+> = {
   /* simple-icons dropped its OpenAI mark, so this takes the same lettermark
      fallback the file already uses for brands with no published logo. */
   openai: { letters: 'AI' },
@@ -24,8 +28,9 @@ const brands: Record<string, { icon?: IconType; letters?: string }> = {
   groq: { letters: 'G' },
   lemonade: { letters: 'L' },
   xai: { letters: 'X' },
-  /* publik API — the metered default the packaged build ships with. */
-  publik: { letters: 'pk' },
+  /* publik API — the metered default the packaged build ships with. Its own
+     mark, not a lettermark (Astro 0.2.4 QA, F-017/F-024). */
+  publik: { image: PublikLogoSvg },
 }
 
 const ProviderLogo = ({
@@ -38,6 +43,18 @@ const ProviderLogo = ({
   className?: string
 }) => {
   const brand = brands[providerKey]
+
+  if (brand?.image) {
+    return (
+      <img
+        src={brand.image}
+        alt=""
+        width={size}
+        height={size}
+        className={cn('shrink-0', className)}
+      />
+    )
+  }
 
   if (brand?.icon) {
     const Icon = brand.icon

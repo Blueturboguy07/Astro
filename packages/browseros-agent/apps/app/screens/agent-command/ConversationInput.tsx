@@ -698,5 +698,11 @@ function BotInputIcon({ variant }: { variant: 'home' | 'conversation' }) {
 function TargetPillIcon({ provider }: { provider: Provider }) {
   if (provider.kind === 'acp') return <Bot className="size-3" />
   if (provider.type === 'browseros') return <AstroIcon size={12} />
-  return <ProviderIcon type={provider.type as ProviderType} size={12} />
+  return (
+    <ProviderIcon
+      type={provider.type as ProviderType}
+      providerId={provider.id}
+      size={12}
+    />
+  )
 }

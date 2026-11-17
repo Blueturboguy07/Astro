@@ -4,8 +4,15 @@ import {
   defaultProviderIdStorage,
   providersStorage,
 } from '@/lib/llm-providers/storage'
-import type { LlmProviderConfig } from '@/lib/llm-providers/types'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import {
+  isPublikAgentProviderId,
+  PUBLIK_AGENT_PROVIDER_ID,
+} from './agent-provider-ids'
+import {
+  defaultAfterPublikRemoved,
+  withPublikAgentProviders,
+} from './agent-provider-list'
 import {
   type Choice,
   choiceStorage,
@@ -23,7 +30,6 @@ import {
  * before. Only the background calls this (lib/publik/background.ts). */
 
 export const PUBLIK_PROVIDER_NAME = 'publik API'
-export const PUBLIK_AGENT_PROVIDER_ID = 'publik-api'
 const TIERS: { model: string; name: string }[] = [
   { model: MODELS.balanced, name: 'publik Balanced' },
   { model: MODELS.fast, name: 'publik Fast' },
@@ -64,25 +70,8 @@ export const isPublikServerProvider = (
 
 async function upsertAgentProvider(baseUrl: string, key: string) {
   const current = (await providersStorage.getValue()) || []
-  const existing = current.find((p) => p.id === PUBLIK_AGENT_PROVIDER_ID)
-  const now = Date.now()
-  const entry: LlmProviderConfig = {
-    id: PUBLIK_AGENT_PROVIDER_ID,
-    type: 'openai-compatible',
-    name: PUBLIK_PROVIDER_NAME,
-    baseUrl,
-    modelId: existing?.modelId ?? MODELS.balanced,
-    apiKey: key,
-    supportsImages: true,
-    contextWindow: existing?.contextWindow ?? 200000,
-    temperature: existing?.temperature ?? 0.2,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-  }
   await providersStorage.setValue(
-    existing
-      ? current.map((p) => (p.id === PUBLIK_AGENT_PROVIDER_ID ? entry : p))
-      : [...current, entry],
+    withPublikAgentProviders(current, baseUrl, key),
   )
   /* Selected only when nothing else was: the built-in placeholder points at
      upstream's hosted service, which this fork has no account with. A
@@ -95,14 +84,13 @@ async function upsertAgentProvider(baseUrl: string, key: string) {
 
 async function removeAgentProvider() {
   const current = (await providersStorage.getValue()) || []
-  if (!current.some((p) => p.id === PUBLIK_AGENT_PROVIDER_ID)) return
-  await providersStorage.setValue(
-    current.filter((p) => p.id !== PUBLIK_AGENT_PROVIDER_ID),
-  )
-  if (
-    (await defaultProviderIdStorage.getValue()) === PUBLIK_AGENT_PROVIDER_ID
-  ) {
-    await defaultProviderIdStorage.setValue(DEFAULT_PROVIDER_ID)
+  if (!current.some((p) => isPublikAgentProviderId(p.id))) return
+  const remaining = current.filter((p) => !isPublikAgentProviderId(p.id))
+  await providersStorage.setValue(remaining)
+  if (isPublikAgentProviderId(await defaultProviderIdStorage.getValue())) {
+    await defaultProviderIdStorage.setValue(
+      defaultAfterPublikRemoved(remaining),
+    )
   }
 }
 

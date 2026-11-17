@@ -25,7 +25,7 @@ const CreditsBadgeWrapper: FC = () => {
 }
 
 export interface ChatHeaderProps {
-  selectedProvider: Provider
+  selectedProvider?: Provider
   providers: Provider[]
   onSelectProvider: (provider: Provider) => void
   onNewConversation: () => void
@@ -64,22 +64,23 @@ export const ChatHeader: FC<ChatHeaderProps> = ({
             className="group relative inline-flex cursor-pointer items-center gap-2 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground data-[state=open]:bg-accent"
             title="Change AI Provider"
           >
-            {selectedProvider.kind === 'acp' ? (
+            {!selectedProvider || selectedProvider.kind === 'acp' ? (
               <Bot className="h-[18px] w-[18px]" />
             ) : selectedProvider.type === 'browseros' ? (
               <AstroIcon size={18} />
             ) : (
               <ProviderIcon
                 type={selectedProvider.type as ProviderType}
+                providerId={selectedProvider.id}
                 size={18}
               />
             )}
             <span className="font-semibold text-base">
-              {selectedProvider.name}
+              {selectedProvider?.name ?? 'No AI connection'}
             </span>
           </button>
         </ChatProviderSelector>
-        {selectedProvider.type === 'browseros' && <CreditsBadgeWrapper />}
+        {selectedProvider?.type === 'browseros' && <CreditsBadgeWrapper />}
       </div>
 
       <div className="flex items-center gap-1">

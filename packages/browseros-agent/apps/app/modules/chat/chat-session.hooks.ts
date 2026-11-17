@@ -198,9 +198,12 @@ export const useChatSession = (options?: ChatSessionOptions) => {
     agentUrlRef.current = agentServerUrl
   }, [agentServerUrl])
 
-  const canSend = !isLoadingAgentUrl && !agentUrlError && !!agentServerUrl
-
   const providers: Provider[] = chatTargets.map(toProviderOption)
+  /* No connection of the person's own and no publik plan (F-018). */
+  const noConnection = !isLoadingProviders && providers.length === 0
+
+  const canSend =
+    !isLoadingAgentUrl && !agentUrlError && !!agentServerUrl && !noConnection
 
   const [mode, setMode] = useState<ChatMode>('agent')
   const [textToAction, setTextToAction] = useState<Map<string, ChatAction>>(
@@ -767,6 +770,7 @@ export const useChatSession = (options?: ChatSessionOptions) => {
     stop,
     providers,
     selectedProvider,
+    noConnection,
     isLoading: isLoadingProviders || isLoadingAgentUrl,
     canSend,
     isSyncing: !isIntegrationsSynced,

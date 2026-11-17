@@ -63,7 +63,11 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         {isBuiltIn ? (
           <AstroIcon size={24} />
         ) : (
-          <ProviderIcon type={provider.type} size={24} />
+          <ProviderIcon
+            type={provider.type}
+            providerId={provider.id}
+            size={24}
+          />
         )}
       </div>
       <div className="min-w-0 flex-1">

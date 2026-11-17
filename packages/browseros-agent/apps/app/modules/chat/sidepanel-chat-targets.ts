@@ -72,6 +72,18 @@ let sidepanelChatTargetSelectionStorage:
   | SidepanelChatTargetSelectionStore
   | undefined
 
+/**
+ * Drops the built-in "Astro" placeholder (type `browseros`): it is upstream's
+ * hosted model, and Astro's server resolves it through a config URL on a dead
+ * host, so a question sent to it can only fail. A person with no connection
+ * of their own sees a hint instead (Astro 0.2.4 QA, F-018).
+ */
+export function withoutHostedPlaceholder(
+  providers: LlmProviderConfig[],
+): LlmProviderConfig[] {
+  return providers.filter((provider) => provider.type !== 'browseros')
+}
+
 export function buildSidepanelChatTargets({
   providers,
   adapters,
