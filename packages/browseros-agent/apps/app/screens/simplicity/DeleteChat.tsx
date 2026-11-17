@@ -61,6 +61,9 @@ const DeleteChat = ({
   return (
     <>
       <button
+        type="button"
+        aria-label="Delete chat"
+        title="Delete chat"
         onClick={() => {
           setConfirmationDialogOpen(true)
         }}
