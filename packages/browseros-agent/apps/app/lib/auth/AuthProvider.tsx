@@ -1,10 +1,15 @@
 import type { FC, PropsWithChildren } from 'react'
 import { useEffect } from 'react'
 import { identify, resetIdentity } from '@/lib/analytics/identify'
+import { accountApiConfigured } from '../browseros-api-url'
 import { useSession } from './auth-client'
 import { useSessionInfo } from './sessionStorage'
 
-export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
+const ACCOUNT_API = accountApiConfigured(
+  import.meta.env.VITE_PUBLIC_BROWSEROS_API,
+)
+
+const SessionSync: FC = () => {
   const { data, isPending } = useSession()
   const { updateSessionInfo } = useSessionInfo()
 
@@ -28,5 +33,12 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     }
   }, [data, isPending])
 
-  return <>{children}</>
+  return null
 }
+
+export const AuthProvider: FC<PropsWithChildren> = ({ children }) => (
+  <>
+    {ACCOUNT_API && <SessionSync />}
+    {children}
+  </>
+)

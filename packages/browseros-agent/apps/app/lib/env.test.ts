@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { parseAstroApiUrl } from './browseros-api-url'
+import { accountApiConfigured, parseAstroApiUrl } from './browseros-api-url'
 import {
   parseAlphaFeaturesFlag,
   parsePublikBaseUrl,
@@ -77,5 +77,18 @@ describe('parsePublikBaseUrl', () => {
     expect(() => parsePublikBaseUrl('chrome-extension://x')).toThrow(
       'VITE_PUBLIK_API_BASE_URL must use http:// or https://',
     )
+  })
+})
+
+/* QA F-011: without an account API set at build time the app must not ask
+   api.browseros.com for a session on every page open. */
+describe('accountApiConfigured', () => {
+  it('is off when the build names no account API', () => {
+    expect(accountApiConfigured(undefined)).toBe(false)
+    expect(accountApiConfigured('  ')).toBe(false)
+  })
+
+  it('is on when a build sets one on purpose', () => {
+    expect(accountApiConfigured('http://127.0.0.1:3000')).toBe(true)
   })
 })
