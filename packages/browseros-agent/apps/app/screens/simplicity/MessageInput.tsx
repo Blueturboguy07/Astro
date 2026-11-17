@@ -69,8 +69,9 @@ const MessageInput = () => {
   return (
     <form
       onSubmit={(e) => {
-        if (loading) return
+        /* Always: a native form submit reloads the page. */
         e.preventDefault()
+        if (loading) return
         sendMessage(message)
         setMessage('')
       }}
