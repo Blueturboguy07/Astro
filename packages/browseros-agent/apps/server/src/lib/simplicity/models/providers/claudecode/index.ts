@@ -3,7 +3,10 @@ import { Model, ModelList, ProviderMetadata } from '../../types';
 import BaseEmbedding from '../../base/embedding';
 import BaseModelProvider from '../../base/provider';
 import BaseLLM from '../../base/llm';
-import ClaudeCodeLLM, { findClaudeBinary } from './claudeCodeLLM';
+import ClaudeCodeLLM, {
+  checkClaudeCodeSignedIn,
+  findClaudeBinary,
+} from './claudeCodeLLM';
 
 /* Claude through the user's own Claude Code install.
  *
@@ -59,7 +62,12 @@ class ClaudeCodeProvider extends BaseModelProvider<ClaudeCodeConfig> {
     return { embedding: [], chat: models };
   }
 
+  /* The model list doubles as the usability check: GET /api/providers drops
+     a connection whose list fails, so a missing or signed-out CLI is never
+     offered (and never becomes the default) in the model picker. */
   async getModelList(): Promise<ModelList> {
+    const signedIn = await checkClaudeCodeSignedIn(this.resolveBinary());
+    if (!signedIn.ok) throw new Error(signedIn.message);
     return this.getDefaultModels();
   }
 

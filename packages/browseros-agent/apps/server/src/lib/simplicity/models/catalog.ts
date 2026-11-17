@@ -37,7 +37,22 @@ export type CatalogRow = {
   candidates: CatalogCandidate[];
 };
 
+/* publik API (the extension's lib/publik): registered as an `openai`-type
+   connection at the publik gateway that lists only the three tier aliases,
+   so matching on the alias key is exact. Mirrors the client catalog, so the
+   usage meter and Model Council name these rows the way the picker does. */
+const publikRow = (id: string, name: string, extra?: boolean): CatalogRow => ({
+  id,
+  name,
+  icon: 'publik',
+  ...(extra ? { extra } : {}),
+  candidates: [{ providerType: 'openai', key: id }],
+});
+
 export const CATALOG_ROWS: CatalogRow[] = [
+  publikRow('publik-balanced', 'publik Balanced'),
+  publikRow('publik-fast', 'publik Fast', true),
+  publikRow('publik-smart', 'publik Smart', true),
   {
     id: 'local',
     name: 'Local (Ollama)',
@@ -156,14 +171,17 @@ export const BEST_KEY = '__best__';
 
 /* What "Best" resolves to, in order of preference.
  *
- * Ordered by measured end-to-end latency against answer quality, preferring
- * options that cost the user nothing: their own Claude plan and local models
- * rank above metered APIs at comparable quality. */
+ * publik Balanced leads: it is the packaged default the listing promises
+ * ("publik API is preselected"), and the person chose it at the gate. After
+ * it, ordered by measured end-to-end latency against answer quality,
+ * preferring options that cost the user nothing. Keep in step with the
+ * client's copy (apps/app/lib/simplicity/models/catalog.ts). */
 /* Exported (beyond resolveBest's own use) so Model Council's auto-pick
    (src/lib/agents/council/select.ts) can rank its distinct-vendor candidates
    by the exact same quality/cost preference order "Best" uses — one source
    of truth for "what's good" instead of a second hand-maintained list. */
 export const BEST_ORDER: Array<{ providerType: string; key: string }> = [
+  { providerType: 'openai', key: 'publik-balanced' },
   { providerType: 'claudecode', key: 'sonnet' },
   { providerType: 'groq', key: 'openai/gpt-oss-120b' },
   { providerType: 'openai', key: 'gpt-5.1' },

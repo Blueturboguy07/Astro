@@ -52,6 +52,81 @@ export const findClaudeBinary = (): string | null => {
   return CANDIDATES.find((c) => fs.existsSync(c)) ?? null;
 };
 
+export type SignInCheck = { ok: true } | { ok: false; message: string };
+
+type AuthStatusRun = (
+  binary: string,
+) => Promise<{ code: number | null; stdout: string }>;
+
+const runAuthStatus: AuthStatusRun = (binary) =>
+  new Promise((resolve) => {
+    let stdout = '';
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(binary, ['auth', 'status', '--json'], {
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {
+      resolve({ code: null, stdout: '' });
+      return;
+    }
+    const timer = setTimeout(() => proc.kill(), 5_000);
+    proc.stdout?.on('data', (c) => (stdout += c));
+    proc.on('error', () => {
+      clearTimeout(timer);
+      resolve({ code: null, stdout: '' });
+    });
+    proc.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ code, stdout });
+    });
+  });
+
+/* `claude auth status` answers "loggedIn" without a model call, so the
+   provider list can hide a signed-out CLI instead of offering a model whose
+   first answer is "Not logged in · Please run /login". An older CLI without
+   the subcommand gives no verdict: that connection was verified by a real
+   round trip when the person added it, so it stays. */
+export const interpretAuthStatus = (
+  code: number | null,
+  stdout: string,
+): SignInCheck => {
+  try {
+    const parsed = JSON.parse(stdout) as { loggedIn?: unknown };
+    if (parsed.loggedIn === true) return { ok: true };
+    if (parsed.loggedIn === false) {
+      return {
+        ok: false,
+        message:
+          'Claude Code is not signed in. Run `claude` once in a terminal and sign in.',
+      };
+    }
+  } catch {}
+  if (code === null) {
+    return { ok: false, message: "Couldn't run Claude Code." };
+  }
+  return { ok: true };
+};
+
+const SIGN_IN_CACHE_MS = 60_000;
+const signInCache = new Map<string, { at: number; result: SignInCheck }>();
+
+export const checkClaudeCodeSignedIn = async (
+  binary: string,
+  run: AuthStatusRun = runAuthStatus,
+  now: () => number = Date.now,
+): Promise<SignInCheck> => {
+  const hit = signInCache.get(binary);
+  if (hit && now() - hit.at < SIGN_IN_CACHE_MS) return hit.result;
+  const { code, stdout } = await run(binary);
+  const result = interpretAuthStatus(code, stdout);
+  signInCache.set(binary, { at: now(), result });
+  return result;
+};
+
+export const clearClaudeCodeSignInCache = () => signInCache.clear();
+
 /* Used whenever the caller supplies no system prompt of its own. It only has
    to displace Claude Code's agent persona — the actual task always arrives in
    the prompt. */

@@ -211,16 +211,24 @@ class ConfigManager {
         hash: '',
       };
 
+      let fromEnv = false;
       provider.fields.forEach((field) => {
+        const envValue = field.env ? process.env[field.env] : undefined;
+        if (envValue) fromEnv = true;
         newProvider.config[field.key] =
-          process.env[field.env!] ||
+          envValue ||
           field.default ||
           ''; /* Env var must exist for providers */
 
         if (field.required) newProvider.required?.push(field.key);
       });
 
-      let configured = true;
+      /* Only a provider the environment actually configures is added here.
+         A provider with no required field (Claude Code: its one field is an
+         optional path) used to count as "configured" on every start, so a
+         "Claude (your account)" connection appeared by itself and became
+         the default model over publik even with no signed-in CLI. */
+      let configured = fromEnv;
 
       newProvider.required?.forEach((r) => {
         if (!newProvider.config[r]) {
