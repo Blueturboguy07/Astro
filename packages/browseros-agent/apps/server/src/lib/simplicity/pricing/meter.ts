@@ -32,7 +32,10 @@ export type UsageBreakdownEntry = {
 export type UsageSummary = {
   totalCost: number; // sum of priced entries only
   breakdown: UsageBreakdownEntry[];
-  free: boolean; // true when NO priced entry contributed cost
+  free: boolean; // true only when every entry is a free provider (local models)
+  /* false when a paid entry has no price data (publik's metered models):
+     the UI then shows no price at all, never "Free" (Astro 0.2.4 QA, F-020). */
+  priced: boolean;
 };
 
 type Group = UsageBreakdownEntry & { cachedInputTokens: number };
@@ -89,10 +92,9 @@ export class UsageMeter {
       ({ cachedInputTokens, ...entry }) => entry,
     );
     const totalCost = breakdown.reduce((sum, e) => sum + (e.cost ?? 0), 0);
-    const free = breakdown.every(
-      (e) => e.free || e.cost == null || e.cost === 0,
-    );
+    const free = breakdown.every((e) => e.free);
+    const priced = breakdown.every((e) => e.free || e.cost != null);
 
-    return { totalCost, breakdown, free };
+    return { totalCost, breakdown, free, priced };
   }
 }

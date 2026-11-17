@@ -133,6 +133,8 @@ export type UsageBlock = {
     totalCost: number
     breakdown: UsageBreakdownEntry[]
     free: boolean
+    /* false: a paid model without price data; show no price (F-020). */
+    priced?: boolean
   }
 }
 

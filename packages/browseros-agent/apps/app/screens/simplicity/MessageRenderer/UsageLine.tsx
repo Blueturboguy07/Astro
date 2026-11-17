@@ -36,6 +36,8 @@ const FreeChip = ({ className }: { className?: string }) => (
 const UsageLine = ({ block }: { block: UsageBlock }) => {
   const [open, setOpen] = useState(false)
   const { totalCost, breakdown, free } = block.data
+  /* Older saved answers have no `priced`; they keep their old label. */
+  const priced = block.data.priced !== false
 
   if (breakdown.length === 0) return null
 
@@ -53,10 +55,10 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
       >
         {free ? (
           <FreeChip />
-        ) : (
+        ) : priced ? (
           <span className="tabular-nums">~{formatCost(totalCost)}</span>
-        )}
-        <span>·</span>
+        ) : null}
+        {(free || priced) && <span>·</span>}
         <span className="tabular-nums">{formatTokens(totalTokens)} tokens</span>
         {breakdown.length > 1 && (
           <>
@@ -76,7 +78,11 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
             >
               <div className="flex min-w-0 items-center gap-2">
                 <ProviderLogo
-                  providerKey={entry.providerType}
+                  providerKey={
+                    entry.model.startsWith('publik-')
+                      ? 'publik'
+                      : entry.providerType
+                  }
                   size={14}
                   className="flex-shrink-0 text-black/60 dark:text-white/60"
                 />
@@ -109,7 +115,7 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
           <div className="flex items-center justify-between gap-3 px-3 py-2 font-medium text-xs">
             <span className="text-black/60 dark:text-white/60">Total</span>
             <span className="text-black tabular-nums dark:text-white">
-              {free ? 'Free' : formatCost(totalCost)}
+              {free ? 'Free' : priced ? formatCost(totalCost) : '—'}
             </span>
           </div>
         </div>
