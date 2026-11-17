@@ -130,6 +130,13 @@ export const DEVELOPER_ID =
 export const NOTARY_PROFILE = 'AC_PASSWORD'
 
 const FRAMEWORK_GLOB = 'Contents/Frameworks/BrowserOS Framework.framework'
+/* The local server the browser starts (BrowserOSServer/<product>/…). Not
+   part of the Chromium build: it is this repo's apps/server, compiled by
+   `bun scripts/build/server.ts`. Until --server existed the re-cut never
+   replaced it, so every release shipped whatever server the source bundle
+   carried (0.2.4: one built Jul 31, without the Aug 10 search fixes). */
+export const SERVER_BINARY_PATH =
+  'Contents/Resources/BrowserOSServer/default/resources/bin/browseros_server'
 const EXTENSIONS_DIR = 'Resources/browseros_extensions'
 const BUNDLED_MANIFEST = 'bundled_extensions.json'
 
@@ -223,6 +230,38 @@ export function dropBundledExtension(
       : undefined
   delete out[extensionId]
   return { manifest: out, crxFileName }
+}
+
+/**
+ * A re-cut from a previous Astro bundle (RELEASING.md's normal source) finds
+ * the bug reporter already gone: only the Astro agent is listed and no
+ * reporter CRX is on disk. That is the dropped state, not a drop that did
+ * nothing, so the re-cut skips the drop instead of failing.
+ */
+export function bugReporterAlreadyDropped(
+  manifest: unknown,
+  extensionFiles: string[],
+): boolean {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    return false
+  }
+  const keys = Object.keys(manifest)
+  return (
+    keys.length === 1 &&
+    keys[0] === ASTRO_EXTENSION_ID &&
+    !extensionFiles.includes(`${BUG_REPORTER_EXTENSION_ID}.crx`)
+  )
+}
+
+/** A 64-bit Mach-O (thin) or a universal binary: what the server must be. */
+export function isMachOExecutable(head: Uint8Array): boolean {
+  if (head.byteLength < 4) return false
+  const magic =
+    (head[0] << 24) | (head[1] << 16) | (head[2] << 8) | (head[3] as number)
+  return (
+    magic === (0xcffaedfe | 0) || // MH_MAGIC_64, little-endian on disk
+    magic === (0xcafebabe | 0) // FAT_MAGIC
+  )
 }
 
 export type BinaryPatch = { from: string; to: string; occurrences: number }
@@ -440,6 +479,8 @@ export type RecutOptions = {
   sparkleEdKey?: string
   sign: boolean
   patchId: boolean
+  /** A freshly built browseros_server to install in place of the source bundle's. */
+  server?: string
   identity: string
   dryRun: boolean
 }
@@ -496,6 +537,18 @@ export async function recut(opts: RecutOptions): Promise<string> {
     throw new Error(`Source bundle not found: ${opts.source}`)
   }
   if (!fs.existsSync(opts.crx)) throw new Error(`CRX not found: ${opts.crx}`)
+  if (opts.server) {
+    if (!fs.existsSync(opts.server)) {
+      throw new Error(`Server binary not found: ${opts.server}`)
+    }
+    const head = new Uint8Array(4)
+    const fd = fs.openSync(opts.server, 'r')
+    fs.readSync(fd, head, 0, 4, 0)
+    fs.closeSync(fd)
+    if (!isMachOExecutable(head)) {
+      throw new Error(`--server ${opts.server} is not a macOS executable`)
+    }
+  }
 
   /* The CRX's own manifest is the authority: `external_version` that
      disagrees with it either never upgrades or upgrades forever. */
@@ -514,7 +567,9 @@ export async function recut(opts: RecutOptions): Promise<string> {
   console.log(`[1/7] Copying ${opts.source} → ${appOut}`)
   /* ditto, not cp: it preserves extended attributes, symlinks and the
      resource forks a signed bundle depends on. */
-  if (!opts.dryRun) run('ditto', [opts.source, appOut])
+  /* --clone: on APFS the copy shares blocks with the source until a file
+     changes, so a re-cut needs a few hundred MB less free disk. */
+  if (!opts.dryRun) run('ditto', ['--clone', opts.source, appOut])
 
   const versionDir = opts.dryRun ? '' : frameworkVersionDir(appOut)
   const frameworkBinary = path.join(versionDir, 'BrowserOS Framework')
@@ -585,35 +640,60 @@ export async function recut(opts: RecutOptions): Promise<string> {
       crxFileName: crxName,
       version,
     })
-    /* Drop upstream's bug reporter: entry out of the manifest, CRX off disk.
+    if (bugReporterAlreadyDropped(bumped, fs.readdirSync(extDir))) {
+      fs.writeFileSync(manifestPath, `${JSON.stringify(bumped, null, 2)}\n`)
+      console.log(
+        `      bug reporter already dropped in the source bundle; ` +
+          `bundled_extensions.json lists only ${ASTRO_EXTENSION_ID}`,
+      )
+    } else {
+      /* Drop upstream's bug reporter: entry out of the manifest, CRX off disk.
        Fails loud if it was not there — a re-cut that dropped nothing is a bug.
        Durable only with the phone-home patches in step [4]. */
-    const { manifest: next, crxFileName } = dropBundledExtension(
-      bumped,
-      BUG_REPORTER_EXTENSION_ID,
-    )
-    fs.writeFileSync(manifestPath, `${JSON.stringify(next, null, 2)}\n`)
-    const droppedCrx = crxFileName ?? `${BUG_REPORTER_EXTENSION_ID}.crx`
-    const crxPath = path.join(extDir, droppedCrx)
-    if (!fs.existsSync(crxPath)) {
-      throw new Error(
-        `Bug reporter CRX not found to delete: ${crxPath}. The manifest ` +
-          'listed it but the file is missing — refusing to ship a ' +
-          'half-dropped extension.',
+      const { manifest: next, crxFileName } = dropBundledExtension(
+        bumped,
+        BUG_REPORTER_EXTENSION_ID,
+      )
+      fs.writeFileSync(manifestPath, `${JSON.stringify(next, null, 2)}\n`)
+      const droppedCrx = crxFileName ?? `${BUG_REPORTER_EXTENSION_ID}.crx`
+      const crxPath = path.join(extDir, droppedCrx)
+      if (!fs.existsSync(crxPath)) {
+        throw new Error(
+          `Bug reporter CRX not found to delete: ${crxPath}. The manifest ` +
+            'listed it but the file is missing — refusing to ship a ' +
+            'half-dropped extension.',
+        )
+      }
+      fs.rmSync(crxPath)
+      const remaining = Object.keys(next)
+      if (remaining.length !== 1 || remaining[0] !== ASTRO_EXTENSION_ID) {
+        throw new Error(
+          'bundled_extensions.json must list only the Astro agent after the ' +
+            `drop, but lists: ${remaining.join(', ') || '(none)'}`,
+        )
+      }
+      console.log(
+        `      dropped ${droppedCrx}; bundled_extensions.json now lists only ` +
+          ASTRO_EXTENSION_ID,
       )
     }
-    fs.rmSync(crxPath)
-    const remaining = Object.keys(next)
-    if (remaining.length !== 1 || remaining[0] !== ASTRO_EXTENSION_ID) {
+  }
+
+  const serverOut = path.join(appOut, SERVER_BINARY_PATH)
+  console.log(
+    opts.server
+      ? `[3b/7] Installing the server ${opts.server}`
+      : '[3b/7] Server: kept from the source bundle (no --server)',
+  )
+  if (opts.server && !opts.dryRun) {
+    if (!fs.existsSync(serverOut)) {
       throw new Error(
-        'bundled_extensions.json must list only the Astro agent after the ' +
-          `drop, but lists: ${remaining.join(', ') || '(none)'}`,
+        `The source bundle has no server at ${SERVER_BINARY_PATH}; refusing ` +
+          'to guess where it goes.',
       )
     }
-    console.log(
-      `      dropped ${droppedCrx}; bundled_extensions.json now lists only ` +
-        ASTRO_EXTENSION_ID,
-    )
+    fs.copyFileSync(opts.server, serverOut)
+    fs.chmodSync(serverOut, 0o755)
   }
 
   console.log('[4/7] Neutralizing browseros.com phone-home URLs')
@@ -783,6 +863,10 @@ export async function recut(opts: RecutOptions): Promise<string> {
       run('codesign', codesignArgs(target, opts.identity, entFile))
     }
 
+    /* The server is a plain executable in Resources, which the find above
+       does not list: a new one has to be signed by name (its entitlements
+       come from the source bundle's server, like every other target). */
+    if (opts.server) signPreservingEntitlements(serverOut)
     for (const target of nested) signPreservingEntitlements(target)
     signPreservingEntitlements(appOut)
     fs.rmSync(entDir, { recursive: true, force: true })
@@ -837,7 +921,8 @@ export function parseArgs(argv: string[]): RecutOptions {
     throw new Error(
       'Usage: bun scripts/release/astro-recut.ts --source <Astro.app> --crx <file.crx> ' +
         '[--out dir] [--version 0.0.101] [--sparkle disable|keep] ' +
-        '[--sparkle-feed url] [--sparkle-ed-key base64] [--patch-id] [--sign] [--dry-run]',
+        '[--sparkle-feed url] [--sparkle-ed-key base64] [--server browseros_server] ' +
+        '[--patch-id] [--sign] [--dry-run]',
     )
   }
   const sparkle = (get('--sparkle') ?? 'disable') as 'disable' | 'keep'
@@ -861,6 +946,7 @@ export function parseArgs(argv: string[]): RecutOptions {
     sparkleEdKey: get('--sparkle-ed-key'),
     sign: argv.includes('--sign'),
     patchId: argv.includes('--patch-id'),
+    server: get('--server'),
     identity: get('--identity') ?? DEVELOPER_ID,
     dryRun: argv.includes('--dry-run'),
   }

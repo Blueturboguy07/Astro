@@ -6,6 +6,7 @@ import {
   ASTRO_EXTENSION_ID,
   applyPhoneHomePatches,
   BUG_REPORTER_EXTENSION_ID,
+  bugReporterAlreadyDropped,
   bumpBundledExtension,
   codesignArgs,
   countAscii,
@@ -14,6 +15,7 @@ import {
   DEVELOPER_ID,
   dropBundledExtension,
   entitlementKeys,
+  isMachOExecutable,
   NOTARY_PROFILE,
   notarizeCommands,
   PHONE_HOME_PATCHES,
@@ -21,6 +23,7 @@ import {
   parseArgs,
   patchAsciiInPlace,
   plutilArgs,
+  SERVER_BINARY_PATH,
   sparklePlistOps,
   UPSTREAM_AGENT_EXTENSION_ID,
   UPSTREAM_APPCAST_URL,
@@ -392,5 +395,70 @@ describe('argument parsing', () => {
   it('needs both a source bundle and a CRX', () => {
     expect(() => parseArgs(['--source', 'A.app'])).toThrow(/Usage/)
     expect(() => parseArgs(['--crx', 'a.crx'])).toThrow(/Usage/)
+  })
+})
+
+/* Astro 0.2.4 QA (F-002): the re-cut never replaced the local server, so
+   0.2.4 shipped a server built Jul 31 without the Aug 10 search fixes; and
+   a re-cut from a previous Astro bundle stopped at the bug-reporter drop. */
+describe('server and re-cut from an Astro bundle', () => {
+  it('knows where the server lives in the bundle', () => {
+    expect(SERVER_BINARY_PATH).toBe(
+      'Contents/Resources/BrowserOSServer/default/resources/bin/browseros_server',
+    )
+  })
+
+  it('parses --server', () => {
+    const o = parseArgs([
+      '--source',
+      'A.app',
+      '--crx',
+      'a.crx',
+      '--server',
+      'dist/prod/server/darwin-arm64/resources/bin/browseros_server',
+    ])
+    expect(o.server).toBe(
+      'dist/prod/server/darwin-arm64/resources/bin/browseros_server',
+    )
+    expect(parseArgs(['--source', 'A.app', '--crx', 'a.crx']).server).toBe(
+      undefined,
+    )
+  })
+
+  it('accepts only a macOS executable as the server', () => {
+    expect(isMachOExecutable(new Uint8Array([0xcf, 0xfa, 0xed, 0xfe]))).toBe(
+      true,
+    )
+    expect(isMachOExecutable(new Uint8Array([0xca, 0xfe, 0xba, 0xbe]))).toBe(
+      true,
+    )
+    expect(isMachOExecutable(new TextEncoder().encode('#!/bin/sh'))).toBe(false)
+    expect(isMachOExecutable(new Uint8Array([0x4d, 0x5a, 0x90, 0x00]))).toBe(
+      false,
+    )
+  })
+
+  it('sees a previous Astro bundle as already dropped', () => {
+    const astroOnly = { [ASTRO_EXTENSION_ID]: { external_version: '0.0.103' } }
+    expect(
+      bugReporterAlreadyDropped(astroOnly, [
+        `${ASTRO_EXTENSION_ID}.crx`,
+        'bundled_extensions.json',
+      ]),
+    ).toBe(true)
+  })
+
+  it('still drops the reporter when it is listed or its CRX is on disk', () => {
+    expect(
+      bugReporterAlreadyDropped(
+        { [ASTRO_EXTENSION_ID]: {}, [BUG_REPORTER_EXTENSION_ID]: {} },
+        [],
+      ),
+    ).toBe(false)
+    expect(
+      bugReporterAlreadyDropped({ [ASTRO_EXTENSION_ID]: {} }, [
+        `${BUG_REPORTER_EXTENSION_ID}.crx`,
+      ]),
+    ).toBe(false)
   })
 })

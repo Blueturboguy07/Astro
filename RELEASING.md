@@ -117,6 +117,24 @@ What it does, in order, failing loudly rather than shipping something wrong:
   entry of `bundled_extensions.json` — upstream's bug-reporter entry is left
   untouched. `external_version` is read from the CRX's own manifest, so the two
   cannot drift.
+- Re-cutting from a previous Astro bundle (the bug reporter is already gone)?
+  The drop is skipped; it is not an error.
+- With `--server <browseros_server>`: install that server in
+  `Contents/Resources/BrowserOSServer/default/resources/bin/` and sign it with
+  the entitlements of the source bundle's server. **Without it the bundle keeps
+  the source bundle's server** — 0.2.4 shipped a server built Jul 31 that had
+  none of the Aug 10 web-search fixes (QA F-002). Build the server first:
+
+  ```bash
+  BROWSEROS_CONFIG_URL=https://astro.invalid/api/browseros-server/config \
+  NODE_ENV=production LOG_LEVEL=info \
+    bun scripts/build/server.ts --target=darwin-arm64 --no-upload
+  # → dist/prod/server/darwin-arm64/resources/bin/browseros_server
+  ```
+
+  The server's resource manifest pulls Bun from R2; without R2 credentials pass
+  `--manifest` with a copy of `scripts/build/config/server-prod-resources.json`
+  that has only the `local` rules (the bundle already carries `third_party/bun`).
 - The Sparkle fix (§5).
 - Sign inside-out with `--options runtime --timestamp`, then
   `codesign --verify --deep --strict`.
