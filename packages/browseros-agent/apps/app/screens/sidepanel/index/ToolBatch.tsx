@@ -47,7 +47,10 @@ export const ToolBatch: FC<ToolBatchProps> = ({
   }, [isStreaming, isLastMessage, isLastBatch, hasUserInteracted])
 
   const completedCount = tools.filter((t) => isToolCompleted(t.state)).length
-  const triggerTitle = `${completedCount}/${tools.length} actions completed`
+  const failedCount = tools.filter((t) => isToolError(t.state)).length
+  const triggerTitle =
+    `${completedCount}/${tools.length} actions completed` +
+    (failedCount > 0 ? `, ${failedCount} failed` : '')
 
   const onManualToggle = (newState: boolean) => {
     setHasUserInteracted(true)

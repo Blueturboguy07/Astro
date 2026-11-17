@@ -36,6 +36,24 @@ export type MessageSegment =
 
 const NUDGE_TOOLS = new Set(['suggest_schedule', 'suggest_app_connection'])
 
+/**
+ * Browser, MCP and filesystem tools report a failure as a normal result with
+ * `isError: true`, which arrives in state 'output-available'. Show it as
+ * failed: the side panel drew a green check and "3/3 actions completed" after
+ * a refused upload (Astro 0.2.4 QA).
+ */
+export function shownToolState(
+  state: ToolInvocationState,
+  output: unknown,
+): ToolInvocationState {
+  if (state !== 'output-available' && state !== 'result') return state
+  const failed =
+    !!output &&
+    typeof output === 'object' &&
+    (output as { isError?: unknown }).isError === true
+  return failed ? 'output-error' : state
+}
+
 function parseNudgeOutput(output: unknown): NudgeData | null {
   try {
     // output is { content: [{ type: "text", text: "JSON..." }], isError: false }
@@ -140,7 +158,7 @@ export const getMessageSegments = (
         }
       } else if (!NUDGE_TOOLS.has(toolName)) {
         currentToolBatch.push({
-          state: toolPart.state,
+          state: shownToolState(toolPart.state, toolPart.output),
           toolCallId: toolPart.toolCallId,
           toolName,
           input: toolPart?.input ?? {},
