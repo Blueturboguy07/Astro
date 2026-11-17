@@ -51,6 +51,13 @@ export interface AiSdkAgentConfig {
   outputFileAccess?: BrowserOutputFileAccess
 }
 
+/** A scheduled run's new tabs open in its hidden window (F-084). */
+function scheduledRunWindowId(config: AiSdkAgentConfig): number | undefined {
+  return config.resolvedConfig.isScheduledTask
+    ? config.browserContext?.windowId
+    : undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -216,6 +223,7 @@ export class AiSdkAgent {
       : buildBrowserToolSet(config.browserSession, {
           readOnly: config.resolvedConfig.chatMode,
           outputFileAccess,
+          defaultWindowId: scheduledRunWindowId(config),
         })
     const reservedBrowserToolNames = new Set(Object.keys(allBrowserTools))
     const chatModeAllowedTools = CHAT_MODE_ALLOWED_TOOLS

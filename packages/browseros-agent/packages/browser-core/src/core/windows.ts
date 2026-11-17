@@ -16,9 +16,19 @@ export class WindowManager {
     return result.windows as WindowInfo[]
   }
 
-  async create(): Promise<WindowInfo> {
+  /** `hidden`: a window that is never shown and never takes the focus
+      (BrowserOS CDP), for work the person did not start, like a scheduled
+      run. */
+  async create(opts?: { hidden?: boolean; url?: string }): Promise<WindowInfo> {
     await this.ensureConnected()
-    const result = await this.cdp.Browser.createWindow()
+    const result = await this.cdp.Browser.createWindow(
+      opts?.hidden || opts?.url
+        ? {
+            ...(opts.hidden && { hidden: true }),
+            ...(opts.url && { url: opts.url }),
+          }
+        : undefined,
+    )
     return result.window as WindowInfo
   }
 

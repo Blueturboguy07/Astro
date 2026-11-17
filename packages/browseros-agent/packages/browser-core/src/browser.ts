@@ -41,6 +41,19 @@ export class Browser {
     await this.core.pages.close(page)
   }
 
+  /** A hidden window for a scheduled run (Astro 0.2.4 QA, F-084): its tabs
+      never appear in, or take the focus from, the person's windows. */
+  async newHiddenWindow(): Promise<number> {
+    return (
+      await this.core.windows.create({ hidden: true, url: 'about:blank' })
+    ).windowId
+  }
+
+  /** Closes the window and every tab in it. */
+  async closeWindow(windowId: number): Promise<void> {
+    await this.core.windows.close(windowId)
+  }
+
   async resolveTabIds(tabIds: number[]): Promise<Map<number, number>> {
     return this.core.pages.resolveTabIds(tabIds)
   }

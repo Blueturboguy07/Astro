@@ -58,7 +58,9 @@ export class PageManager {
   /** Reconcile the registry with the browser's live tabs (upsert + drop vanished). */
   async list(): Promise<PageInfo[]> {
     await this.ensureConnected()
-    const result = await this.cdp.Browser.getTabs()
+    /* includeHidden: a scheduled run works in a hidden window (F-084);
+       without it every list() dropped the run's own pages. */
+    const result = await this.cdp.Browser.getTabs({ includeHidden: true })
     const tabs = (result.tabs as ProtocolTabInfo[]).filter(
       (tab) =>
         !EXCLUDED_URL_PREFIXES.some((prefix) => tab.url.startsWith(prefix)),

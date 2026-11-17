@@ -33,7 +33,8 @@ describe('PageManager', () => {
 
     const listed = await pages.list()
 
-    expect(getTabsCalls).toEqual([[]])
+    /* Hidden tabs too: a scheduled run's hidden window (F-084). */
+    expect(getTabsCalls).toEqual([[{ includeHidden: true }]])
     expect(listed).toEqual([
       {
         pageId: 1,

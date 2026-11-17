@@ -30,6 +30,7 @@ import {
   describeModeChange,
   describeWorkspaceChange,
 } from './chat-service.helpers'
+import { closeScheduledRun, openScheduledRunPage } from './scheduled-run-window'
 
 export interface ChatServiceDeps {
   sessionStore: SessionStore
@@ -191,31 +192,22 @@ export class ChatService {
     if (!session) {
       isNewSession = true
       let scheduledPageId: number | undefined
+      let scheduledWindowId: number | undefined
       let browserContext = await resolveBrowserContextPageIds(
         this.deps.browser,
         request.browserContext,
       )
       if (request.isScheduledTask) {
         try {
-          scheduledPageId = await this.deps.browser.newPage('about:blank', {
-            background: true,
-          })
-          let scheduledWindowId: number | undefined
-          try {
-            const scheduledPage = (await this.deps.browser.listPages()).find(
-              (page) => page.pageId === scheduledPageId,
-            )
-            scheduledWindowId = scheduledPage?.windowId
-          } catch (error) {
-            logger.warn('Failed to look up scheduled page metadata', {
-              conversationId: request.conversationId,
-              pageId: scheduledPageId,
-              error: error instanceof Error ? error.message : String(error),
-            })
-          }
+          const run = await openScheduledRunPage(
+            this.deps.browser,
+            request.conversationId,
+          )
+          scheduledPageId = run.pageId
+          scheduledWindowId = run.hiddenWindowId
           browserContext = {
             ...browserContext,
-            windowId: scheduledWindowId,
+            windowId: run.windowId,
             selectedTabs: undefined,
             tabs: undefined,
             activeTab: {
@@ -225,10 +217,11 @@ export class ChatService {
               title: 'Scheduled Task',
             },
           }
-          logger.info('Created background page for scheduled task', {
+          logger.info('Created page for scheduled task', {
             conversationId: request.conversationId,
             pageId: scheduledPageId,
-            windowId: scheduledWindowId,
+            windowId: run.windowId,
+            hidden: run.hiddenWindowId !== undefined,
           })
         } catch (error) {
           logger.warn(
@@ -253,6 +246,7 @@ export class ChatService {
       session = {
         agent,
         scheduledPageId,
+        scheduledWindowId,
         browserContext,
         mcpServerKey,
         workingDir: request.userWorkingDir,
@@ -398,10 +392,8 @@ export class ChatService {
           totalMessages: session.agent.messages.length,
         })
 
-        if (session?.scheduledPageId) {
-          const pageId = session.scheduledPageId
-          session.scheduledPageId = undefined
-          this.closeScheduledPage(pageId, request.conversationId)
+        if (session?.scheduledPageId || session?.scheduledWindowId) {
+          this.endScheduledRun(session, request.conversationId)
         }
       },
     })
@@ -415,23 +407,21 @@ export class ChatService {
     conversationId: string,
   ): Promise<{ deleted: boolean; sessionCount: number }> {
     const session = this.deps.sessionStore.get(conversationId)
-    if (session?.scheduledPageId) {
-      const pageId = session.scheduledPageId
-      session.scheduledPageId = undefined
-      this.closeScheduledPage(pageId, conversationId)
+    if (session?.scheduledPageId || session?.scheduledWindowId) {
+      this.endScheduledRun(session, conversationId)
     }
     const deleted = await this.deps.sessionStore.delete(conversationId)
     return { deleted, sessionCount: this.deps.sessionStore.count() }
   }
 
-  private closeScheduledPage(pageId: number, conversationId: string): void {
-    this.deps.browser.closePage(pageId).catch((error) => {
-      logger.warn('Failed to close scheduled page', {
-        pageId,
-        conversationId,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    })
+  private endScheduledRun(session: AgentSession, conversationId: string): void {
+    const run = {
+      pageId: session.scheduledPageId,
+      hiddenWindowId: session.scheduledWindowId,
+    }
+    session.scheduledPageId = undefined
+    session.scheduledWindowId = undefined
+    void closeScheduledRun(this.deps.browser, run, conversationId)
   }
 
   private async rebuildSession(
@@ -468,6 +458,7 @@ export class ChatService {
     const newSession: AgentSession = {
       agent,
       scheduledPageId: session.scheduledPageId,
+      scheduledWindowId: session.scheduledWindowId,
       browserContext,
       mcpServerKey,
       workingDir: request.userWorkingDir,

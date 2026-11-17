@@ -6,6 +6,9 @@ import type { AiSdkAgent } from './ai-sdk-agent'
 export interface AgentSession {
   agent: AiSdkAgent
   scheduledPageId?: number
+  /** The hidden window of a scheduled run; closing it closes every tab the
+      run opened (F-084). */
+  scheduledWindowId?: number
   /** Browser context scoped to the scheduled background page. */
   browserContext?: BrowserContext
   /** MCP server names used when the session was created, for change detection. */

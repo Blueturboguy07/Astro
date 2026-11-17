@@ -20,6 +20,9 @@ import { metrics } from '../lib/metrics'
 export interface BrowserToolSetOptions {
   readOnly?: boolean
   outputFileAccess?: BrowserOutputFileAccess
+  /** New tabs open here (a scheduled run's hidden window, F-084), not in
+      the window the person last used. */
+  defaultWindowId?: number
 }
 
 interface ToolExecuteOptions {
@@ -140,6 +143,7 @@ export function buildBrowserToolSet(
               executeBrowserTool(def, params as Record<string, unknown>, {
                 session,
                 signal,
+                defaultWindowId: options.defaultWindowId,
               }),
             ))
           const durationMs = Math.round(performance.now() - startTime)
