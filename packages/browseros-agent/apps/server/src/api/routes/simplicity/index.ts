@@ -20,8 +20,6 @@ import * as config from './config/route'
 import * as setupComplete from './config/setup-complete/route'
 import * as discover from './discover/route'
 import * as images from './images/route'
-import * as localRuntimeClaude from './local-runtime/claude/route'
-import * as localRuntimeOllama from './local-runtime/ollama/route'
 import * as providerById from './providers/[id]/route'
 import * as providerModels from './providers/[id]/models/route'
 import * as providers from './providers/route'
@@ -90,14 +88,6 @@ export function createSimplicityRoutes(): Hono {
   app.post('/weather', adapt(weather.POST as Handler))
   app.post('/uploads', adapt(uploads.POST as Handler))
 
-  app.get('/local-runtime/ollama', adapt(localRuntimeOllama.GET as Handler))
-  if ('POST' in localRuntimeOllama) {
-    app.post('/local-runtime/ollama', adapt(localRuntimeOllama.POST as Handler))
-  }
-  app.get('/local-runtime/claude', adapt(localRuntimeClaude.GET as Handler))
-  if ('POST' in localRuntimeClaude) {
-    app.post('/local-runtime/claude', adapt(localRuntimeClaude.POST as Handler))
-  }
 
   return app
 }
