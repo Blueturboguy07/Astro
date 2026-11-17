@@ -58,3 +58,10 @@ export function needsReconnect(
 ): boolean {
   return last?.status === 'answering' && !liveTurns.has(last.messageId)
 }
+
+/** How the server says a turn ended; older servers send no status. */
+export function statusAtEnd(event: {
+  status?: unknown
+}): 'completed' | 'cancelled' {
+  return event.status === 'cancelled' ? 'cancelled' : 'completed'
+}

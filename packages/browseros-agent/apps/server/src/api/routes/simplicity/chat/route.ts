@@ -1,4 +1,5 @@
 import { z } from 'zod/v4';
+import { messageEndEvent } from '../../../../lib/simplicity/turn-end';
 import ModelRegistry from '../../../../lib/simplicity/models/registry';
 import { availableRows, ResolvedRow, reasoningEffortFor } from '../../../../lib/simplicity/models/catalog';
 import { ModelWithProvider, MinimalProvider } from '../../../../lib/simplicity/models/types';
@@ -380,7 +381,7 @@ export const POST = async (req: Request) => {
           safeWrite({ type: 'researchComplete' });
         }
       } else if (event === 'end') {
-        safeWrite({ type: 'messageEnd' });
+        safeWrite(messageEndEvent(data));
         safeClose();
         session.removeAllListeners();
       } else if (event === 'error') {

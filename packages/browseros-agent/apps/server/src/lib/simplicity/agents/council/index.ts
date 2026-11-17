@@ -1,4 +1,5 @@
 import SessionManager from '../../session';
+import { turnEndStatus } from '../../turn-end';
 import { classify } from '../search/classifier';
 import Researcher from '../search/researcher';
 import { CONTEXT_TOKEN_BUDGET, budgetChunks } from '../search/contextBudget';
@@ -423,7 +424,7 @@ class CouncilAgent {
       });
     }
 
-    session.emit('end', {});
+    session.emit('end', turnEndStatus(input.config.signal?.aborted));
 
     if (!input.config.incognito) {
       await db

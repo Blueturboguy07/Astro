@@ -28,6 +28,7 @@ import type { MinimalProvider } from '../models/types'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
 import {
   needsReconnect,
+  statusAtEnd,
   readTurnStream,
   TURN_LOST_TEXT,
 } from '@/lib/simplicity/read-turn-stream'
@@ -827,15 +828,18 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
         chatHistory.current = newHistory
 
+        /* 'cancelled' when the server ended a turn that a reload or Stop
+           aborted: the page that reconnects to it shows the stopped note
+           and Retry (F-059). */
+        const endStatus = statusAtEnd(data)
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.messageId === messageId
-              ? { ...msg, status: 'completed' as const }
-              : msg,
+            msg.messageId === messageId ? { ...msg, status: endStatus } : msg,
           ),
         )
 
         setLoading(false)
+        if (endStatus === 'cancelled') setResearchEnded(true)
 
         const lastMsg = messagesRef.current[messagesRef.current.length - 1]
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test'
-import { needsReconnect, readTurnStream } from './read-turn-stream'
+import {
+  needsReconnect,
+  readTurnStream,
+  statusAtEnd,
+} from './read-turn-stream'
 
 const streamOf = (...parts: string[]) =>
   new ReadableStream<Uint8Array>({
@@ -49,5 +53,14 @@ describe('needsReconnect', () => {
     expect(needsReconnect({ status: 'answering', messageId: 'm2' }, live)).toBe(true)
     expect(needsReconnect({ status: 'completed', messageId: 'm2' }, live)).toBe(false)
     expect(needsReconnect(undefined, live)).toBe(false)
+  })
+})
+
+describe('statusAtEnd (F-059 reload before any text)', () => {
+  it('keeps the cancelled status the server sends on messageEnd', () => {
+    expect(statusAtEnd({ status: 'cancelled' })).toBe('cancelled')
+    expect(statusAtEnd({ status: 'completed' })).toBe('completed')
+    /* An older server sends no status. */
+    expect(statusAtEnd({})).toBe('completed')
   })
 })

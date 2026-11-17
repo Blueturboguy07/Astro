@@ -1,4 +1,5 @@
 import { ResearcherOutput, SearchAgentInput } from './types';
+import { turnEndStatus } from '../../turn-end';
 import SessionManager from '../../session';
 import { withIdleLimit } from '../../models/time-limits';
 import { classify } from './classifier';
@@ -228,7 +229,7 @@ class SearchAgent {
       });
     }
 
-    session.emit('end', {});
+    session.emit('end', turnEndStatus(input.config.signal?.aborted));
 
     if (!incognito) {
       await db

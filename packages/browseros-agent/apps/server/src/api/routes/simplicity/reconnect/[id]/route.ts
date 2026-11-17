@@ -1,4 +1,5 @@
 import { ndjsonWriter } from '../../ndjson-writer';
+import { messageEndEvent } from '../../../../../lib/simplicity/turn-end';
 import SessionManager from '../../../../../lib/simplicity/session';
 
 export const POST = async (
@@ -31,7 +32,7 @@ export const POST = async (
           out.write({ type: 'researchComplete' });
         }
       } else if (event === 'end') {
-        out.write({ type: 'messageEnd' });
+        out.write(messageEndEvent(data));
         out.close();
         disconnect();
       } else if (event === 'error') {
