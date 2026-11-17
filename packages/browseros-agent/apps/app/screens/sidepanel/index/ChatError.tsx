@@ -1,20 +1,8 @@
 import { AlertCircle, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { parsePublikLimitError } from '@/lib/publik/limit-error'
 import { publikLink } from '@/lib/publik/publik'
-
-const SURVEY_DIRECTIONS = [
-  'competitor',
-  'switching',
-  'workflow',
-  'activation',
-] as const
-
-function pickRandomDirection(): string {
-  return SURVEY_DIRECTIONS[Math.floor(Math.random() * SURVEY_DIRECTIONS.length)]
-}
 
 export interface ChatErrorProps {
   error: Error
@@ -23,6 +11,7 @@ export interface ChatErrorProps {
 }
 
 const PUBLIK_PLANS_URL = 'https://publikhq.com/wallet/add'
+const OWN_KEY_SETTINGS_URL = '/app.html#/settings/ai'
 
 const STREAM_DROPPED =
   /\bnetwork ?error\b|ERR_(CONNECTION_(REFUSED|RESET|CLOSED)|EMPTY_RESPONSE|NETWORK_CHANGED)|\bLoad failed\b/i
@@ -117,9 +106,11 @@ function parseErrorMessage(
     isBrowserosProvider &&
     message.includes('Astro LLM daily limit reached')
   ) {
+    /* Upstream linked a BrowserOS Google Form here (F-079): the way out is
+       an own key in Astro's settings. */
     return {
-      text: 'Add your own API key for unlimited usage.',
-      url: 'https://dub.sh/browseros-usage-limit',
+      text: 'The built-in model reached its daily limit. Add your own API key in Settings for unlimited use.',
+      url: OWN_KEY_SETTINGS_URL,
       isRateLimit: true,
     }
   }
@@ -156,12 +147,6 @@ export const ChatError: FC<ChatErrorProps> = ({
     isModelIdle,
     title,
   } = parseErrorMessage(error.message, providerType)
-
-  const surveyUrl = useMemo(
-    () =>
-      `/app.html?page=survey&maxTurns=20&experimentId=daily_limit_${pickRandomDirection()}#/settings/survey`,
-    [],
-  )
 
   const getTitle = () => {
     if (title) return title
@@ -210,26 +195,15 @@ export const ChatError: FC<ChatErrorProps> = ({
           View Usage & Billing
         </a>
       )}
-      {isRateLimit && !isCreditsExhausted && (
-        <p className="text-muted-foreground text-xs">
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground"
-          >
-            About daily limits
-          </a>
-          {' or '}
-          <a
-            href={surveyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground"
-          >
-            take a quick survey
-          </a>
-        </p>
+      {isRateLimit && !isCreditsExhausted && url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-muted-foreground text-xs underline hover:text-foreground"
+        >
+          Add your own API key
+        </a>
       )}
       {canRetry && (
         <Button

@@ -177,10 +177,6 @@ export const NewTabChat: FC = () => {
             onClickLike={onClickLike}
             disliked={disliked}
             onClickDislike={onClickDislike}
-            showJtbdPopup={false}
-            showDontShowAgain={false}
-            onTakeSurvey={() => {}}
-            onDismissJtbdPopup={() => {}}
           />
         )}
         {agentUrlError && (

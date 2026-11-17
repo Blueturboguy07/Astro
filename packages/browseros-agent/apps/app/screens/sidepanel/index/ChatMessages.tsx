@@ -20,7 +20,6 @@ import type { ChatAction } from '@/lib/chat-actions/types'
 import { ChatMessageActions } from './ChatMessageActions'
 import { ConnectAppCard } from './ConnectAppCard'
 import { getMessageSegments } from './getMessageSegments'
-import { JtbdPopup } from './JtbdPopup'
 import { ScheduleSuggestionCard } from './ScheduleSuggestionCard'
 import { ToolBatch } from './ToolBatch'
 import { UserActionMessage } from './UserActionMessage'
@@ -33,10 +32,6 @@ export interface ChatMessagesProps {
   onClickLike: (messageId: string) => void
   disliked: Record<string, boolean>
   onClickDislike: (messageId: string, comment?: string) => void
-  showJtbdPopup: boolean
-  showDontShowAgain: boolean
-  onTakeSurvey: (opts?: { dontShowAgain?: boolean }) => void
-  onDismissJtbdPopup: (dontShowAgain: boolean) => void
 }
 
 export const ChatMessages: FC<ChatMessagesProps> = ({
@@ -47,10 +42,6 @@ export const ChatMessages: FC<ChatMessagesProps> = ({
   disliked,
   onClickLike,
   onClickDislike,
-  showJtbdPopup,
-  showDontShowAgain,
-  onTakeSurvey,
-  onDismissJtbdPopup,
 }) => {
   const isStreaming = status === 'streaming' || status === 'submitted'
 
@@ -152,13 +143,6 @@ export const ChatMessages: FC<ChatMessagesProps> = ({
               </Fragment>
             )
           })}
-          {showJtbdPopup && (
-            <JtbdPopup
-              onTakeSurvey={onTakeSurvey}
-              onDismiss={onDismissJtbdPopup}
-              showDontShowAgain={showDontShowAgain}
-            />
-          )}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>

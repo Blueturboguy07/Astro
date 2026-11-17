@@ -8,7 +8,6 @@ import { LoginPage } from '@/screens/auth/LoginPage'
 import { LogoutPage } from '@/screens/auth/LogoutPage'
 import { ConnectMCP } from '@/screens/connect-mcp/ConnectMCP'
 import { CustomizationPage } from '@/screens/customization/CustomizationPage'
-import { SurveyPage } from '@/screens/jtbd-agent/SurveyPage'
 import { LlmHubPage } from '@/screens/llm-hub/LlmHubPage'
 import { MCPSettingsPage } from '@/screens/mcp-settings/MCPSettingsPage'
 import { ProfilePage } from '@/screens/profile/ProfilePage'
@@ -28,14 +27,6 @@ import {
 import { SimplicityApp } from '@/screens/simplicity/SimplicityApp'
 import { UsagePage } from '@/screens/usage/UsagePage'
 
-function getSurveyParams(): { maxTurns?: number; experimentId?: string } {
-  const params = new URLSearchParams(window.location.search)
-  const maxTurnsStr = params.get('maxTurns')
-  const experimentId = params.get('experimentId') ?? 'default'
-  const maxTurns = maxTurnsStr ? Number.parseInt(maxTurnsStr, 10) : 7
-  return { maxTurns, experimentId }
-}
-
 // Agent management moved into AI & Agents settings; conversations live under
 // /home/agents. Keep old /agents links alive.
 const LegacyAgentRedirect: FC = () => {
@@ -54,7 +45,6 @@ const OptionsRedirect: FC = () => {
     mcp: '/settings/mcp',
     customization: '/settings/customization',
     search: '/settings/ai',
-    'jtbd-agent': '/settings/survey',
     scheduled: '/scheduled',
   }
 
@@ -63,8 +53,6 @@ const OptionsRedirect: FC = () => {
 }
 
 export const App: FC = () => {
-  const surveyParams = getSurveyParams()
-
   return (
     <HashRouter>
       {/* Sign in with publik: every route waits behind the gate until the
@@ -121,7 +109,6 @@ export const App: FC = () => {
                 path="search"
                 element={<Navigate to="/settings/ai" replace />}
               />
-              <Route path="survey" element={<SurveyPage {...surveyParams} />} />
               <Route path="usage" element={<UsagePage />} />
               <Route
                 path="*"

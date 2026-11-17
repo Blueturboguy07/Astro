@@ -17,7 +17,6 @@ import { track } from '@/lib/metrics/track'
 import { refreshPublikAccount } from '@/lib/publik/useGate'
 import { useChatSessionContext } from '@/modules/chat/chat-session-context'
 import type { ChatMode } from '@/modules/chat/chat-types'
-import { useJtbdPopup } from '@/modules/jtbd-popup/jtbd-popup.hooks'
 import { useVoiceInput } from '@/modules/voice/voice.hooks'
 import {
   type ChatSessionLike,
@@ -55,15 +54,6 @@ export const Chat = () => {
     retryLastTurn,
   } = useChatSessionContext()
 
-  const {
-    popupVisible,
-    showDontShowAgain,
-    recordMessageSent,
-    triggerIfEligible,
-    onTakeSurvey,
-    onDismiss: onDismissJtbdPopup,
-  } = useJtbdPopup()
-
   const voice = useVoiceInput()
   const chatSessionRef = useRef<ChatSessionLike | null>(null)
   chatSessionRef.current = { sendMessage, stop, status, messages }
@@ -97,21 +87,6 @@ export const Chat = () => {
       setAttachedTabs(currentTab)
     })()
   }, [])
-
-  // Trigger JTBD popup when AI finishes responding
-  const previousChatStatus = useRef(status)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only trigger on status change
-  useEffect(() => {
-    const aiWasProcessing =
-      previousChatStatus.current === 'streaming' ||
-      previousChatStatus.current === 'submitted'
-    const aiJustFinished = aiWasProcessing && status === 'ready'
-
-    if (aiJustFinished && messages.length > 0) {
-      triggerIfEligible()
-    }
-    previousChatStatus.current = status
-  }, [status])
 
   // Insert transcript into input when transcription completes
   // biome-ignore lint/correctness/useExhaustiveDependencies: only trigger on transcript/transcribing change
@@ -164,8 +139,6 @@ export const Chat = () => {
   const executeMessage = (customMessageText?: string) => {
     const messageText = customMessageText ? customMessageText : input.trim()
     if (!messageText) return
-
-    recordMessageSent()
 
     if (attachedTabs.length) {
       const action = createAstroAction({
@@ -248,10 +221,6 @@ export const Chat = () => {
             onClickLike={onClickLike}
             disliked={disliked}
             onClickDislike={onClickDislike}
-            showJtbdPopup={popupVisible}
-            showDontShowAgain={showDontShowAgain}
-            onTakeSurvey={onTakeSurvey}
-            onDismissJtbdPopup={onDismissJtbdPopup}
           />
         )}
         {agentUrlError && (
