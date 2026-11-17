@@ -25,17 +25,46 @@
  * "Astro Onboarding" / chrome://version "Astro" where the base read
  * "BrowserOS".
  *
- * Only capitalized product-name "BrowserOS" is touched. Lowercase `browseros`
- * (URL slugs, pref keys), the `chrome.browserOS` API surface, and the
- * `browseros_server` binary name never match, so functional identifiers are
- * left intact.
+ * Only the capitalized product name "BrowserOS" as a word is touched.
+ * Lowercase `browseros` (URL slugs, pref keys), the `chrome.browserOS` API
+ * surface and the `browseros_server` binary name never match. Neither does
+ * "BrowserOS" inside a longer identifier: the first version rewrote it there
+ * too, and `$i18n{aboutBrowserOSVersion}` in the settings bundle became
+ * `$i18n{aboutAstroVersion}`, a key the browser does not register — so
+ * chrome://settings never finished loading (Astro 0.2.4 QA, F-009). The
+ * self-test now also fails a pak whose `$i18n{…}` keys changed.
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as zlib from 'node:zlib'
 
-const BRAND_FROM = /BrowserOS/g
+/* A letter or `_` before, or a letter, digit or `_` after, makes it part of
+   an identifier (aboutBrowserOSVersion, BrowserOSPrefs). A digit before is
+   allowed: message placeholders run into text ("$1BrowserOS can check…"). */
+const BRAND_FROM = /(?<![A-Za-z_])BrowserOS(?![A-Za-z0-9_])/g
 const BRAND_TO = 'Astro'
+const I18N_KEY = /\$i18n[A-Za-z]*\{([^}]*)\}/g
+
+function i18nKeys(text: string): string[] {
+  return [...text.matchAll(I18N_KEY)].map((m) => m[1]).sort()
+}
+
+/**
+ * `$i18n{…}` keys that a rebrand of an earlier version renamed: an upstream
+ * key never holds "Astro". A pak with any of these came from an Astro bundle
+ * cut before the F-009 fix and has to be rebuilt from upstream's paks.
+ */
+export function renamedI18nKeys(buf: Uint8Array): string[] {
+  const keys = new Set<string>()
+  for (const it of parsePak(buf).items) {
+    const d = decode(it.data)
+    if (!d) continue
+    for (const k of i18nKeys(d.text.toString('latin1'))) {
+      if (k.includes(BRAND_TO)) keys.add(k)
+    }
+  }
+  return [...keys].sort()
+}
 
 type Entry = { id: number; data: Uint8Array }
 type Pak = {
@@ -134,7 +163,7 @@ function looksText(buf: Buffer): boolean {
   return printable / sample.length > 0.85
 }
 
-function rebrandText(buf: Buffer): { out: Buffer; changed: number } {
+export function rebrandText(buf: Buffer): { out: Buffer; changed: number } {
   if (!looksText(buf)) return { out: buf, changed: 0 }
   const s = buf.toString('latin1')
   const m = s.match(BRAND_FROM)
@@ -206,16 +235,32 @@ export function selfTestRebrand(orig: Uint8Array, next: Uint8Array): string[] {
   }
   let residual = 0
   let decodeFail = 0
-  for (const it of b.items) {
+  const keyChanges: number[] = []
+  for (let i = 0; i < b.items.length; i++) {
+    const it = b.items[i]
     const d = decode(it.data)
     if (!d) {
       decodeFail++
       continue
     }
-    if (d.text.toString('latin1').includes('BrowserOS')) residual++
+    const text = d.text.toString('latin1')
+    if (text.match(BRAND_FROM)) residual++
+    const before = a.items[i] ? decode(a.items[i].data) : null
+    if (
+      before &&
+      i18nKeys(before.text.toString('latin1')).join('\n') !==
+        i18nKeys(text).join('\n')
+    ) {
+      keyChanges.push(it.id)
+    }
   }
   if (residual) problems.push(`${residual} entries still contain "BrowserOS"`)
   if (decodeFail) problems.push(`${decodeFail} entries fail to decode`)
+  if (keyChanges.length) {
+    problems.push(
+      `$i18n keys changed in entr${keyChanges.length === 1 ? 'y' : 'ies'} ${keyChanges.slice(0, 5).join(', ')}`,
+    )
+  }
   return problems
 }
 

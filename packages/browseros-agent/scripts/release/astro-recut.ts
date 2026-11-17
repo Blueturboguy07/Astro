@@ -41,7 +41,7 @@ import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { rebrandResourcePaks } from './pak-rebrand'
+import { findPaks, rebrandResourcePaks, renamedI18nKeys } from './pak-rebrand'
 
 /* Astro's extension id: the fork packs the agent with its own key
    (8b92acb0e), so the id differs from upstream's and the framework has to
@@ -481,6 +481,8 @@ export type RecutOptions = {
   patchId: boolean
   /** A freshly built browseros_server to install in place of the source bundle's. */
   server?: string
+  /** An upstream BrowserOS.app of the same Chromium version: its paks replace the source's before the rebrand. */
+  paksFrom?: string
   identity: string
   dryRun: boolean
 }
@@ -727,6 +729,46 @@ export async function recut(opts: RecutOptions): Promise<string> {
        the rebuilt browser launches and reads "Astro Onboarding" where the base
        read "BrowserOS Onboarding". */
     const resourcesDir = path.join(versionDir, 'Resources')
+    if (opts.paksFrom) {
+      const upstreamResources = path.join(
+        opts.paksFrom,
+        FRAMEWORK_GLOB,
+        'Versions',
+        path.basename(versionDir),
+        'Resources',
+      )
+      if (!fs.existsSync(upstreamResources)) {
+        throw new Error(
+          `--paks-from: ${upstreamResources} not found. The upstream bundle ` +
+            `must carry the same Chromium version (${path.basename(versionDir)}).`,
+        )
+      }
+      const paks = findPaks(upstreamResources)
+      for (const p of paks) {
+        fs.copyFileSync(
+          p,
+          path.join(resourcesDir, path.relative(upstreamResources, p)),
+        )
+      }
+      console.log(`      ${paks.length} pak(s) taken from ${opts.paksFrom}`)
+    }
+    /* Astro bundles up to 0.2.4 carry paks whose $i18n keys the first
+       rebrand renamed (chrome://settings never loads, QA F-009). Rebranding
+       them again cannot repair that: start from upstream's paks. */
+    const broken = [
+      ...new Set(
+        findPaks(resourcesDir).flatMap((p) =>
+          renamedI18nKeys(new Uint8Array(fs.readFileSync(p))),
+        ),
+      ),
+    ]
+    if (broken.length) {
+      throw new Error(
+        `The source bundle's paks carry renamed $i18n keys (${broken.join(', ')}); ` +
+          'chrome://settings cannot load with them. Pass --paks-from <upstream ' +
+          `BrowserOS.app of Chromium ${path.basename(versionDir)}>.`,
+      )
+    }
     const changed = rebrandResourcePaks(resourcesDir)
     const files = Object.keys(changed)
     const strings = files.reduce((n, f) => n + changed[f], 0)
@@ -922,6 +964,7 @@ export function parseArgs(argv: string[]): RecutOptions {
       'Usage: bun scripts/release/astro-recut.ts --source <Astro.app> --crx <file.crx> ' +
         '[--out dir] [--version 0.0.101] [--sparkle disable|keep] ' +
         '[--sparkle-feed url] [--sparkle-ed-key base64] [--server browseros_server] ' +
+        '[--paks-from upstream/BrowserOS.app] ' +
         '[--patch-id] [--sign] [--dry-run]',
     )
   }
@@ -947,6 +990,7 @@ export function parseArgs(argv: string[]): RecutOptions {
     sign: argv.includes('--sign'),
     patchId: argv.includes('--patch-id'),
     server: get('--server'),
+    paksFrom: get('--paks-from'),
     identity: get('--identity') ?? DEVELOPER_ID,
     dryRun: argv.includes('--dry-run'),
   }
