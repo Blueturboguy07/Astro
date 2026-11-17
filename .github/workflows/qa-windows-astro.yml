@@ -1,0 +1,156 @@
+name: "QA: Windows Astro (released installer)"
+
+# Tests the RELEASED Windows installer (Astro-Setup.exe of a GitHub release),
+# not a source build, on a real windows-latest desktop with the browser
+# HEADED. Phase 1 needs no sign-in: O2 install/start/quit/uninstall, the
+# gate's unreachable screen, O8 browser basics, O9 brand and hosts.
+#
+# Results: artifact "astro-qa-windows-<run id>" holds
+#   results/windows/<ID>/result.json {id,title,expected,actual,result,evidence,notes}
+#   + screenshots/logs per row, and results/windows/summary.md.
+# A failing row never stops the job: rows catch their own errors and every
+# step below is continue-on-error; the uninstall, summary and upload always run.
+#
+# Install/launch/port gotchas: see release-windows-astro.yml. Never pass
+# --remote-debugging-port; read <profile>\.browseros\config.json instead.
+#
+# Extend (signed-in phases): add scripts/qa/win/<name>.mjs (import
+# ./lib/astro.mjs, ./lib/rows.mjs, ./lib/publik.mjs) and run it with the
+# workflow_dispatch input extra_scripts="<name>.mjs [more.mjs]" (phase1=false
+# skips phase 1). Extra scripts run after phase 1 and before the uninstall.
+# Only they get the secret ASTRO_QA_PUBLIK_CREDENTIAL (JSON of a publik
+# credential), as env ASTRO_QA_PUBLIK_CREDENTIAL; lib/publik.mjs
+# injectPublikCredential() writes it into the agent's chrome.storage.local
+# through the service-worker CDP target. The secret is not created here.
+
+on:
+  push:
+    branches:
+      - qa/astro-0.2.4-windows
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release whose Astro-Setup.exe is tested"
+        required: false
+        type: string
+        default: "v0.2.4"
+      expect_agent_version:
+        description: "Agent extension version the build should carry"
+        required: false
+        type: string
+        default: "0.0.103"
+      phase1:
+        description: "Run phase 1 (no sign-in rows)"
+        required: false
+        type: boolean
+        default: true
+      extra_scripts:
+        description: "Space-separated scripts in scripts/qa/win to run after phase 1 (e.g. phase2-signed-in.mjs)"
+        required: false
+        type: string
+        default: ""
+      idle_seconds:
+        description: "Idle time of the net-log session (O9-W-07)"
+        required: false
+        type: string
+        default: "180"
+
+concurrency:
+  group: qa-windows-astro-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag || 'v0.2.4' }}
+      EXPECT_AGENT_VERSION: ${{ inputs.expect_agent_version || '0.0.103' }}
+      QA_IDLE_MS: ${{ format('{0}000', inputs.idle_seconds || '180') }}
+      QA_RESULTS_DIR: ${{ github.workspace }}\results\windows
+      QA_WORK: ${{ runner.temp }}\astro-qa
+      PHASE1: ${{ github.event_name == 'push' || inputs.phase1 }}
+    steps:
+      - name: Checkout (harness only)
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            scripts/qa
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Runner facts
+        continue-on-error: true
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "OS: $($os.Caption) $($os.Version)"
+          Write-Host "User: $(whoami); session: $((Get-Process -Id $PID).SessionId); interactive: $([Environment]::UserInteractive)"
+          Write-Host "Screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
+          Write-Host "Node: $(node --version)"
+          New-Item -ItemType Directory -Force -Path $env:QA_RESULTS_DIR, $env:QA_WORK | Out-Null
+
+      - name: Install harness deps (playwright-core)
+        working-directory: scripts/qa/win
+        run: npm install --no-audit --no-fund --loglevel=error
+
+      - name: O2 rows - download, verify, install
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/qa/win/o2-install.ps1
+
+      - name: Phase 1 rows - start, gate, browser basics, brand, hosts
+        if: env.PHASE1 == 'true'
+        continue-on-error: true
+        timeout-minutes: 50
+        run: node scripts/qa/win/phase1.mjs
+
+      - name: Extra scripts
+        if: inputs.extra_scripts != ''
+        continue-on-error: true
+        timeout-minutes: 60
+        env:
+          EXTRA_SCRIPTS: ${{ inputs.extra_scripts }}
+          ASTRO_QA_PUBLIK_CREDENTIAL: ${{ secrets.ASTRO_QA_PUBLIK_CREDENTIAL }}
+        run: |
+          foreach ($s in ($env:EXTRA_SCRIPTS -split '[\s,]+' | Where-Object { $_ })) {
+            if ($s -notmatch '^[A-Za-z0-9._-]+\.mjs$') { Write-Host "skipping unsafe script name: $s"; continue }
+            Write-Host "== $s"
+            node "scripts/qa/win/$s"
+          }
+
+      - name: Stop Astro
+        if: always()
+        run: |
+          Get-Process -ErrorAction SilentlyContinue |
+            Where-Object { try { $_.Path -like "$env:ProgramFiles\Astro\*" } catch { $false } } |
+            Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 3
+
+      - name: O2 row - uninstall
+        if: always()
+        continue-on-error: true
+        run: ./scripts/qa/win/o2-uninstall.ps1
+
+      - name: Summary
+        if: always()
+        run: node scripts/qa/win/summarize.mjs
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: astro-qa-windows-${{ github.run_id }}
+          path: results/windows
+          if-no-files-found: warn
+          retention-days: 30

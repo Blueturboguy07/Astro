@@ -1,0 +1,12 @@
+{
+  "name": "astro-qa-win",
+  "private": true,
+  "type": "module",
+  "description": "Windows QA harness for the released Astro installer (runs on a GitHub windows-latest runner).",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}
