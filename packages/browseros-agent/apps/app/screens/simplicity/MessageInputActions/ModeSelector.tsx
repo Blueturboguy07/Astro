@@ -88,9 +88,14 @@ const ModeSelector = () => {
           </PopoverButton>
           <AnimatePresence>
             {open && (
+              /* Anchored, so it flips above the button when there is no room
+                 below: under the follow-up box at the bottom of an answer it
+                 opened off screen and covered the rail's Settings button
+                 (Astro 0.2.4 QA, F-058). */
               <PopoverPanel
                 static
-                className="absolute right-0 z-50 w-64 md:w-[240px]"
+                anchor={{ to: 'bottom end', gap: 6 }}
+                className="z-50 w-64 md:w-[240px]"
               >
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
