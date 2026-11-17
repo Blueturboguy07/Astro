@@ -1,6 +1,6 @@
 // Start, drive and quit the INSTALLED Astro on the runner, headed.
 //
-// Gotchas (same as .github/workflows/release-windows-astro.yml):
+// Gotchas (same as Blueturboguy07/Astro .github/workflows/release-windows-astro.yml):
 //  - never pass --remote-debugging-port: the bundled server then never
 //    connects. Read the managed ports from <profile>\.browseros\config.json.
 //  - the MV3 service worker of the agent can be lazy; open an app page to wake it.

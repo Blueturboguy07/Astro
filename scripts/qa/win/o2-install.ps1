@@ -1,6 +1,6 @@
 # O2 (Windows): download, verify, sign status, silent install, shortcuts, ARP.
 # pwsh 7, admin (GitHub windows-latest). Writes rows O2-W-01 .. O2-W-05.
-#   env: RELEASE_TAG (v0.2.4), GITHUB_REPOSITORY, GH_TOKEN, QA_WORK, QA_RESULTS_DIR
+#   env: RELEASE_TAG (v0.2.4), RELEASE_REPO (Blueturboguy07/Astro), GH_TOKEN, QA_WORK, QA_RESULTS_DIR
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib\rows.ps1')
 
@@ -22,6 +22,15 @@ Invoke-Row 'O2-W-01' 'Download Astro-Setup.exe from the release; SHA-256 matches
   "gh release download $tag gives Astro-Setup.exe and SHA256SUMS.txt; the file's SHA-256 equals the Astro-Setup.exe line" {
   param($dir)
   gh release download $tag -R $repo -p 'Astro-Setup.exe' -p 'SHA256SUMS.txt' -D $dl --clobber 2>&1 | Write-Host
+  # The release is public: fall back to the plain download URLs (a run from
+  # another repo has a token that may not read this repo's releases).
+  foreach ($n in @('Astro-Setup.exe', 'SHA256SUMS.txt')) {
+    if (-not (Test-Path (Join-Path $dl $n))) {
+      Write-Host "gh did not fetch $n; using https://github.com/$repo/releases/download/$tag/$n"
+      $ProgressPreference = 'SilentlyContinue'
+      Invoke-WebRequest -Uri "https://github.com/$repo/releases/download/$tag/$n" -OutFile (Join-Path $dl $n)
+    }
+  }
   if (-not (Test-Path $setup)) { throw "Astro-Setup.exe not downloaded" }
   Copy-Item (Join-Path $dl 'SHA256SUMS.txt') (Join-Path $dir 'SHA256SUMS.txt')
   $sums = Get-Content (Join-Path $dl 'SHA256SUMS.txt')

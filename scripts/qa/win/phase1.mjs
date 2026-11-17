@@ -88,6 +88,9 @@ const shotDesktop = (ctx, name) => {
 const P1 = A.profilePath('p1')
 let S = null
 let bookmark = null
+const NETLOG_A = path.join(A.WORK, 'netlog-a.json')
+const CAP_A = { sample: path.join(A.WORK, 'tcp-a.jsonl'), stop: path.join(A.WORK, 'tcp-a.stop') }
+let newTab = null // console/page errors of the new tab page (O3-W-03)
 
 await runRow(
   {
@@ -96,7 +99,11 @@ await runRow(
     expected: 'chrome.exe --user-data-dir=<fresh> --no-first-run starts headed; <profile>\\.browseros\\config.json gets ports.cdp and ports.server within 120 s; CDP answers',
   },
   async (ctx) => {
-    S = await A.launch({ profile: P1, fresh: true, args: ['--enable-logging', '--v=0'] })
+    for (const f of [NETLOG_A, CAP_A.sample, CAP_A.stop]) fs.rmSync(f, { force: true })
+    dnsClear()
+    CAP_A.sampler = winBackground('netsample', { Out: CAP_A.sample, StopFile: CAP_A.stop })
+    CAP_A.t0 = Date.now()
+    S = await A.launch({ profile: P1, fresh: true, args: ['--enable-logging', '--v=0', `--log-net-log=${NETLOG_A}`, '--net-log-capture-mode=Default'] })
     ctx.writeJson('config.json', S.cfg)
     await sleep(4000)
     ctx.writeJson('windows.json', appWindows())
@@ -124,6 +131,65 @@ if (needA(D))
     return {
       result: h.ok ? 'pass' : 'fail',
       actual: `/health ${h.health?.status} ${String(h.health?.body ?? h.health?.error ?? '').slice(0, 160)}; /system/health ${h.systemHealth?.status} ${String(h.systemHealth?.body ?? '').slice(0, 160)}; waited ${(h.ms / 1000).toFixed(1)} s`,
+    }
+  })
+
+const redact = (v, k = '') => {
+  if (/key|token|secret|password|authorization|cookie/i.test(k) && typeof v === 'string') return `<redacted len=${v.length}>`
+  if (Array.isArray(v)) return v.map((x) => redact(x))
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([kk, vv]) => [kk, redact(vv, kk)]))
+  return v
+}
+const shape = (v, depth = 0) => {
+  if (Array.isArray(v)) return depth > 2 ? `array(${v.length})` : [`array(${v.length})`, ...(v.length ? [shape(v[0], depth + 1)] : [])]
+  if (v && typeof v === 'object') return depth > 2 ? 'object' : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shape(x, depth + 1)]))
+  return typeof v
+}
+const SERVER_EXE = path.join(INSTALL_DIR, S?.cfg?.instance?.chromium_version ?? '', 'BrowserOSServer', 'default', 'resources', 'bin', 'browseros_server.exe')
+
+D = {
+  id: 'O7-W-01',
+  title: 'Local server has the answer-engine API (/api/providers, /api/config)',
+  expected: 'After first start, GET /api/providers and /api/config on the managed server port answer 200 JSON (as the macOS server does); /system/health 200; record the server version',
+}
+if (needA(D))
+  await runRow(D, async (ctx) => {
+    await A.waitHealth(S.server, 60_000)
+    const paths = ['/api/providers', '/api/config', '/api/chats', '/system/health', '/health', '/status']
+    const out = []
+    for (const p of paths) {
+      const r = await A.httpGet(`http://127.0.0.1:${S.server}${p}`, 15_000)
+      let json = null
+      try {
+        json = JSON.parse(r.body)
+      } catch {}
+      out.push({ path: p, status: r.status, contentType: r.contentType, error: r.error, bodyShape: json ? shape(json) : null, body: json ? redact(json) : (r.body ?? '').slice(0, 500) })
+    }
+    ctx.writeJson('server-api.json', out)
+    // Server version: the binary, the config instance block, and the logs.
+    const { spawnSync } = await import('node:child_process')
+    let exe = SERVER_EXE
+    if (!fs.existsSync(exe)) {
+      const hit = A.listTree(INSTALL_DIR).find((f) => /browseros_server\.exe$/i.test(f))
+      exe = hit ? path.join(INSTALL_DIR, hit) : exe
+    }
+    const v = fs.existsSync(exe) ? spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true }) : null
+    const versionOut = v ? `${(v.stdout || '').trim()} ${(v.stderr || '').trim()}`.trim().slice(0, 300) : '(server exe not found)'
+    const bros = path.join(P1, '.browseros')
+    const tree = A.listTree(bros)
+    const logs = tree.filter((f) => /\.log$/i.test(f)).slice(0, 5)
+    const logTail = logs.map((f) => `== ${f}\n${fs.readFileSync(path.join(bros, f), 'utf8').split(/\r?\n/).slice(-80).join('\n')}`).join('\n')
+    const dbg = fs.existsSync(path.join(P1, 'chrome_debug.log')) ? fs.readFileSync(path.join(P1, 'chrome_debug.log'), 'utf8').split(/\r?\n/).filter((l) => /browseros|server/i.test(l)).slice(-80).join('\n') : ''
+    ctx.writeText('server-version.txt', `exe: ${exe}\n--version: ${versionOut}\nexit: ${v?.status}\nconfig.instance: ${JSON.stringify(S.cfg.instance)}\n.browseros tree:\n${tree.join('\n')}\n`)
+    ctx.writeText('server-logs.txt', `${logTail}\n== chrome_debug.log (server lines)\n${dbg}`)
+    const ok = (r) => r && r.status === 200 && r.bodyShape
+    const prov = out.find((r) => r.path === '/api/providers')
+    const conf = out.find((r) => r.path === '/api/config')
+    const sys = out.find((r) => r.path === '/system/health')
+    return {
+      result: ok(prov) && ok(conf) && sys?.status === 200 ? 'pass' : 'fail',
+      actual: out.map((r) => `${r.path} ${r.status || r.error}${r.bodyShape ? ` keys[${Object.keys(r.bodyShape).join(',')}]` : ` "${String(r.body).slice(0, 60)}"`}`).join('; ') + `; server --version: ${versionOut}; instance: ${JSON.stringify(S.cfg.instance)}`,
+      details: out.map(({ body, ...rest }) => rest),
     }
   })
 
@@ -179,6 +245,47 @@ if (needA(D))
     await page.close().catch(() => null)
     return { result: line === SELFTEST_OK && title === SELFTEST_OK ? 'pass' : 'fail', actual: `pre="${line}" title="${title}"` }
   })
+
+// New tab page: console errors, page errors and failed requests (O3-W-03 reads this after the quit).
+if (S)
+  try {
+    if (!S.browser) await A.connect(S)
+    const page = await S.context.newPage()
+    const ev = { console: [], pageErrors: [], failed: [], http4xx5xx: [] }
+    page.on('console', (m) => {
+      if (['error', 'warning'].includes(m.type())) ev.console.push({ type: m.type(), text: m.text().slice(0, 400), url: m.location()?.url })
+    })
+    page.on('pageerror', (e) => ev.pageErrors.push(String(e?.message ?? e).slice(0, 400)))
+    page.on('requestfailed', (r) => ev.failed.push({ url: r.url().slice(0, 200), error: r.failure()?.errorText }))
+    page.on('response', (r) => {
+      if (r.status() >= 400) ev.http4xx5xx.push({ url: r.url().slice(0, 200), status: r.status() })
+    })
+    const t0 = Date.now()
+    await page.goto('chrome://newtab/', { timeout: 30_000 }).catch((e) => ev.pageErrors.push(`goto: ${e.message.split('\n')[0]}`))
+    await sleep(10_000)
+    ev.finalUrl = page.url()
+    ev.title = await page.title().catch(() => '')
+    ev.text = (await A.visibleText(page).catch(() => '')).slice(0, 1500)
+    ev.ms = Date.now() - t0
+    ev.shot = path.join(A.WORK, 'newtab.png')
+    await A.pageShot(page, ev.shot).catch(() => null)
+    // The same page by its own URL.
+    const p2 = await S.context.newPage()
+    const ev2 = { console: [], pageErrors: [] }
+    p2.on('console', (m) => {
+      if (['error', 'warning'].includes(m.type())) ev2.console.push({ type: m.type(), text: m.text().slice(0, 400) })
+    })
+    p2.on('pageerror', (e) => ev2.pageErrors.push(String(e?.message ?? e).slice(0, 400)))
+    await p2.goto(A.GATE_URL, { timeout: 30_000 }).catch((e) => ev2.pageErrors.push(`goto: ${e.message.split('\n')[0]}`))
+    await sleep(8000)
+    ev.appHome = ev2
+    await p2.close().catch(() => null)
+    await page.close().catch(() => null)
+    newTab = ev
+  } catch (e) {
+    newTab = { error: e.message }
+  }
+CAP_A.tStartEnd = Date.now() // "at start" ends here; browsing starts after the harness check
 
 D = {
   id: 'QA-W-H01',
@@ -453,6 +560,49 @@ if (needA(D))
     return { result: q.clean ? 'pass' : 'fail', actual: quitText(q) }
   })
 A.killAll()
+let NET_A = null
+try {
+  fs.writeFileSync(CAP_A.stop, '')
+  if (CAP_A.sampler)
+    await new Promise((r) => {
+      CAP_A.sampler.on('exit', r)
+      setTimeout(r, 15_000)
+    })
+  CAP_A.dns = dnsCache()
+  CAP_A.tcp = fs.existsSync(CAP_A.sample)
+    ? fs.readFileSync(CAP_A.sample, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
+    : []
+  if (fs.existsSync(NETLOG_A)) NET_A = parseNetLog(NETLOG_A, { splitAt: CAP_A.tStartEnd ?? Date.now() })
+} catch (e) {
+  console.log(`session A capture failed: ${e.message}`)
+}
+
+await runRow(
+  {
+    id: 'O3-W-03',
+    title: 'New tab page loads without console errors; hosts contacted at start',
+    expected: 'chrome://newtab (and app.html#/home) render the gate with no console errors, page errors or failed requests; record every host the browser and its server contact from launch to the end of the start checks',
+  },
+  async (ctx) => {
+    if (!newTab) throw new Blocked('first start failed (O2-W-06)')
+    if (newTab.error) throw new Error(`new tab check failed: ${newTab.error}`)
+    if (newTab.shot && fs.existsSync(newTab.shot)) fs.copyFileSync(newTab.shot, ctx.file('newtab.png'))
+    const { shot, ...rest } = newTab
+    ctx.writeJson('newtab-console.json', rest)
+    const startHosts = NET_A ? NET_A.hosts.filter((h) => h.phases.includes('idle') && !h.local) : []
+    const tcp = tcpHostsFrom(CAP_A.tcp ?? [], CAP_A.dns ?? [], CAP_A.tStartEnd ?? Date.now()).filter((t) => t.phase === 'idle')
+    ctx.writeJson('hosts-at-start.json', { browser: startHosts, tcpByProcess: tcp, startWindowMs: (CAP_A.tStartEnd ?? 0) - (CAP_A.t0 ?? 0) })
+    if (NET_A) ctx.writeJson('requests-at-start.json', NET_A.requests.filter((r) => r.phase === 'idle'))
+    const errors = [...newTab.console.filter((c) => c.type === 'error'), ...newTab.pageErrors, ...newTab.appHome.console.filter((c) => c.type === 'error'), ...newTab.appHome.pageErrors]
+    const failed = [...newTab.failed, ...newTab.http4xx5xx]
+    const hostNames = [...new Set([...startHosts.map((h) => h.host), ...tcp.flatMap((t) => (t.names.length ? t.names : [t.remote]))])]
+    return {
+      result: errors.length === 0 && failed.length === 0 ? 'pass' : 'fail',
+      actual: `new tab -> ${newTab.finalUrl} "${newTab.title}"; console errors ${errors.length}${errors.length ? `: ${JSON.stringify(errors).slice(0, 300)}` : ''}; failed/4xx requests ${failed.length}${failed.length ? `: ${JSON.stringify(failed).slice(0, 200)}` : ''}; hosts at start (${hostNames.length}): ${hostNames.join(', ')}`,
+      notes: `console warnings: ${newTab.console.filter((c) => c.type === 'warning').length}. Server-process TCP: ${tcp.filter((t) => !/^chrome$/i.test(t.process)).map((t) => `${t.process}->${t.names[0] ?? t.remote}`).join(', ') || 'none'}`,
+    }
+  },
+)
 
 // =====================================================================
 // Session B: second start of the same profile
@@ -682,14 +832,17 @@ const needE = (def) => {
 
 /** Remote hosts of the app's own TCP connections (server process included), named through the DNS cache. */
 function tcpHosts(splitAt) {
+  return tcpHostsFrom(E.tcp ?? [], [...(E.dnsIdle ?? []), ...(E.dnsAll ?? [])], splitAt)
+}
+function tcpHostsFrom(tcpRows, dnsRows, splitAt) {
   const ipNames = new Map()
-  for (const d of [...(E.dnsIdle ?? []), ...(E.dnsAll ?? [])]) {
+  for (const d of dnsRows) {
     if (!d.data) continue
     if (!ipNames.has(d.data)) ipNames.set(d.data, new Set())
     ipNames.get(d.data).add(d.name.toLowerCase())
   }
   const out = new Map()
-  for (const c of E.tcp ?? []) {
+  for (const c of tcpRows) {
     const key = `${c.name}|${c.ra}:${c.rp}`
     if (!out.has(key)) out.set(key, { process: c.name, remote: `${c.ra}:${c.rp}`, names: [...(ipNames.get(c.ra) ?? [])], first: c.t, phase: c.t <= splitAt ? 'idle' : 'after' })
   }

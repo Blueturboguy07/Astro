@@ -11,7 +11,7 @@ name: "QA: Windows Astro (released installer)"
 # A failing row never stops the job: rows catch their own errors and every
 # step below is continue-on-error; the uninstall, summary and upload always run.
 #
-# Install/launch/port gotchas: see release-windows-astro.yml. Never pass
+# Install/launch/port gotchas: see Blueturboguy07/Astro .github/workflows/release-windows-astro.yml. Never pass
 # --remote-debugging-port; read <profile>\.browseros\config.json instead.
 #
 # Extend (signed-in phases): add scripts/qa/win/<name>.mjs (import
@@ -80,7 +80,6 @@ jobs:
       EXPECT_AGENT_VERSION: ${{ inputs.expect_agent_version || '0.0.103' }}
       QA_IDLE_MS: ${{ format('{0}000', inputs.idle_seconds || '180') }}
       QA_RESULTS_DIR: ${{ github.workspace }}\results\windows
-      QA_WORK: ${{ runner.temp }}\astro-qa
       PHASE1_INPUT: ${{ inputs.phase1 }}
       EXTRA_INPUT: ${{ inputs.extra_scripts }}
     steps:
@@ -95,6 +94,16 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Plan (phase 1 on/off, extra scripts)
+        run: |
+          # runner.temp is not allowed in job-level env; set the work dir here.
+          "QA_WORK=$env:RUNNER_TEMP\astro-qa" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $phase1 = if ($env:PHASE1_INPUT) { $env:PHASE1_INPUT } elseif (Test-Path scripts/qa/win/phase1.off) { 'false' } else { 'true' }
+          $extra = if ($env:EXTRA_INPUT) { $env:EXTRA_INPUT } elseif (Test-Path scripts/qa/win/extra-scripts.txt) { (Get-Content scripts/qa/win/extra-scripts.txt | Where-Object { $_ -and $_ -notmatch '^\s*#' }) -join ' ' } else { '' }
+          "PHASE1=$phase1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "EXTRA_SCRIPTS=$extra" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "phase1=$phase1 extra=[$extra]"
+
       - name: Runner facts
         continue-on-error: true
         run: |
@@ -105,14 +114,6 @@ jobs:
           Write-Host "Screen: $([System.Windows.Forms.Screen]::PrimaryScreen.Bounds)"
           Write-Host "Node: $(node --version)"
           New-Item -ItemType Directory -Force -Path $env:QA_RESULTS_DIR, $env:QA_WORK | Out-Null
-
-      - name: Plan (phase 1 on/off, extra scripts)
-        run: |
-          $phase1 = if ($env:PHASE1_INPUT) { $env:PHASE1_INPUT } elseif (Test-Path scripts/qa/win/phase1.off) { 'false' } else { 'true' }
-          $extra = if ($env:EXTRA_INPUT) { $env:EXTRA_INPUT } elseif (Test-Path scripts/qa/win/extra-scripts.txt) { (Get-Content scripts/qa/win/extra-scripts.txt | Where-Object { $_ -and $_ -notmatch '^\s*#' }) -join ' ' } else { '' }
-          "PHASE1=$phase1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          "EXTRA_SCRIPTS=$extra" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "phase1=$phase1 extra=[$extra]"
 
       - name: Install harness deps (playwright-core)
         working-directory: scripts/qa/win
