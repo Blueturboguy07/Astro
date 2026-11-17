@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { defineTool, errorResult, textResult } from './framework'
+import { resolveUploadPaths } from './upload-paths'
 
 export const upload = defineTool({
   name: 'upload',
   description:
-    'Set local file path(s) on a file input using a ref from the last snapshot. Use for <input type="file"> upload flows; files must exist on the server filesystem.',
+    'Set local file path(s) on a file input using a ref from the last snapshot. Use for <input type="file"> upload flows. Give full paths ("~/" is expanded); a missing or empty file is refused.',
   input: z.object({
     page: z.number().int().describe('Page id from `tabs`.'),
     ref: z
@@ -26,11 +27,14 @@ export const upload = defineTool({
       return errorResult('upload: provide file or files[].')
     }
 
-    await ctx.session.input(args.page).uploadFile(args.ref, files)
+    const resolved = resolveUploadPaths(files)
+    if ('error' in resolved) return errorResult(resolved.error)
+
+    await ctx.session.input(args.page).uploadFile(args.ref, resolved.paths)
     return textResult(`Uploaded ${files.length} file(s) to ${args.ref}`, {
       page: args.page,
       ref: args.ref,
-      files,
+      files: resolved.paths,
       uploaded: files.length,
     })
   },
