@@ -1,6 +1,7 @@
 'use client'
 
-import { note402 } from '@/lib/publik/publik'
+import { answerWasPaid } from '@/lib/publik/money-banner'
+import { clear402, note402 } from '@/lib/publik/publik'
 import { randomHex } from '@/lib/simplicity/random-id'
 import { chatToOpen } from '@/lib/simplicity/route-chat'
 import {
@@ -26,6 +27,10 @@ import {
 } from '../models/catalog'
 import type { MinimalProvider } from '../models/types'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import {
+  PROVIDERS_CHANGED_EVENT,
+  PROVIDERS_CHANGED_KEY,
+} from '@/lib/simplicity/providers-changed'
 import {
   needsReconnect,
   statusAtEnd,
@@ -604,12 +609,22 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
        every app page) applies here too. */
     const unwatch = publikServerProviderIdStorage.watch(() => retryConnection())
     const onStorage = (e: StorageEvent) => {
-      if (e.key === CHOSEN_CHAT_MODEL_STORAGE_KEY) retryConnection()
+      if (
+        e.key === CHOSEN_CHAT_MODEL_STORAGE_KEY ||
+        e.key === PROVIDERS_CHANGED_KEY
+      ) {
+        retryConnection()
+      }
     }
+    /* A connection added or removed in Settings: the home leaves "No AI
+       connection yet" without Retry. */
+    const onProvidersChanged = () => retryConnection()
     window.addEventListener('storage', onStorage)
+    window.addEventListener(PROVIDERS_CHANGED_EVENT, onProvidersChanged)
     return () => {
       unwatch()
       window.removeEventListener('storage', onStorage)
+      window.removeEventListener(PROVIDERS_CHANGED_EVENT, onProvidersChanged)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -840,6 +855,14 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
         setLoading(false)
         if (endStatus === 'cancelled') setResearchEnded(true)
+        /* A model wrote this answer, so the balance covered it: the old 402
+           banner goes away. */
+        if (
+          endStatus === 'completed' &&
+          answerWasPaid(currentMsg?.responseBlocks ?? [])
+        ) {
+          void clear402()
+        }
 
         const lastMsg = messagesRef.current[messagesRef.current.length - 1]
 

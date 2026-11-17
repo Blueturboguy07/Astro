@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test'
 import {
   nextUtcMidnight,
+  PUBLIK_PLANS_URL,
   PUBLIK_WALLET_URL,
+  parsePublikErrorCard,
   parsePublikLimitError,
 } from './limit-error'
 
@@ -67,5 +69,49 @@ describe('parsePublikLimitError (F-050)', () => {
 
   it('finds the next UTC midnight', () => {
     expect(nextUtcMidnight(NOW).toISOString()).toBe('2026-11-18T00:00:00.000Z')
+  })
+})
+
+describe('parsePublikErrorCard (council seats, answer engine 402)', () => {
+  it('turns the raw 429 of a council seat into the limit card', () => {
+    const card = parsePublikErrorCard(
+      '429 This account has reached its daily limit. It applies to all of its keys together and resets at midnight UTC.',
+      NOW,
+    )
+    expect(card?.title).toBe('Daily limit reached')
+    expect(card?.text).toContain('all of its keys together')
+    expect(card?.text).not.toContain('429')
+    expect(card?.url).toBe(PUBLIK_WALLET_URL)
+    expect(card?.linkLabel).toBe('Open wallet')
+  })
+
+  it('turns the answer engine 402 text into the balance card', () => {
+    const card = parsePublikErrorCard(
+      '402 Your publik balance is too low for this request.',
+    )
+    expect(card).toEqual({
+      title: 'Not enough publik balance',
+      text: 'Your publik balance is too low for this request.',
+      url: PUBLIK_PLANS_URL,
+      linkLabel: 'Get a plan',
+    })
+  })
+
+  it('reads the 402 JSON body and keeps only a publikhq.com link', () => {
+    const body = (top_up_url: string) =>
+      JSON.stringify({
+        error: { type: 'insufficient_credit', message: 'Too low.', top_up_url },
+      })
+    expect(
+      parsePublikErrorCard(body('https://publikhq.com/wallet/add?x=1'))?.url,
+    ).toBe('https://publikhq.com/wallet/add?x=1')
+    expect(parsePublikErrorCard(body('https://evil.example/pay'))?.url).toBe(
+      PUBLIK_PLANS_URL,
+    )
+  })
+
+  it('leaves other errors alone', () => {
+    expect(parsePublikErrorCard('500 Internal error')).toBeNull()
+    expect(parsePublikErrorCard('This model failed to answer.')).toBeNull()
   })
 })

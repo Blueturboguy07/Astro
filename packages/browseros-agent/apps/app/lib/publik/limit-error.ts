@@ -79,3 +79,71 @@ function resetText(at: Date, now: Date, midnight = false): string {
   })
   return `It resets ${midnight ? 'at midnight UTC' : ''}${midnight ? ', ' : ''}in ${span} (${local} your time).`
 }
+
+export const PUBLIK_PLANS_URL = 'https://publikhq.com/wallet/add'
+
+/** One publik error as a card: what happened, when it clears, one link. */
+export interface PublikErrorCard extends PublikLimitError {
+  linkLabel: string
+}
+
+/* "402 <message>" is how the OpenAI SDK words publik's 402 in the answer
+   engine; the side panel gets the JSON body (chat-error-text.ts). */
+const MONEY_TEXT =
+  /^\s*(?:error:\s*)?402\b|insufficient[_ ]credit|not enough publik|publik balance is too low/i
+
+function publikHqUrl(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null
+  try {
+    const u = new URL(url)
+    const host = u.hostname.toLowerCase()
+    const ok =
+      u.protocol === 'https:' &&
+      !u.username &&
+      !u.password &&
+      (host === 'publikhq.com' || host.endsWith('.publikhq.com'))
+    return ok ? u.toString() : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * publik's 429 (daily cap, plan budget) and 402 (balance too low) for the
+ * answer engine and the council seats: they showed the raw "429 ..." or
+ * "402 ..." text with Retry, which cannot help (Astro 0.2.4 QA).
+ */
+export function parsePublikErrorCard(
+  message: string,
+  now: Date = new Date(),
+): PublikErrorCard | null {
+  const limit = parsePublikLimitError(message, now)
+  if (limit) return { ...limit, linkLabel: 'Open wallet' }
+
+  type MoneyBody = { type?: string; message?: string; top_up_url?: string }
+  const body = ((): MoneyBody | null => {
+    try {
+      return (JSON.parse(message) as { error?: MoneyBody })?.error ?? null
+    } catch {
+      return null
+    }
+  })()
+  if (body && (body.type === 'insufficient_credit' || body.top_up_url)) {
+    return {
+      title: 'Not enough publik balance',
+      text: body.message ?? 'Your publik balance is too low for this request.',
+      url: publikHqUrl(body.top_up_url) ?? PUBLIK_PLANS_URL,
+      linkLabel: 'Get a plan',
+    }
+  }
+  if (MONEY_TEXT.test(message)) {
+    const text = message.replace(/^\s*(?:error:\s*)?402\s*[:-]?\s*/i, '').trim()
+    return {
+      title: 'Not enough publik balance',
+      text: text || 'Your publik balance is too low for this request.',
+      url: PUBLIK_PLANS_URL,
+      linkLabel: 'Get a plan',
+    }
+  }
+  return null
+}

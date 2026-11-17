@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import Markdown from 'markdown-to-jsx'
+import { parsePublikErrorCard } from '@/lib/publik/limit-error'
 import { useState } from 'react'
 import type {
   CouncilBlock as CouncilBlockType,
@@ -33,6 +34,31 @@ const formatCost = (n: number): string => {
   if (n <= 0) return '$0.00'
   if (n >= 0.01) return `$${n.toFixed(2)}`
   return `$${n.toFixed(4)}`
+}
+
+/* A seat at publik's daily limit (or out of balance) printed the raw
+   "429 ..." text; show the limit card's words and the wallet link. */
+const SeatError = ({ error }: { error: string }) => {
+  const card = parsePublikErrorCard(error)
+  return (
+    <div className="-mt-0.5 px-3 pb-2 text-[11px] text-red-500/80">
+      {card ? (
+        <>
+          <span className="font-medium">{card.title}.</span> {card.text}{' '}
+          <a
+            href={card.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            {card.linkLabel}
+          </a>
+        </>
+      ) : (
+        error
+      )}
+    </div>
+  )
 }
 
 const StatusIcon = ({ status }: { status: CouncilMember['status'] }) => {
@@ -104,9 +130,7 @@ const MemberCard = ({ member }: { member: CouncilMember }) => {
       </button>
 
       {member.status === 'error' && member.error && (
-        <div className="-mt-0.5 px-3 pb-2 text-[11px] text-red-500/80">
-          {member.error}
-        </div>
+        <SeatError error={member.error} />
       )}
       {member.status === 'cancelled' && (
         <div className="-mt-0.5 px-3 pb-2 text-[11px] text-black/40 dark:text-white/40">

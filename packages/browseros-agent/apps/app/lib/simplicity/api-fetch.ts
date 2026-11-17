@@ -14,6 +14,10 @@
  */
 
 import { getAgentServerUrl } from '@/lib/browseros/helpers'
+import {
+  announceProvidersChanged,
+  isProviderWrite,
+} from './providers-changed'
 
 export async function apiFetch(
   path: string,
@@ -24,5 +28,10 @@ export async function apiFetch(
     return fetch(path, init)
   }
   const base = await getAgentServerUrl()
-  return fetch(`${base}${path.startsWith('/') ? path : `/${path}`}`, init)
+  const res = await fetch(
+    `${base}${path.startsWith('/') ? path : `/${path}`}`,
+    init,
+  )
+  if (res.ok && isProviderWrite(path, init?.method)) announceProvidersChanged()
+  return res
 }

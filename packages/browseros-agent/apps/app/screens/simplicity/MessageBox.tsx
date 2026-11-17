@@ -13,7 +13,7 @@ import Markdown, { type MarkdownToJSX, RuleType } from 'markdown-to-jsx'
 import type React from 'react'
 import type { MutableRefObject } from 'react'
 import { useSpeech } from 'react-text-to-speech'
-import { parsePublikLimitError } from '@/lib/publik/limit-error'
+import { parsePublikErrorCard } from '@/lib/publik/limit-error'
 import { type Section, useChat } from '@/lib/simplicity/hooks/useChat'
 import type {
   CouncilBlock,
@@ -242,6 +242,13 @@ const MessageBox = ({
                 messageId={section.message.messageId}
               />
               <button
+                type="button"
+                aria-label={
+                  speechStatus === 'started' ? 'Stop reading aloud' : 'Read aloud'
+                }
+                title={
+                  speechStatus === 'started' ? 'Stop reading aloud' : 'Read aloud'
+                }
                 onClick={() => {
                   if (speechStatus === 'started') {
                     stop()
@@ -303,10 +310,10 @@ const MessageBox = ({
           {section.message.responseBlocks
             .filter((block) => block.type === 'error')
             .map((block) => {
-              /* publik's daily cap: say when it resets and link the wallet
-                 instead of the raw "429 ..." text; Retry cannot help until
-                 the reset (F-050). */
-              const limit = parsePublikLimitError(String(block.data))
+              /* publik's daily cap or a balance too low (402): say what
+                 happened and link the wallet instead of the raw "429 ..." or
+                 "402 ..." text; Retry cannot help (F-050). */
+              const limit = parsePublikErrorCard(String(block.data))
               return (
                 <div
                   key={block.id}
@@ -327,7 +334,7 @@ const MessageBox = ({
                       rel="noopener noreferrer"
                       className="shrink-0 rounded-lg bg-[#24A0ED] px-3 py-1.5 font-medium text-white text-xs transition hover:bg-[#1e8fd1]"
                     >
-                      Open wallet
+                      {limit.linkLabel}
                     </a>
                   ) : (
                     <button
