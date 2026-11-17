@@ -15,7 +15,11 @@ import { BROWSEROS_PREFS } from '@/lib/browseros/prefs'
 import { MCP_PROXY_PORT_CHANGED_EVENT } from '@/lib/constants/analyticsEvents'
 import { track } from '@/lib/metrics/track'
 import { waitForServerHealth } from './server-health'
-import { PROXY_PORT_MIN, parseProxyPort } from './server-port-editor.helpers'
+import {
+  PROXY_PORT_MIN,
+  parseProxyPort,
+  portFieldError,
+} from './server-port-editor.helpers'
 
 export interface ServerPortEditorProps {
   onPortChanged?: () => void
@@ -61,6 +65,7 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
   }
 
   const parsed = parseProxyPort(value)
+  const fieldError = portFieldError(value, error)
   const canSave = parsed.ok && !isSaving && parsed.port !== currentPort
 
   const handleSave = async () => {
@@ -136,7 +141,7 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
               autoFocus
               value={value}
               aria-invalid={!parsed.ok && value.trim() !== ''}
-              aria-describedby={error ? 'proxy-port-error' : undefined}
+              aria-describedby={fieldError ? 'proxy-port-error' : undefined}
               disabled={isSaving}
               onChange={(e) => {
                 setValue(e.target.value)
@@ -146,9 +151,9 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
                 if (e.key === 'Enter' && canSave) handleSave()
               }}
             />
-            {error && (
+            {fieldError && (
               <p id="proxy-port-error" className="text-destructive text-xs">
-                {error}
+                {fieldError}
               </p>
             )}
           </div>

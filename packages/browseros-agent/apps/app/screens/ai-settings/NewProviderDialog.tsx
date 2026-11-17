@@ -75,6 +75,7 @@ import {
   getModelPickerRows,
 } from './model-picker.helpers'
 import { getModelContextLength, getModelsForProvider } from './models'
+import { numberFieldValue } from './number-field'
 import {
   isCredentiallessProviderType,
   normalizeProviderFormValues,
@@ -1164,7 +1165,7 @@ export const NewProviderDialog: FC<NewProviderDialogProps> = ({
                           type="number"
                           {...field}
                           onChange={(e) =>
-                            field.onChange(Number(e.target.value))
+                            field.onChange(numberFieldValue(e.target))
                           }
                         />
                       </FormControl>
@@ -1189,7 +1190,7 @@ export const NewProviderDialog: FC<NewProviderDialogProps> = ({
                           max="2"
                           {...field}
                           onChange={(e) =>
-                            field.onChange(Number(e.target.value))
+                            field.onChange(numberFieldValue(e.target))
                           }
                         />
                       </FormControl>

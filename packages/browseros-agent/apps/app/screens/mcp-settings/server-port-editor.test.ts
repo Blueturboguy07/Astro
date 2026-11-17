@@ -3,7 +3,28 @@ import {
   PROXY_PORT_MAX,
   PROXY_PORT_MIN,
   parseProxyPort,
+  portFieldError,
 } from './server-port-editor.helpers'
+
+describe('portFieldError (F-087)', () => {
+  it('says why a typed port cannot be saved', () => {
+    expect(portFieldError('80', null)).toBe(
+      `Port must be between ${PROXY_PORT_MIN} and ${PROXY_PORT_MAX}`,
+    )
+    expect(portFieldError('9o00', null)).toBe('Enter a valid port number')
+  })
+
+  it('shows nothing for an empty or valid field', () => {
+    expect(portFieldError('', null)).toBeNull()
+    expect(portFieldError('9005', null)).toBeNull()
+  })
+
+  it('a save error wins', () => {
+    expect(portFieldError('9005', 'Failed to update port')).toBe(
+      'Failed to update port',
+    )
+  })
+})
 
 describe('parseProxyPort', () => {
   it('accepts a valid in-range port', () => {

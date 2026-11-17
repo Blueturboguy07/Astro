@@ -40,8 +40,15 @@ export const providerFormSchema = z
     modelId: z.string().min(1, 'Model ID is required'),
     apiKey: z.string().optional(),
     supportsImages: z.boolean(),
-    contextWindow: z.number().int().min(1000).max(2000000),
-    temperature: z.number().min(0).max(2),
+    contextWindow: z
+      .number({ invalid_type_error: 'Enter a number' })
+      .int()
+      .min(1000, 'Use at least 1,000 tokens')
+      .max(2000000, 'Use at most 2,000,000 tokens'),
+    temperature: z
+      .number({ invalid_type_error: 'Enter a number' })
+      .min(0, 'Use 0 or more')
+      .max(2, 'Use 2 or less'),
     resourceName: z.string().optional(),
     accessKeyId: z.string().optional(),
     secretAccessKey: z.string().optional(),

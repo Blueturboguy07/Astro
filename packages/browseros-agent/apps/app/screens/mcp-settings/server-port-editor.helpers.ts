@@ -10,6 +10,19 @@ export type ParseResult =
  * Astro port band (9000–9999); rejects empty, non-numeric, and fractional
  * input rather than letting parseInt silently truncate (e.g. "9000.5").
  */
+/** The message under the field: a save error, else why the typed value
+    cannot be saved (Astro 0.2.4 QA, F-087: a bad port turned the field red
+    and disabled Save with no reason). Nothing while the field is empty. */
+export function portFieldError(
+  raw: string,
+  saveError: string | null,
+): string | null {
+  if (saveError) return saveError
+  if (raw.trim() === '') return null
+  const parsed = parseProxyPort(raw)
+  return parsed.ok ? null : parsed.error
+}
+
 export function parseProxyPort(raw: string): ParseResult {
   const trimmed = raw.trim()
   if (trimmed === '') {
