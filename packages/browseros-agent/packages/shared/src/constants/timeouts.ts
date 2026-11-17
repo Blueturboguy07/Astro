@@ -15,6 +15,12 @@ export const TIMEOUTS = {
   TOOL_CALL: 120_000,
   // Longest gap between two events of a model stream (F-045)
   MODEL_STREAM_IDLE: 90_000,
+  // Answer engine: wait for the first chunk (a local model reads a long prompt first)
+  MODEL_FIRST_CHUNK: 180_000,
+  // Answer engine: one whole non-streamed model call (F-059)
+  MODEL_CALL: 180_000,
+  // Answer engine: a turn with no new event for this long has stalled (F-059)
+  ANSWER_TURN_IDLE: 300_000,
   TOOL_POST_ACTION: 2_000,
   TAB_GROUP_OP: 10_000,
   TEST_PROVIDER: 15_000,

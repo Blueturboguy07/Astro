@@ -1,5 +1,6 @@
 import { ResearcherOutput, SearchAgentInput } from './types';
 import SessionManager from '../../session';
+import { withIdleLimit } from '../../models/time-limits';
 import { classify } from './classifier';
 import Researcher from './researcher';
 import { getWriterPrompt } from '../../prompts/search/writer';
@@ -167,7 +168,12 @@ class SearchAgent {
 
     let responseBlockId = '';
 
-    for await (const chunk of answerStream) {
+    /* Stop must end the turn even while the model sends nothing (F-059);
+       the model's own time limit comes from limitModel. */
+    for await (const chunk of withIdleLimit(answerStream, {
+      idleMs: Number.POSITIVE_INFINITY,
+      signal: input.config.signal,
+    })) {
       if (input.config.signal?.aborted) break;
 
       if (!responseBlockId) {

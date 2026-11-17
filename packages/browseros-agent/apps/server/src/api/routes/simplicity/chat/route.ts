@@ -10,6 +10,9 @@ import {
   pickChair,
 } from '../../../../lib/simplicity/agents/council/select';
 import SessionManager from '../../../../lib/simplicity/session';
+import { turnWatchdog } from '../../../../lib/simplicity/turn-watchdog';
+import { TIMEOUTS } from '@browseros/shared/constants/timeouts';
+import { ndjsonWriter } from '../ndjson-writer';
 import { ChatTurnMessage } from '../../../../lib/simplicity/types';
 import { CouncilMemberSpec, SearchSources } from '../../../../lib/simplicity/agents/search/types';
 import db from '../../../../lib/simplicity/db';
@@ -356,25 +359,14 @@ export const POST = async (req: Request) => {
 
     const session = SessionManager.createSession();
 
-    const responseStream = new TransformStream();
-    const writer = responseStream.writable.getWriter();
-    const encoder = new TextEncoder();
-
-    /* Writes race the client disconnect handler closing the writer — a write
-       to a closed stream must not throw into the session emitter. */
-    const safeWrite = (payload: Record<string, any>) => {
-      try {
-        writer.write(encoder.encode(JSON.stringify(payload) + '\n'));
-      } catch {}
-    };
-
-    const safeClose = () => {
-      try {
-        writer.close();
-      } catch {}
-    };
+    const responseStream = new TransformStream<Uint8Array, Uint8Array>();
+    const out = ndjsonWriter(responseStream.writable);
+    const safeWrite = (payload: Record<string, any>) => out.write(payload);
+    const safeClose = () => out.close();
+    const watch = turnWatchdog(TIMEOUTS.ANSWER_TURN_IDLE);
 
     const disconnect = session.subscribe((event: string, data: any) => {
+      watch.touch();
       if (event === 'data') {
         if (data.type === 'block') {
           safeWrite({ type: 'block', block: data.block });
@@ -459,13 +451,18 @@ export const POST = async (req: Request) => {
             },
           });
 
-    agentPromise.catch(async (err: any) => {
+    const turn = Promise.race([agentPromise, watch.stalled]).finally(() =>
+      watch.stop(),
+    );
+
+    turn.catch(async (err: any) => {
       console.error('Search failed:', err);
-      safeWrite({
-        type: 'error',
-        data:
-          err?.message ?? 'That model failed to answer. Try a different one.',
-      });
+      const reason: string =
+        err?.message ?? 'That model failed to answer. Try a different one.';
+      /* Through the session, so a page that reconnected after a reload
+         gets the error too (it listens to the session, not this writer). */
+      session.emit('error', { data: reason });
+      safeWrite({ type: 'error', data: reason });
       safeClose();
       session.removeAllListeners();
 
@@ -478,7 +475,14 @@ export const POST = async (req: Request) => {
       try {
         await db
           .update(messagesSchema)
-          .set({ status: 'error', responseBlocks: session.getAllBlocks() })
+          .set({
+            status: 'error',
+            /* The reopened thread shows the reason and Retry (F-059). */
+            responseBlocks: [
+              ...session.getAllBlocks(),
+              { id: crypto.randomUUID(), type: 'error', data: reason } as any,
+            ],
+          })
           .where(
             and(
               eq(messagesSchema.chatId, body.message.chatId),

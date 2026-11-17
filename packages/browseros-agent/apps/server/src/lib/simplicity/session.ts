@@ -44,8 +44,11 @@ class SessionManager {
   }
 
   emit(event: string, data: any) {
-    this.emitter.emit(event, data);
     this.events.push({ event, data });
+    /* EventEmitter throws on an 'error' event nobody listens to (the page
+       already went away); the event stays in `events` for a reconnect. */
+    if (event === 'error' && this.emitter.listenerCount('error') === 0) return;
+    this.emitter.emit(event, data);
   }
 
   emitBlock(block: Block) {

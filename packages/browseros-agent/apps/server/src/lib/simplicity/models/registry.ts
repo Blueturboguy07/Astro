@@ -5,6 +5,7 @@ import { providers } from './providers';
 import { MinimalProvider, ModelList } from './types';
 import configManager from '../config';
 import NullEmbedding from './base/null-embedding';
+import { limitModel } from './time-limits';
 
 class ModelRegistry {
   activeProviders: (ConfigModelProvider & {
@@ -83,7 +84,8 @@ class ModelRegistry {
 
     const model = await provider.provider.loadChatModel(modelName);
 
-    return model;
+    /* No model call may hang a turn for ever (F-059). */
+    return limitModel(model);
   }
 
   async loadEmbeddingModel(providerId: string, modelName: string) {

@@ -73,8 +73,38 @@ function openDb(): SimplicityDatabase {
   sqlite.exec(
     'CREATE UNIQUE INDEX IF NOT EXISTS messages_chat_message_unique ON messages (chat_id, message_id)',
   );
+  settleInterruptedAnswers(sqlite);
 
   return drizzle(sqlite, { schema });
+}
+
+export const INTERRUPTED_ANSWER_TEXT =
+  'This answer was interrupted: Astro or its local server stopped while it ran. Press Retry to ask again.';
+
+/**
+ * The database opens once per server process, before the first turn writes
+ * a row. A row still "answering" at that point belongs to a turn of an
+ * earlier process that can never end: it reopened as "Brainstorming..."
+ * with Stop for ever (Astro 0.2.4 QA, F-059). It becomes a failed turn with
+ * an error block (the thread shows the reason and a Retry); its saved
+ * blocks are kept.
+ */
+export function settleInterruptedAnswers(sqlite: BunDatabase): number {
+  const result = sqlite
+    .query(
+      `UPDATE messages
+       SET status = 'error',
+           response_blocks = json_insert(
+             CASE WHEN json_valid(response_blocks)
+                    AND json_type(response_blocks) = 'array'
+                  THEN response_blocks ELSE '[]' END,
+             '$[#]',
+             json_object('id', lower(hex(randomblob(16))), 'type', 'error', 'data', ?1)
+           )
+       WHERE status = 'answering'`,
+    )
+    .run(INTERRUPTED_ANSWER_TEXT);
+  return result.changes;
 }
 
 let instance: SimplicityDatabase | undefined;

@@ -25,6 +25,7 @@ import {
 } from '../models/catalog'
 import type { MinimalProvider } from '../models/types'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import { readTurnStream, TURN_LOST_TEXT } from '@/lib/simplicity/read-turn-stream'
 
 export type Section = {
   message: Message
@@ -496,6 +497,31 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   const isReconnectingRef = useRef(false)
   const handledMessageEndRef = useRef<Set<string>>(new Set())
+  /* A turn whose stream ended without messageEnd or error (the local
+     server stopped, the page reloaded) must not show "Brainstorming..."
+     with Stop for ever (F-059, F-060). */
+  const failTurn = (messageId: string, text: string) => {
+    setLoading(false)
+    setResearchEnded(true)
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.messageId === messageId
+          ? {
+              ...msg,
+              status: 'error' as const,
+              responseBlocks: [
+                ...msg.responseBlocks,
+                {
+                  id: globalThis.crypto.randomUUID(),
+                  type: 'error',
+                  data: text,
+                } as any,
+              ],
+            }
+          : msg,
+      ),
+    )
+  }
 
   const checkReconnect = async () => {
     if (isReconnectingRef.current) return
@@ -512,36 +538,22 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
         isReconnectingRef.current = true
 
-        const res = await apiFetch(`/api/reconnect/${lastMsg.backendId}`, {
-          method: 'POST',
-        })
-
-        if (!res.body) throw new Error('No response body')
-
-        const reader = res.body?.getReader()
-        const decoder = new TextDecoder('utf-8')
-
-        let partialChunk = ''
-
-        const messageHandler = getMessageHandler(lastMsg)
-
         try {
-          while (true) {
-            const { value, done } = await reader.read()
-            if (done) break
+          const res = await apiFetch(`/api/reconnect/${lastMsg.backendId}`, {
+            method: 'POST',
+          })
 
-            partialChunk += decoder.decode(value, { stream: true })
-
-            try {
-              const messages = partialChunk.split('\n')
-              for (const msg of messages) {
-                if (!msg.trim()) continue
-                const json = JSON.parse(msg)
-                messageHandler(json)
-              }
-              partialChunk = ''
-            } catch (_error) {}
+          /* 404: the server no longer runs this turn (it restarted). */
+          if (!res.ok || !res.body) {
+            failTurn(lastMsg.messageId, TURN_LOST_TEXT)
+            return
           }
+
+          const messageHandler = getMessageHandler(lastMsg)
+          const outcome = await readTurnStream(res.body, messageHandler)
+          if (outcome === 'lost') failTurn(lastMsg.messageId, TURN_LOST_TEXT)
+        } catch {
+          failTurn(lastMsg.messageId, TURN_LOST_TEXT)
         } finally {
           isReconnectingRef.current = false
         }
@@ -870,6 +882,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     messageId = messageId ?? randomHex(7)
     const backendId = randomHex(20)
+    /* Rewrite sends the same messageId again: the earlier messageEnd must
+       not swallow the new one (Rewrite never ended, F-063). */
+    handledMessageEndRef.current.delete(messageId)
 
     const newMessage: Message = {
       messageId,
@@ -957,38 +972,25 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       return
     }
 
-    if (!res.body) throw new Error('No response body')
-
-    const reader = res.body?.getReader()
-    const decoder = new TextDecoder('utf-8')
-
-    let partialChunk = ''
+    if (!res.body) {
+      failTurn(messageId, TURN_LOST_TEXT)
+      return
+    }
 
     const messageHandler = getMessageHandler(newMessage)
 
     try {
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-
-        partialChunk += decoder.decode(value, { stream: true })
-
-        try {
-          const messages = partialChunk.split('\n')
-          for (const msg of messages) {
-            if (!msg.trim()) continue
-            const json = JSON.parse(msg)
-            messageHandler(json)
-          }
-          partialChunk = ''
-        } catch (_error) {}
-      }
+      const outcome = await readTurnStream(res.body, messageHandler)
+      if (outcome === 'lost') failTurn(messageId, TURN_LOST_TEXT)
     } catch (err: any) {
       /* Stop button: the fetch abort surfaces here as an AbortError. Whatever
          streamed so far stays on screen; the turn just ends. */
-      if (err?.name !== 'AbortError') throw err
-      setResearchEnded(true)
-      setLoading(false)
+      if (err?.name === 'AbortError') {
+        setResearchEnded(true)
+        setLoading(false)
+      } else {
+        failTurn(messageId, TURN_LOST_TEXT)
+      }
     } finally {
       abortRef.current = null
     }
