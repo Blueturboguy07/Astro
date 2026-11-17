@@ -231,8 +231,10 @@ const ModelSelector = () => {
           </PopoverButton>
           <AnimatePresence>
             {open && (
+              /* Anchored so it flips above the follow-up box (F-058). */
               <PopoverPanel
-                className="absolute right-0 z-10 w-[250px] sm:w-[280px]"
+                anchor={{ to: 'bottom end', gap: 6 }}
+                className="z-50 w-[250px] sm:w-[280px]"
                 static
               >
                 <motion.div

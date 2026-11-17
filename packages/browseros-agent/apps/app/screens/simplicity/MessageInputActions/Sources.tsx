@@ -52,9 +52,12 @@ const Sources = () => {
           </PopoverButton>
           <AnimatePresence>
             {open && (
+              /* Anchored like the mode menu (F-058): under the follow-up
+                 box it opened off screen (0.0.109 UI run). */
               <PopoverPanel
                 static
-                className="absolute right-0 z-10 w-64 md:w-[225px]"
+                anchor={{ to: 'bottom end', gap: 6 }}
+                className="z-50 w-64 md:w-[225px]"
               >
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
