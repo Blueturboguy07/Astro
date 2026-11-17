@@ -30,6 +30,7 @@ import { logger } from '../lib/logger'
 import { createOpenRouterCompatibleFetch } from '../lib/openrouter-fetch'
 import { ensureWorkspaceInstructionFile } from './acp-instructions/ensureInstructionFile'
 import { ACP_PROVIDER_TYPES, isAcpProvider } from './acp-providers'
+import { ollamaNativeFetch } from './ollama-native-fetch'
 import type { BuildSystemPromptOptions } from './prompt'
 import type { ResolvedAgentConfig } from './types'
 
@@ -385,6 +386,9 @@ function createOllamaFactory(
     name: 'ollama',
     baseURL: config.baseUrl,
     ...(config.apiKey && { apiKey: config.apiKey }),
+    /* Native /api/chat with num_ctx: /v1 ignores it and cut the agent
+       prompt to 2048 tokens (F-035). */
+    fetch: ollamaNativeFetch(config.baseUrl),
   })
 }
 
