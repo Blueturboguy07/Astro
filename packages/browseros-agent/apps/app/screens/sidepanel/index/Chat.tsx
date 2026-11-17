@@ -14,6 +14,7 @@ import {
   SIDEPANEL_VOICE_TRANSCRIPTION_COMPLETED_EVENT,
 } from '@/lib/constants/analyticsEvents'
 import { track } from '@/lib/metrics/track'
+import { refreshPublikAccount } from '@/lib/publik/useGate'
 import { useChatSessionContext } from '@/modules/chat/chat-session-context'
 import type { ChatMode } from '@/modules/chat/chat-types'
 import { useJtbdPopup } from '@/modules/jtbd-popup/jtbd-popup.hooks'
@@ -75,6 +76,15 @@ export const Chat = () => {
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  /* A paid side-panel answer moves the balance: read the wallet again when
+     a turn ends (F-020). */
+  const wasBusy = useRef(false)
+  useEffect(() => {
+    const busy = status === 'streaming' || status === 'submitted'
+    if (wasBusy.current && !busy) void refreshPublikAccount()
+    wasBusy.current = busy
+  }, [status])
 
   useEffect(() => {
     ;(async () => {

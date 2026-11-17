@@ -1,7 +1,7 @@
 import { AlertCircle, Loader2, X } from 'lucide-react'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { type Choice, publikLink } from '@/lib/publik/publik'
-import { usePublikAccount } from '@/lib/publik/useGate'
+import { refreshPublikAccount, usePublikAccount } from '@/lib/publik/useGate'
 import { cn } from '@/lib/simplicity/utils'
 import ProviderLogo from '@/screens/simplicity/ui/ProviderLogo'
 
@@ -65,6 +65,12 @@ const PublikCard = ({ className }: { className?: string }) => {
   const { account, choice, usageCounted, choose, setUsageCounted } =
     usePublikAccount()
   const [busy, setBusy] = useState<Choice | 'ask' | null>(null)
+
+  /* The stored balance is from the last wallet read; read it again when the
+     card opens (Astro 0.2.4 QA, F-020). */
+  useEffect(() => {
+    void refreshPublikAccount()
+  }, [])
 
   if (account === undefined || choice === undefined) return null
 
