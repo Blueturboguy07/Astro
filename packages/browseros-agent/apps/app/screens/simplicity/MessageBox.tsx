@@ -13,6 +13,7 @@ import Markdown, { type MarkdownToJSX, RuleType } from 'markdown-to-jsx'
 import type React from 'react'
 import type { MutableRefObject } from 'react'
 import { useSpeech } from 'react-text-to-speech'
+import { parsePublikLimitError } from '@/lib/publik/limit-error'
 import { type Section, useChat } from '@/lib/simplicity/hooks/useChat'
 import type {
   CouncilBlock,
@@ -301,28 +302,45 @@ const MessageBox = ({
               and leaves a blank answer behind. */}
           {section.message.responseBlocks
             .filter((block) => block.type === 'error')
-            .map((block) => (
-              <div
-                key={block.id}
-                className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/5 p-4"
-              >
-                <div className="flex-1">
-                  <p className="font-medium text-red-600 text-sm dark:text-red-400">
-                    This answer failed
-                  </p>
-                  <p className="mt-1 text-black/70 text-sm dark:text-white/70">
-                    {String(block.data)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => rewrite(section.message.messageId)}
-                  className="shrink-0 rounded-lg bg-light-secondary px-3 py-1.5 font-medium text-black text-xs transition hover:bg-light-200 dark:bg-dark-secondary dark:text-white dark:hover:bg-dark-200"
+            .map((block) => {
+              /* publik's daily cap: say when it resets and link the wallet
+                 instead of the raw "429 ..." text; Retry cannot help until
+                 the reset (F-050). */
+              const limit = parsePublikLimitError(String(block.data))
+              return (
+                <div
+                  key={block.id}
+                  className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/5 p-4"
                 >
-                  Retry
-                </button>
-              </div>
-            ))}
+                  <div className="flex-1">
+                    <p className="font-medium text-red-600 text-sm dark:text-red-400">
+                      {limit ? limit.title : 'This answer failed'}
+                    </p>
+                    <p className="mt-1 text-black/70 text-sm dark:text-white/70">
+                      {limit ? limit.text : String(block.data)}
+                    </p>
+                  </div>
+                  {limit ? (
+                    <a
+                      href={limit.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-lg bg-[#24A0ED] px-3 py-1.5 font-medium text-white text-xs transition hover:bg-[#1e8fd1]"
+                    >
+                      Open wallet
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => rewrite(section.message.messageId)}
+                      className="shrink-0 rounded-lg bg-light-secondary px-3 py-1.5 font-medium text-black text-xs transition hover:bg-light-200 dark:bg-dark-secondary dark:text-white dark:hover:bg-dark-200"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </div>
+              )
+            })}
 
           {section.widgets.length > 0 && <Renderer widgets={section.widgets} />}
 

@@ -21,6 +21,29 @@ export function chatErrorText(error: unknown): string {
         },
       })
     }
+    /* publik's daily cap and spent plan budget: keep the type and the
+       Retry-After as a reset time so the panel can say when it resets and
+       link the wallet (F-050). */
+    const type = body?.error?.type
+    if (type === 'daily_cap_reached' || type === 'week_budget_reached') {
+      const retryAfter = Number(
+        error.responseHeaders?.['retry-after'] ??
+          error.responseHeaders?.['Retry-After'],
+      )
+      return JSON.stringify({
+        error: {
+          type,
+          message: body?.error?.message ?? error.message,
+          ...(Number.isFinite(retryAfter) && retryAfter > 0
+            ? {
+                reset_at: new Date(
+                  Date.now() + retryAfter * 1000,
+                ).toISOString(),
+              }
+            : {}),
+        },
+      })
+    }
     return error.message || `The AI provider answered ${error.statusCode}.`
   }
   if (error instanceof Error && error.message) return error.message

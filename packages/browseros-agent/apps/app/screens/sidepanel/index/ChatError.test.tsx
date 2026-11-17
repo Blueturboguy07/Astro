@@ -17,6 +17,11 @@ mock.module('@/components/ui/button', () => ({
     createElement('button', { type: 'button', ...props }, children),
 }))
 
+mock.module(
+  '@/lib/publik/limit-error',
+  () => import('../../../lib/publik/limit-error'),
+)
+
 mock.module('@/lib/publik/publik', () => ({
   publikLink: (url: unknown) =>
     typeof url === 'string' && url.startsWith('https://publikhq.com/')
@@ -96,5 +101,42 @@ describe('ChatError for a publik 402', () => {
     const html = renderError(new Error(evil), 'openai-compatible')
     expect(html).not.toContain('evil.example')
     expect(html).toContain('href="https://publikhq.com/wallet/add"')
+  })
+})
+
+describe('ChatError: F-045, F-046, F-050', () => {
+  it('connection error has no empty promise and no upstream link', () => {
+    const html = renderError(new Error('Failed to fetch'))
+    expect(html).not.toContain('Follow below instructions')
+    expect(html).not.toContain('docs.browseros.com')
+    expect(html).toContain('quit and reopen Astro')
+    expect(html).toContain('Try again')
+  })
+
+  it('publik daily cap shows the reset time and the wallet, no retry', () => {
+    const body = JSON.stringify({
+      error: {
+        type: 'daily_cap_reached',
+        message: 'This key has reached its daily spending cap.',
+        reset_at: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+      },
+    })
+    const html = renderError(new Error(body), 'openai-compatible')
+    expect(html).toContain('Daily limit reached')
+    expect(html).toContain('It resets in 2 h 0 min')
+    expect(html).toContain('href="https://publikhq.com/wallet"')
+    expect(html).toContain('Open wallet')
+    expect(html).not.toContain('Try again')
+  })
+
+  it('a stalled model stream says so and offers retry', () => {
+    const html = renderError(
+      new Error(
+        'The AI model stopped answering: no data for 90 seconds. Retry, or choose another model.',
+      ),
+      'openai-compatible',
+    )
+    expect(html).toContain('No answer from the model')
+    expect(html).toContain('Try again')
   })
 })

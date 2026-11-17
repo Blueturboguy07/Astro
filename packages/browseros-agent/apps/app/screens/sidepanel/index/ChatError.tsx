@@ -2,6 +2,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
+import { parsePublikLimitError } from '@/lib/publik/limit-error'
 import { publikLink } from '@/lib/publik/publik'
 
 const SURVEY_DIRECTIONS = [
@@ -56,18 +57,29 @@ function parseErrorMessage(
   isCreditsExhausted?: boolean
   isConnectionError?: boolean
   isPublikMoney?: boolean
+  isPublikLimit?: boolean
+  isModelIdle?: boolean
+  title?: string
 } {
   const isBrowserosProvider = providerType === 'browseros'
 
   const money = parsePublikMoneyError(message)
   if (money) return { ...money, isPublikMoney: true }
 
+  const limit = parsePublikLimitError(message)
+  if (limit) return { ...limit, isPublikLimit: true }
+
+  if (message.includes('The AI model stopped answering')) {
+    return { text: message, isModelIdle: true }
+  }
+
   // All chat requests go through the local Astro agent server, so any
   // fetch failure is always a local connection issue.
   if (message.includes('Failed to fetch') || message.includes('fetch failed')) {
     return {
-      text: 'Unable to connect to Astro agent. Follow below instructions.',
-      url: 'https://docs.browseros.com/troubleshooting/connection-issues',
+      /* No upstream docs link: it pointed at docs.browseros.com and the
+         text promised instructions that were not there (F-046). */
+      text: 'Astro could not reach its local server. It restarts by itself: try again in a few seconds. If this keeps happening, quit and reopen Astro.',
       isConnectionError: true,
     }
   }
@@ -127,6 +139,9 @@ export const ChatError: FC<ChatErrorProps> = ({
     isCreditsExhausted,
     isConnectionError,
     isPublikMoney,
+    isPublikLimit,
+    isModelIdle,
+    title,
   } = parseErrorMessage(error.message, providerType)
 
   const surveyUrl = useMemo(
@@ -136,12 +151,14 @@ export const ChatError: FC<ChatErrorProps> = ({
   )
 
   const getTitle = () => {
+    if (title) return title
     if (isPublikMoney) return 'Not enough publik balance'
+    if (isModelIdle) return 'No answer from the model'
     if (isRateLimit) return 'Daily limit reached'
     if (isConnectionError) return 'Connection failed'
     return 'Something went wrong'
   }
-  const canRetry = !!onRetry && !isRateLimit && !isPublikMoney
+  const canRetry = !!onRetry && !isRateLimit && !isPublikMoney && !isPublikLimit
 
   return (
     <div className="mx-4 flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
@@ -150,14 +167,14 @@ export const ChatError: FC<ChatErrorProps> = ({
         <span className="font-medium text-sm">{getTitle()}</span>
       </div>
       <p className="text-center text-destructive text-xs">{text}</p>
-      {isConnectionError && url && (
+      {isPublikLimit && url && (
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-muted-foreground text-xs underline hover:text-foreground"
+          className="rounded-lg bg-[#24A0ED] px-3 py-1.5 font-medium text-white text-xs transition-all hover:bg-[#1e8fd1]"
         >
-          View troubleshooting guide
+          Open wallet
         </a>
       )}
       {isPublikMoney && url && (
