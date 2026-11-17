@@ -3,6 +3,7 @@ import { DefaultChatTransport, type UIMessage } from 'ai'
 import { compact } from 'es-toolkit/array'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { toast } from 'sonner'
 import useDeepCompareEffect from 'use-deep-compare-effect'
 import type { Provider } from '@/components/chat/chatComponentTypes'
 import {
@@ -50,6 +51,7 @@ import type { ChatMode } from './chat-types'
 import { addContentFilterNotice } from './content-filter-notice'
 import { useExecutionHistoryTracker } from './execution-history-tracker.hooks'
 import { useNotifyActiveTab } from './notify-active-tab.hooks'
+import { newChatNotice, switchStartsNewChat } from './provider-switch'
 import { useRemoteConversationSave } from './remote-conversation-save.hooks'
 import { toLlmProviderConfig } from './sidepanel-chat-targets'
 import { stripImageToolOutputs } from './tool-output-strip'
@@ -735,12 +737,10 @@ export const useChatSession = (options?: ChatSessionOptions) => {
     if (target.kind === 'llm') setDefaultProvider(target.provider.id)
 
     if (
-      previousTarget &&
-      (previousTarget.kind !== target.kind ||
-        previousTarget.id !== target.id) &&
-      messagesRef.current.length > 0
+      switchStartsNewChat(previousTarget, target, messagesRef.current.length)
     ) {
       resetConversationState()
+      toast.info(newChatNotice(provider.name))
     }
   }
 
