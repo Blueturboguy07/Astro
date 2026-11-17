@@ -12,18 +12,25 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useSessionInfo } from '@/lib/auth/sessionStorage'
+import { accountApiConfigured } from '@/lib/browseros-api-url'
 import { cn } from '@/lib/utils'
 import { useGraphqlQuery } from '@/modules/graphql/graphql-query.hooks'
 import { useWorkspace } from '@/modules/workspace/workspace.hooks'
 import { GetProfileByUserIdDocument } from '@/screens/profile/graphql/profileDocument'
+import { PublikBranding } from './PublikBranding'
+
+const ACCOUNT_API = accountApiConfigured(
+  import.meta.env.VITE_PUBLIC_BROWSEROS_API,
+)
 
 export interface SidebarBrandingProps {
   expanded?: boolean
 }
 
-export const SidebarBranding: FC<SidebarBrandingProps> = ({
-  expanded = true,
-}) => {
+export const SidebarBranding: FC<SidebarBrandingProps> = (props) =>
+  ACCOUNT_API ? <AccountBranding {...props} /> : <PublikBranding {...props} />
+
+const AccountBranding: FC<SidebarBrandingProps> = ({ expanded = true }) => {
   const { selectedFolder } = useWorkspace()
   const { sessionInfo } = useSessionInfo()
   const navigate = useNavigate()

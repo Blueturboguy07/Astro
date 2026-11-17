@@ -1,6 +1,7 @@
 import { AlertCircle, Clock, Coins, CreditCard, Zap } from 'lucide-react'
 import type { FC } from 'react'
 import { Button } from '@/components/ui/button'
+import { accountApiConfigured } from '@/lib/browseros-api-url'
 import {
   getCreditBarColor,
   getCreditTextColor,
@@ -8,8 +9,18 @@ import {
 import { AstroIcon } from '@/lib/llm-providers/providerIcons'
 import { cn } from '@/lib/utils'
 import { useCredits } from '@/modules/credits/credits.hooks'
+import { PublikUsage } from './PublikUsage'
 
-export const UsagePage: FC = () => {
+const ACCOUNT_API = accountApiConfigured(
+  import.meta.env.VITE_PUBLIC_BROWSEROS_API,
+)
+
+/* Upstream's credits exist only with a BrowserOS account API; an Astro
+   build shows the publik account instead (Astro 0.2.4 QA, F-022). */
+export const UsagePage: FC = () =>
+  ACCOUNT_API ? <CreditsUsagePage /> : <PublikUsage />
+
+const CreditsUsagePage: FC = () => {
   const { data, isLoading, error } = useCredits()
 
   if (isLoading) {
