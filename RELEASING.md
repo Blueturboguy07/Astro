@@ -244,7 +244,13 @@ The re-cut prints these with the real paths filled in.
 APP=dist/astro-recut/Astro.app
 DMG=dist/astro-recut/Astro.dmg
 
-hdiutil create -volname Astro -srcfolder "$APP" -ov -format UDZO "$DMG"
+# The dmg holds Astro.app AND a link to /Applications (0.2.4 had only the app: QA F-007).
+STAGE=dist/astro-recut/dmg-stage
+rm -rf "$STAGE" && mkdir -p "$STAGE"
+ditto --clone "$APP" "$STAGE/Astro.app"
+ln -s /Applications "$STAGE/Applications"
+hdiutil create -volname Astro -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+rm -rf "$STAGE"
 codesign --force --timestamp --sign "Developer ID Application: Mann Bellani (R5R3ZS54LV)" "$DMG"
 
 xcrun notarytool submit "$DMG" --keychain-profile AC_PASSWORD --wait

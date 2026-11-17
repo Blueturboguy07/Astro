@@ -478,6 +478,29 @@ export function entitlementKeys(xml: string | undefined): string[] {
   return [...xml.matchAll(/<key>([^<]+)<\/key>/g)].map((m) => m[1]).sort()
 }
 
+/**
+ * The dmg: a folder with Astro.app and a link to /Applications, so the
+ * window that opens shows where to drag the app. 0.2.4 put the bare app in
+ * the dmg (-srcfolder on Astro.app itself) and there was no Applications
+ * link (QA F-007). The copy is an APFS clone (ditto --clone), so the stage
+ * costs almost no disk.
+ */
+export function dmgCommands(
+  appPath: string,
+  dmgPath: string,
+  identity: string,
+): string[] {
+  const stage = path.join(path.dirname(dmgPath), 'dmg-stage')
+  return [
+    `rm -rf "${stage}" && mkdir -p "${stage}"`,
+    `ditto --clone "${appPath}" "${stage}/Astro.app"`,
+    `ln -s /Applications "${stage}/Applications"`,
+    `hdiutil create -volname Astro -srcfolder "${stage}" -ov -format UDZO "${dmgPath}"`,
+    `rm -rf "${stage}"`,
+    `codesign --force --timestamp --sign "${identity}" "${dmgPath}"`,
+  ]
+}
+
 export function notarizeCommands(dmgPath: string): string[] {
   return [
     `xcrun notarytool submit "${dmgPath}" --keychain-profile ${NOTARY_PROFILE} --wait`,
@@ -960,8 +983,7 @@ export async function recut(opts: RecutOptions): Promise<string> {
     `ditto -c -k --keepParent "${appOut}" "${appOut}.zip"`,
     `xcrun notarytool submit "${appOut}.zip" --keychain-profile ${NOTARY_PROFILE} --wait`,
     `xcrun stapler staple "${appOut}"`,
-    `hdiutil create -volname Astro -srcfolder "${appOut}" -ov -format UDZO "${dmg}"`,
-    `codesign --force --timestamp --sign "${opts.identity}" "${dmg}"`,
+    ...dmgCommands(appOut, dmg, opts.identity),
     ...notarizeCommands(dmg),
   ]) {
     console.log(`      ${line}`)

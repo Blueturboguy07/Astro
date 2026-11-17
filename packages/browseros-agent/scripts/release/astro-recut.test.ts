@@ -13,6 +13,7 @@ import {
   crxManifestVersion,
   crxZipOffset,
   DEVELOPER_ID,
+  dmgCommands,
   dropBundledExtension,
   entitlementKeys,
   isMachOExecutable,
@@ -486,5 +487,32 @@ describe('server and re-cut from an Astro bundle', () => {
         `${BUG_REPORTER_EXTENSION_ID}.crx`,
       ]),
     ).toBe(false)
+  })
+})
+
+/* QA F-007: the 0.2.4 dmg held only Astro.app, with no Applications link. */
+describe('dmg', () => {
+  const cmds = dmgCommands(
+    'dist/astro-recut/Astro.app',
+    'dist/astro-recut/Astro.dmg',
+    'Developer ID Application: X (T)',
+  )
+
+  it('puts Astro.app and an Applications link side by side', () => {
+    expect(cmds).toContain(
+      'ditto --clone "dist/astro-recut/Astro.app" "dist/astro-recut/dmg-stage/Astro.app"',
+    )
+    expect(cmds).toContain(
+      'ln -s /Applications "dist/astro-recut/dmg-stage/Applications"',
+    )
+  })
+
+  it('builds the dmg from the stage folder, not from the bare app', () => {
+    const create = cmds.find((c) => c.startsWith('hdiutil create'))
+    expect(create).toContain('-srcfolder "dist/astro-recut/dmg-stage"')
+    expect(cmds.indexOf(create as string)).toBeGreaterThan(
+      cmds.findIndex((c) => c.startsWith('ln -s /Applications')),
+    )
+    expect(cmds.at(-1)).toStartWith('codesign --force --timestamp')
   })
 })
