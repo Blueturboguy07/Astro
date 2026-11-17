@@ -49,6 +49,7 @@ import {
 import type { LlmProviderConfig, ProviderType } from '@/lib/llm-providers/types'
 import { track } from '@/lib/metrics/track'
 import { refinePrompt } from '@/lib/schedules/refine-prompt'
+import { selectAllOnFocus } from './select-all-on-focus'
 import type { ScheduledJob } from './types'
 
 const formSchema = z
@@ -451,6 +452,9 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
                           type="number"
                           min={1}
                           max={scheduleType === 'hourly' ? 24 : 60}
+                          /* Typing replaces the default: a caret after the
+                             "1" turned a typed 5 into 15. */
+                          {...selectAllOnFocus}
                           value={field.value ?? ''}
                           onChange={(e) =>
                             field.onChange(

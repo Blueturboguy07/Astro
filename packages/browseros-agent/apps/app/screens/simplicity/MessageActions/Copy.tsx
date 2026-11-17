@@ -14,6 +14,9 @@ const Copy = ({
 
   return (
     <button
+      type="button"
+      aria-label={copied ? 'Copied' : 'Copy answer'}
+      title="Copy answer"
       onClick={() => {
         const sources = section.message.responseBlocks.filter(
           (b) => b.type === 'source' && b.data.length > 0,

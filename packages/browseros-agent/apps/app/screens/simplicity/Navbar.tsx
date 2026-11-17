@@ -245,7 +245,11 @@ const Navbar = () => {
 
           <div className="flex min-w-0 items-center gap-1">
             <Popover className="relative">
-              <PopoverButton className="rounded-lg p-2 transition-colors duration-200 hover:bg-light-secondary dark:hover:bg-dark-secondary">
+              <PopoverButton
+                aria-label="Export chat"
+                title="Export chat"
+                className="rounded-lg p-2 transition-colors duration-200 hover:bg-light-secondary dark:hover:bg-dark-secondary"
+              >
                 <Share size={16} className="text-black/60 dark:text-white/60" />
               </PopoverButton>
               <Transition

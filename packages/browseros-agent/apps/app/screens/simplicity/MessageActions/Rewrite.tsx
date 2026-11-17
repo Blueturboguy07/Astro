@@ -9,6 +9,9 @@ const Rewrite = ({
 }) => {
   return (
     <button
+      type="button"
+      aria-label="Rewrite answer"
+      title="Rewrite answer"
       onClick={() => rewrite(messageId)}
       className="flex flex-row items-center space-x-1 rounded-full p-2 text-black/70 transition duration-200 hover:bg-light-secondary hover:text-black dark:text-white/70 dark:hover:bg-dark-secondary dark:hover:text-white"
     >

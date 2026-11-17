@@ -177,6 +177,7 @@ const Download = ({
         <>
           <PopoverButton
             aria-label="Export answer"
+            title="Export answer"
             className="rounded-full p-2 text-black/70 transition duration-200 hover:bg-light-secondary hover:text-black dark:text-white/70 dark:hover:bg-dark-secondary dark:hover:text-white"
           >
             <DownloadIcon size={16} />
