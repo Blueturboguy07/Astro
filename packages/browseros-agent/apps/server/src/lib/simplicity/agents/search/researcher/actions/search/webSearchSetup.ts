@@ -1,5 +1,6 @@
 import {
   getRunningURL,
+  getSearchSetupStatus,
   onSearchSetupStatus,
   type SearchSetupStatus,
   start,
@@ -28,6 +29,7 @@ export const ensureWebSearchReady = async (
     runningURL?: () => string | null;
     startSearch?: () => Promise<string>;
     onStatus?: (cb: (s: SearchSetupStatus) => void) => () => void;
+    currentStatus?: () => SearchSetupStatus;
     now?: () => number;
   } = {},
 ): Promise<boolean> => {
@@ -35,6 +37,7 @@ export const ensureWebSearchReady = async (
   const runningURL = deps.runningURL ?? getRunningURL;
   const startSearch = deps.startSearch ?? (() => start());
   const onStatus = deps.onStatus ?? onSearchSetupStatus;
+  const currentStatus = deps.currentStatus ?? getSearchSetupStatus;
   const now = deps.now ?? Date.now;
 
   if (configuredURL() || runningURL()) return true;
@@ -55,7 +58,7 @@ export const ensureWebSearchReady = async (
     ]);
   };
 
-  const unsubscribe = onStatus((s) => {
+  const onUpdate = (s: SearchSetupStatus) => {
     if (s.state !== 'setting_up') return;
     /* A plain restart of an installed search engine takes a few seconds;
        only the one-time setup earns a step. */
@@ -63,7 +66,14 @@ export const ensureWebSearchReady = async (
     if (now() - lastAt < PROGRESS_THROTTLE_MS && s.percent !== 0) return;
     lastAt = now();
     show('info', s.message);
-  });
+  };
+  const unsubscribe = onStatus(onUpdate);
+  /* A question that arrives in the middle of a long step (pip runs for a
+     minute) would otherwise see no change until the next step. */
+  const atStart = currentStatus();
+  if (atStart.state === 'setting_up' && atStart.step !== 'starting') {
+    onUpdate(atStart);
+  }
 
   try {
     await startSearch();

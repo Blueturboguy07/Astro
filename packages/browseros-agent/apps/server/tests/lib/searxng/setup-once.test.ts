@@ -162,6 +162,38 @@ describe('ensureWebSearchReady', () => {
     ])
   })
 
+  /* Patched-app retest: a question asked while pip ran saw no step, because
+     no new status came until the next step. */
+  it('shows the step already running when the question arrives', async () => {
+    const block = researchBlock()
+    let seenDuringSetup: unknown[] = []
+    await ensureWebSearchReady(
+      block,
+      { updateBlock: () => {} },
+      {
+        configuredURL: () => '',
+        runningURL: () => null,
+        onStatus: fakeStatus().onStatus,
+        currentStatus: () => ({
+          state: 'setting_up',
+          step: 'dependencies',
+          percent: 0,
+          message: 'Installing search dependencies',
+        }),
+        startSearch: async () => {
+          seenDuringSetup = structuredClone(block.data.subSteps)
+          return 'http://127.0.0.1:1'
+        },
+      },
+    )
+    expect(seenDuringSetup).toEqual([
+      expect.objectContaining({
+        type: 'notice',
+        text: 'Installing search dependencies',
+      }),
+    ])
+  })
+
   it('shows one clear error step when setup fails, however often it is asked', async () => {
     const block = researchBlock()
     const deps = {
