@@ -7,10 +7,12 @@ import {
 import { PanelOverflowMenu } from '@/screens/sidepanel/index/PanelOverflowMenu'
 
 const ChatLayoutContent: FC = () => {
-  const { selectedProvider, resetConversation, isLoading } =
-    useChatSessionContext()
+  const { resetConversation, isLoading } = useChatSessionContext()
 
-  if (isLoading || !selectedProvider) {
+  /* Only while loading: with no AI connection there is no selected
+     provider, and the chat shows how to add one (F-018). Waiting for a
+     provider here left a spinner forever. */
+  if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
