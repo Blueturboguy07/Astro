@@ -32,7 +32,14 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Error uploading file:', error);
     return Response.json(
-      { message: 'An error has occurred.' },
+      /* The reason, not "An error has occurred.": the composer shows this
+         text (F-042). */
+      {
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : 'An error has occurred.',
+      },
       { status: 500 },
     );
   }

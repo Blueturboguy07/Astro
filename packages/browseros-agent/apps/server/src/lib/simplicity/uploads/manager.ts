@@ -3,6 +3,7 @@ import BaseEmbedding from "../models/base/embedding"
 import crypto from "crypto"
 import fs from 'node:fs';
 import { splitText } from "../utils/splitText";
+import { ensureDOMMatrix } from "./dommatrix-polyfill";
 /* pdf-parse and officeparser are imported lazily, at the point a file of that
    type is actually parsed. Both pull heavy document toolchains in at import
    time — pdf-parse loads pdfjs, which reaches for @napi-rs/canvas and DOMMatrix
@@ -13,6 +14,22 @@ import { splitText } from "../utils/splitText";
 const supportedMimeTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'] as const
 
 type SupportedMimeType = typeof supportedMimeTypes[number];
+
+const TYPE_BY_EXTENSION: Record<string, SupportedMimeType> = {
+    txt: 'text/plain',
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+};
+
+/* The upload's type without parameters, or from the file name when the
+   browser sends none: "text/plain;charset=utf-8" was refused, and a .docx
+   can arrive with an empty type (Astro 0.2.4 QA, F-042). */
+export function uploadType(file: { type: string; name: string }): SupportedMimeType | null {
+    const base = file.type.split(';')[0]!.trim().toLowerCase();
+    if ((supportedMimeTypes as readonly string[]).includes(base)) return base as SupportedMimeType;
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    return TYPE_BY_EXTENSION[ext] ?? null;
+}
 
 type UploadManagerParams = {
     embeddingModel: BaseEmbedding<any>;
@@ -123,6 +140,9 @@ class UploadManager {
                 return contentPath;
             case 'application/pdf':
                 const pdfBuffer = fs.readFileSync(filePath);
+                /* Before pdfjs loads: the compiled server has no DOMMatrix
+                   and cannot load @napi-rs/canvas for one (F-042). */
+                ensureDOMMatrix();
 
                 const [{ PDFParse }, { CanvasFactory }] = await Promise.all([
                     import('pdf-parse'),
@@ -158,10 +178,11 @@ class UploadManager {
 
                 return pdfContentPath;
             case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-                const docBuffer = fs.readFileSync(filePath);
-
+                /* The path, not the bytes: detecting the type from a buffer
+                   failed in the compiled server; the saved file keeps its
+                   .docx extension (F-042). */
                 const { default: officeParser } = await import('officeparser')
-                const docText = (await officeParser.parseOffice(docBuffer)).toText()
+                const docText = (await officeParser.parseOffice(filePath)).toText()
 
                 const docSplittedText = splitText(docText, 512, 128)
                 const docEmbeddings = await this.embeddingModel.embedText(docSplittedText)
@@ -193,8 +214,9 @@ class UploadManager {
         const processedFiles: FileRes[] = [];
 
         await Promise.all(files.map(async (file) => {
-            if (!(supportedMimeTypes as unknown as string[]).includes(file.type)) {
-                throw new Error(`File type ${file.type} not supported`);
+            const type = uploadType(file);
+            if (!type) {
+                throw new Error(`${file.name}: this file type is not supported. Upload a .txt, .pdf or .docx file.`);
             }
 
             const fileId = crypto.randomBytes(16).toString('hex');
@@ -207,7 +229,7 @@ class UploadManager {
 
             fs.writeFileSync(filePath, buffer);
 
-            const contentFilePath = await this.extractContentAndEmbed(filePath, file.type as SupportedMimeType);
+            const contentFilePath = await this.extractContentAndEmbed(filePath, type);
 
             const fileRecord: RecordedFile = {
                 id: fileId,
