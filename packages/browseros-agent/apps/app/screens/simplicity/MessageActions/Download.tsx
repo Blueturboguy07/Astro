@@ -183,7 +183,14 @@ const Download = ({
           </PopoverButton>
           <AnimatePresence>
             {open && (
-              <PopoverPanel static className="absolute right-0 z-20 w-52">
+              /* Anchored in a portal above the page: under the last answer
+                 the menu opened below and sat under the fixed follow-up
+                 box, so a click on PDF or CSV did nothing (F-069). */
+              <PopoverPanel
+                static
+                anchor={{ to: 'top end', gap: 6 }}
+                className="z-50 w-52"
+              >
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
