@@ -75,8 +75,11 @@ const MessageInput = () => {
         setMessage('')
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' && !e.shiftKey && !loading) {
+        /* While an answer streams, Enter keeps the question in the box
+           (no stray newline) until the answer ends (F-063). */
+        if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault()
+          if (loading || !message.trim()) return
           sendMessage(message)
           setMessage('')
         }
