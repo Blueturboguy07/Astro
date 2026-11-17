@@ -24,6 +24,7 @@ import type { KlavisService } from '../services/klavis'
 import type { ServerActivity } from '../services/server-activity'
 import type { BrowserContext, ChatRequest } from '../types'
 import { resolveBrowserContextPageIds } from '../utils/resolve-browser-context-page-ids'
+import { chatErrorText } from './chat-error-text'
 import {
   describeMcpChange,
   describeModeChange,
@@ -343,6 +344,7 @@ export class ChatService {
       agent: session.agent.toolLoopAgent,
       uiMessages: promptUiMessages,
       abortSignal,
+      onError: chatErrorText,
       onFinish: async ({ messages }: { messages: UIMessage[] }) => {
         // The agent loop returns `messages` containing the prompt-
         // wrapped user text. Restore the raw form before persisting
