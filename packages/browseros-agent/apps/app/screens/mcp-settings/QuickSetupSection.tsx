@@ -86,7 +86,9 @@ const clients: ClientConfig[] = [
     name: 'Codex',
     kind: 'command',
     action: 'Run in your terminal:',
-    getSnippet: (url) => `codex mcp add browseros ${url}`,
+    /* --url: without it Codex stores the URL as a stdio command
+       (Astro 0.2.4 QA, F-027). */
+    getSnippet: (url) => `codex mcp add browseros --url ${url}`,
   },
 ]
 

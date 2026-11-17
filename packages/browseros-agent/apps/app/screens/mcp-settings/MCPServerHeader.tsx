@@ -1,11 +1,4 @@
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  Server,
-} from 'lucide-react'
+import { Check, Copy, Loader2, RefreshCw, Server } from 'lucide-react'
 import { type FC, useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -20,8 +13,6 @@ export interface MCPServerHeaderProps {
   error: string | null
   onServerRestart?: () => void
 }
-
-const DOCS_URL = 'https://docs.browseros.com/features/use-with-claude-code'
 
 export const MCPServerHeader: FC<MCPServerHeaderProps> = ({
   serverUrl,
@@ -77,15 +68,6 @@ export const MCPServerHeader: FC<MCPServerHeaderProps> = ({
         <div className="flex-1">
           <div className="mb-1 flex items-center justify-between">
             <h2 className="font-semibold text-xl">Astro MCP Server</h2>
-            <a
-              href={DOCS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-muted-foreground text-sm transition-colors hover:text-[var(--accent-orange)]"
-            >
-              Docs
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
           </div>
           <p className="mb-6 text-muted-foreground text-sm">
             Connect Astro to MCP clients like Claude Code, Gemini CLI and

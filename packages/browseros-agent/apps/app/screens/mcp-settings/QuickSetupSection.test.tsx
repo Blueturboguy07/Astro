@@ -71,4 +71,10 @@ describe('QuickSetupSection', () => {
       '&quot;url&quot;: &quot;http://127.0.0.1:9200/mcp&quot;',
     )
   })
+
+  it('gives Codex the URL with --url (F-027)', () => {
+    expect(render()).toContain(
+      'codex mcp add browseros --url http://127.0.0.1:9200/mcp',
+    )
+  })
 })
