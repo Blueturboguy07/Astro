@@ -70,6 +70,21 @@ Current date & time in ISO format (UTC timezone) is: ${new Date().toISOString()}
 
 const MEMBER_PROMPT = `You are one member of a model council. Answer the user's question using ONLY the context provided. Cite sources inline with [number] notation. Be direct and specific; state uncertainty plainly rather than hedging everywhere. Another model will compare your answer against other members', so answer independently — do not hedge toward a consensus you cannot see.`
 
+/* The example model ids follow the configured provider. A fixed
+   ["gpt-5.4","gpt-5.2"] made the agent ask publik for OpenAI model names it
+   does not serve (Astro 0.2.4 QA, F-048). */
+export function councilExample(
+  config: Pick<ResolvedAgentConfig, 'model' | 'baseUrl'>,
+): string {
+  const publik =
+    config.model?.startsWith('publik-') ||
+    (config.baseUrl ?? '').includes('publikhq.com')
+  if (publik) return '["publik-fast","publik-smart"]'
+  return config.model
+    ? `["${config.model}", another model id this provider serves]`
+    : 'two model ids this provider serves'
+}
+
 export function createModelCouncilTool(
   resolvedConfig: ResolvedAgentConfig,
   chairModel: LanguageModel,
@@ -87,7 +102,7 @@ export function createModelCouncilTool(
       models: z
         .array(z.string())
         .describe(
-          `Model IDs to consult on the current provider, e.g. ["gpt-5.4","gpt-5.2"]. Between ${MIN_MEMBERS} and ${MAX_MEMBERS}.`,
+          `Model IDs to consult on the current provider, e.g. ${councilExample(resolvedConfig)}. Between ${MIN_MEMBERS} and ${MAX_MEMBERS}.`,
         ),
     }),
     execute: async (params) => {

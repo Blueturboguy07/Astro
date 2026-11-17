@@ -99,7 +99,9 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
   initialValues,
   onSave,
 }) => {
-  const isEditing = !!initialValues
+  /* A suggestion prefills the form with an empty id: that is a new task,
+     not an edit (Astro 0.2.4 QA, F-048). */
+  const isEditing = !!initialValues?.id
   const [providers, setProviders] = useState<LlmProviderConfig[]>([])
   const [defaultProviderId, setDefaultProviderId] = useState<string>('')
 
