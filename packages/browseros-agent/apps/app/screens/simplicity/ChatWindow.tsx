@@ -54,7 +54,7 @@ const ChatWindow = () => {
         <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
           <p className="max-w-sm text-black/70 text-sm dark:text-white/70">
             {noProviders
-              ? 'No AI connection yet. Connect your publik plan or add your own key in Settings.'
+              ? 'No AI connection yet. Connect your publik plan or add your own key in Settings (the gear at the bottom left).'
               : (connectionErrorMessage ??
                 "Can't reach the local Astro server. It may still be starting, or it may have failed to start.")}
           </p>

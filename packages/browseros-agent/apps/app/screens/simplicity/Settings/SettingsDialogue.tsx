@@ -58,14 +58,19 @@ const sections = [
 const SettingsDialogue = ({
   isOpen,
   setIsOpen,
+  initialSection,
 }: {
   isOpen: boolean
   setIsOpen: (active: boolean) => void
+  /** Section key to open on, e.g. 'models' (the publik card). */
+  initialSection?: string
 }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [config, setConfig] = useState<any>(null)
-  const [activeSection, setActiveSection] = useState<string>(sections[0].key)
-  const [selectedSection, setSelectedSection] = useState(sections[0])
+  const first =
+    sections.find((s) => s.key === initialSection) ?? sections[0]
+  const [activeSection, setActiveSection] = useState<string>(first.key)
+  const [selectedSection, setSelectedSection] = useState(first)
 
   useEffect(() => {
     setSelectedSection(sections.find((s) => s.key === activeSection)!)

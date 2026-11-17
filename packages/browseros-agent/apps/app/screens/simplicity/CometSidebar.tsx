@@ -24,8 +24,10 @@ import {
   Monitor,
   PanelLeft,
   Plus,
+  Settings,
   Settings2,
 } from 'lucide-react'
+import { AnimatePresence } from 'motion/react'
 import ProductLogo from '@/assets/product_logo.svg'
 import { type FC, type ReactNode, useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router'
@@ -35,6 +37,7 @@ import { useChat } from '@/lib/simplicity/hooks/useChat'
 import type { Chat } from '@/lib/simplicity/types/discover'
 import { cn } from '@/lib/utils'
 import { accountFooter } from './comet-sidebar.helpers'
+import SettingsDialogue from './Settings/SettingsDialogue'
 
 const PRIMARY = [
   { to: '/home/computer', label: 'Computer', icon: Monitor },
@@ -90,6 +93,10 @@ export const CometSidebar: FC<{ children: ReactNode }> = ({ children }) => {
   const { startNewChat, loading } = useChat()
   const { account, choice } = usePublikAccount()
   const footer = accountFooter(account, choice)
+  /* The answer-engine settings (publik card, connections, models). Its only
+     opener was the mobile gear (`lg:hidden`), so a desktop window had no
+     visible entry (Astro 0.2.4 QA, F-019). */
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   /* The balance moves with every paid answer: read the wallet again when
      the rail mounts and after each answer. */
@@ -195,24 +202,50 @@ export const CometSidebar: FC<{ children: ReactNode }> = ({ children }) => {
           )}
         </div>
 
-        {footer && (
-          <div className="border-light-200 border-t px-3 py-3 dark:border-dark-200">
-            <div className="flex items-center gap-2">
+        <div className="border-light-200 border-t px-3 py-3 dark:border-dark-200">
+          <div
+            className={cn(
+              'flex items-center gap-2',
+              collapsed && 'flex-col',
+            )}
+          >
+            {footer && (
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-light-200 font-medium text-[11px] dark:bg-dark-200">
                 {footer.initials}
               </span>
-              {!collapsed && (
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px]">{footer.title}</div>
-                  <div className="truncate text-[11px] text-black/45 dark:text-white/45">
-                    {footer.detail}
-                  </div>
+            )}
+            {footer && !collapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px]">{footer.title}</div>
+                <div className="truncate text-[11px] text-black/45 dark:text-white/45">
+                  {footer.detail}
                 </div>
+              </div>
+            )}
+            <button
+              type="button"
+              aria-label="Settings"
+              title="Settings: publik plan, connections, models"
+              onClick={() => setSettingsOpen(true)}
+              className={cn(
+                'shrink-0 rounded-md p-1.5 text-black/50 hover:bg-light-200 hover:text-black dark:text-white/50 dark:hover:bg-dark-200 dark:hover:text-white',
+                !footer && !collapsed && 'ml-auto',
               )}
-            </div>
+            >
+              <Settings size={16} />
+            </button>
           </div>
-        )}
+        </div>
       </SidebarShell>
+      <AnimatePresence>
+        {settingsOpen && (
+          <SettingsDialogue
+            isOpen={settingsOpen}
+            setIsOpen={setSettingsOpen}
+            initialSection="models"
+          />
+        )}
+      </AnimatePresence>
 
       <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
     </div>
