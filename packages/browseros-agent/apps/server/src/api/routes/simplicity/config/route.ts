@@ -45,7 +45,9 @@ export const POST = async (req: Request) => {
   try {
     const body: SaveConfigBody = await req.json();
 
-    if (!body.key || !body.value) {
+    /* An empty value is valid: it clears a setting such as the SearXNG
+       URL, which `!body.value` refused (Astro 0.2.4 QA, F-030). */
+    if (!body.key || body.value === undefined || body.value === null) {
       return Response.json(
         {
           message: 'Key and value are required.',

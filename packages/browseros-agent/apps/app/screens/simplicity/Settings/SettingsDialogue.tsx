@@ -19,6 +19,7 @@ import Personalization from './Sections/Personalization'
 import Preferences from './Sections/Preferences'
 import SearchSection from './Sections/Search'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import { readConfigResponse } from './settings-config'
 
 const sections = [
   {
@@ -67,6 +68,8 @@ const SettingsDialogue = ({
 }) => {
   const [isLoading, setIsLoading] = useState(true)
   const [config, setConfig] = useState<any>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loadTry, setLoadTry] = useState(0)
   const first =
     sections.find((s) => s.key === initialSection) ?? sections[0]
   const [activeSection, setActiveSection] = useState<string>(first.key)
@@ -87,19 +90,22 @@ const SettingsDialogue = ({
             },
           })
 
-          const data = await res.json()
-
-          setConfig(data)
-        } catch (_error) {
+          const data = await res.json().catch(() => null)
+          setConfig(readConfigResponse(res.ok, res.status, data))
+          setLoadError(null)
+        } catch (error) {
+          setConfig(null)
+          setLoadError(error instanceof Error ? error.message : String(error))
           toast.error('Failed to load configuration.')
         } finally {
           setIsLoading(false)
         }
       }
 
+      setIsLoading(true)
       fetchConfig()
     }
-  }, [isOpen])
+  }, [isOpen, loadTry])
 
   return (
     <Dialog
@@ -210,10 +216,26 @@ const SettingsDialogue = ({
                       </div>
                     </div>
                     <div className="flex-1 overflow-y-auto">
-                      <selectedSection.component
-                        fields={config.fields[selectedSection.dataAdd]}
-                        values={config.values[selectedSection.dataAdd]}
-                      />
+                      {config ? (
+                        <selectedSection.component
+                          fields={config.fields[selectedSection.dataAdd]}
+                          values={config.values[selectedSection.dataAdd]}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-start gap-3 p-6 text-black/70 text-sm dark:text-white/70">
+                          <p>
+                            Astro could not load these settings
+                            {loadError ? ` (${loadError})` : ''}.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setLoadTry((n) => n + 1)}
+                            className="rounded-lg border border-light-200 px-3 py-1.5 text-xs hover:bg-light-200 dark:border-dark-200 hover:dark:bg-dark-200"
+                          >
+                            Try again
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

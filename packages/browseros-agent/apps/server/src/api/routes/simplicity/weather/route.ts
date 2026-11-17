@@ -1,3 +1,5 @@
+import { forecastURL } from './forecast-url';
+
 export const POST = async (req: Request) => {
   try {
     const body: {
@@ -6,7 +8,7 @@ export const POST = async (req: Request) => {
       measureUnit: 'Imperial' | 'Metric';
     } = await req.json();
 
-    if (!body.lat || !body.lng) {
+    if (typeof body.lat !== 'number' || typeof body.lng !== 'number') {
       return Response.json(
         {
           message: 'Invalid request.',
@@ -15,11 +17,7 @@ export const POST = async (req: Request) => {
       );
     }
 
-    const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${body.lat}&longitude=${body.lng}&current=weather_code,temperature_2m,is_day,relative_humidity_2m,wind_speed_10m&timezone=auto${
-        body.measureUnit === 'Metric' ? '' : '&temperature_unit=fahrenheit'
-      }${body.measureUnit === 'Metric' ? '' : '&wind_speed_unit=mph'}`,
-    );
+    const res = await fetch(forecastURL(body.lat, body.lng, body.measureUnit));
 
     const data = await res.json();
 

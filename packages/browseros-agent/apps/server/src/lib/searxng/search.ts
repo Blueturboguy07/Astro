@@ -10,6 +10,7 @@
  * locally provisioned instance in provision.ts.
  */
 
+import { getSearxngURL } from '../simplicity/config/serverRegistry'
 import { getRunningURL, start } from './provision'
 
 const SEARCH_TIMEOUT_MS = 10_000
@@ -37,13 +38,31 @@ export interface SearxngResponse {
   suggestions: string[]
 }
 
+/**
+ * The user's SearXNG URL from Settings when set, else the local instance.
+ * The agent's search tools used only the local instance and ignored the
+ * setting (Astro 0.2.4 QA, F-030). start() is idempotent and returns
+ * immediately once the instance answers.
+ */
+export async function resolveSearxngURL(
+  deps: {
+    configured?: () => string
+    running?: () => string | null
+    startLocal?: () => Promise<string>
+  } = {},
+): Promise<string> {
+  const configured = (deps.configured ?? getSearxngURL)().trim()
+  if (configured) return configured.replace(/\/+$/, '')
+  return (
+    (deps.running ?? getRunningURL)() ?? (await (deps.startLocal ?? start)())
+  )
+}
+
 export async function searchSearxng(
   query: string,
   opts?: SearxngSearchOptions,
 ): Promise<SearxngResponse> {
-  /* start() is idempotent and returns immediately once the instance answers,
-     so callers never have to sequence provisioning themselves. */
-  const searxngURL = getRunningURL() ?? (await start())
+  const searxngURL = await resolveSearxngURL()
 
   const url = new URL(`${searxngURL}/search?format=json`)
   url.searchParams.append('q', query)
