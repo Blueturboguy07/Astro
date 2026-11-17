@@ -62,7 +62,8 @@ type ChatContext = {
   isReady: boolean
   hasError: boolean
   connectionErrorMessage: string | null
-  retryConnection: () => void
+  /** `quiet`: no toast (the automatic retries of ChatWindow). */
+  retryConnection: (opts?: { quiet?: boolean }) => void
   /* The left rail's New: a fresh thread even when the URL already says
      #/home (sendMessage rewrites the hash without telling the router). */
   startNewChat: () => void
@@ -109,6 +110,7 @@ const checkConfig = async (
   setIsConfigReady: (ready: boolean) => void,
   setHasError: (hasError: boolean) => void,
   setConnectionErrorMessage: (message: string | null) => void,
+  quiet = false,
 ) => {
   /* Cleared up front, not just left false-by-default: this also runs from
      the "Retry" button (ChatWindow's hasError screen), and without this
@@ -239,7 +241,7 @@ const checkConfig = async (
     const message = isUnreachable
       ? "Can't reach the local Astro server. It may still be starting, or it may have failed to start — try again in a moment."
       : (err?.message ?? 'Something went wrong connecting to the server.')
-    toast.error(message)
+    if (!quiet) toast.error(message)
     setIsConfigReady(false)
     setHasError(true)
     setConnectionErrorMessage(message)
@@ -547,13 +549,14 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  const retryConnection = () => {
+  const retryConnection = (opts?: { quiet?: boolean }) => {
     checkConfig(
       setChatModelProvider,
       setEmbeddingModelProvider,
       setIsConfigReady,
       setHasError,
       setConnectionErrorMessage,
+      opts?.quiet,
     )
   }
 

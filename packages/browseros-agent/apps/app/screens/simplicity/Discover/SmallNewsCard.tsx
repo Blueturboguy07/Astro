@@ -1,9 +1,10 @@
 import { Link } from 'react-router'
 import type { Discover } from '@/lib/simplicity/types/discover'
+import { summaryRoute } from '../summary-route'
 
 const SmallNewsCard = ({ item }: { item: Discover }) => (
   <Link
-    to={`/?q=Summary: ${item.url}`}
+    to={summaryRoute(item.url)}
     className="group flex flex-col overflow-hidden rounded-3xl bg-light-secondary shadow-light-200/10 shadow-sm dark:bg-dark-secondary dark:shadow-black/25"
     target="_blank"
   >

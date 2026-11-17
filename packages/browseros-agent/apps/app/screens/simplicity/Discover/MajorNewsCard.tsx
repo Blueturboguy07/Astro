@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import type { Discover } from '@/lib/simplicity/types/discover'
+import { summaryRoute } from '../summary-route'
 
 const MajorNewsCard = ({
   item,
@@ -9,7 +10,7 @@ const MajorNewsCard = ({
   isLeft?: boolean
 }) => (
   <Link
-    to={`/?q=Summary: ${item.url}`}
+    to={summaryRoute(item.url)}
     className="group flex h-60 w-full flex-row items-stretch gap-6 py-3"
     target="_blank"
   >

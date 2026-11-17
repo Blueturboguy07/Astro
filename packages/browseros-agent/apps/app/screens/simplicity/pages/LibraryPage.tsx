@@ -131,7 +131,7 @@ const LibraryPage = () => {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <Link
-                      to={`/c/${chat.id}`}
+                      to={`/home/c/${chat.id}`}
                       className="flex-1 text-black dark:text-white text-base lg:text-lg font-medium leading-snug line-clamp-2 group-hover:text-[#24A0ED] transition duration-200"
                       title={chat.title}
                     >

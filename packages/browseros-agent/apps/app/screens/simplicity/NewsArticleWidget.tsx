@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import { summaryRoute } from './summary-route'
 
 interface Article {
   title: string
@@ -41,7 +42,7 @@ const NewsArticleWidget = () => {
         <div className="w-full text-red-400 text-xs">Could not load news.</div>
       ) : article ? (
         <a
-          href={`/?q=Summary: ${article.url}`}
+          href={`#${summaryRoute(article.url)}`}
           className="group relative flex h-full w-full flex-row items-stretch overflow-hidden"
         >
           <div className="relative h-full w-24 min-w-24 max-w-24 overflow-hidden">

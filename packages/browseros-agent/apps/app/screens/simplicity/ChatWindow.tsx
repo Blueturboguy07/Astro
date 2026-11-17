@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { usePublikMoney } from '@/lib/publik/useGate'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
 import type { Block } from '@/lib/simplicity/types'
@@ -40,6 +41,25 @@ const ChatWindow = () => {
     useChat()
   const { money, dismiss } = usePublikMoney()
 
+  /* "Can't reach the local Astro server" stayed until Retry was pressed,
+     also when the server came up seconds later. Try again every 5 s for
+     2 minutes (Astro 0.2.4 QA, F-031). Not for "no connection yet". */
+  const retryRef = useRef(retryConnection)
+  retryRef.current = retryConnection
+  const tries = useRef(0)
+  const noConnectionYet = /no chat model/i.test(connectionErrorMessage ?? '')
+  useEffect(() => {
+    if (isReady) tries.current = 0
+  }, [isReady])
+  useEffect(() => {
+    if (!hasError || noConnectionYet || tries.current >= 24) return
+    const timer = setTimeout(() => {
+      tries.current += 1
+      retryRef.current({ quiet: true })
+    }, 5_000)
+    return () => clearTimeout(timer)
+  }, [hasError, noConnectionYet])
+
   if (hasError) {
     /* The local server lists no providers: the person chose "Use my own
        key" at the gate and has not added one yet, or the server was still
@@ -60,7 +80,7 @@ const ChatWindow = () => {
           </p>
           <button
             type="button"
-            onClick={retryConnection}
+            onClick={() => retryConnection()}
             className="cursor-pointer rounded-full bg-light-200 px-4 py-2 font-medium text-black/70 text-sm transition duration-200 hover:opacity-70 active:scale-95 dark:bg-dark-200 dark:text-white/70"
           >
             Retry
