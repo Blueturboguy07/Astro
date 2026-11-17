@@ -15,9 +15,12 @@ name: "QA: Windows Astro (released installer)"
 # --remote-debugging-port; read <profile>\.browseros\config.json instead.
 #
 # Extend (signed-in phases): add scripts/qa/win/<name>.mjs (import
-# ./lib/astro.mjs, ./lib/rows.mjs, ./lib/publik.mjs) and run it with the
-# workflow_dispatch input extra_scripts="<name>.mjs [more.mjs]" (phase1=false
-# skips phase 1). Extra scripts run after phase 1 and before the uninstall.
+# ./lib/astro.mjs, ./lib/rows.mjs, ./lib/publik.mjs) and name it either in
+#   - scripts/qa/win/extra-scripts.txt (one name per line; used on push), or
+#   - the workflow_dispatch input extra_scripts (dispatch needs this file on
+#     the default branch).
+# An empty file scripts/qa/win/phase1.off (or input phase1=false) skips
+# phase 1. Extra scripts run after phase 1 and before the uninstall.
 # Only they get the secret ASTRO_QA_PUBLIK_CREDENTIAL (JSON of a publik
 # credential), as env ASTRO_QA_PUBLIK_CREDENTIAL; lib/publik.mjs
 # injectPublikCredential() writes it into the agent's chrome.storage.local
@@ -78,7 +81,8 @@ jobs:
       QA_IDLE_MS: ${{ format('{0}000', inputs.idle_seconds || '180') }}
       QA_RESULTS_DIR: ${{ github.workspace }}\results\windows
       QA_WORK: ${{ runner.temp }}\astro-qa
-      PHASE1: ${{ github.event_name == 'push' || inputs.phase1 }}
+      PHASE1_INPUT: ${{ inputs.phase1 }}
+      EXTRA_INPUT: ${{ inputs.extra_scripts }}
     steps:
       - name: Checkout (harness only)
         uses: actions/checkout@v7
@@ -102,6 +106,14 @@ jobs:
           Write-Host "Node: $(node --version)"
           New-Item -ItemType Directory -Force -Path $env:QA_RESULTS_DIR, $env:QA_WORK | Out-Null
 
+      - name: Plan (phase 1 on/off, extra scripts)
+        run: |
+          $phase1 = if ($env:PHASE1_INPUT) { $env:PHASE1_INPUT } elseif (Test-Path scripts/qa/win/phase1.off) { 'false' } else { 'true' }
+          $extra = if ($env:EXTRA_INPUT) { $env:EXTRA_INPUT } elseif (Test-Path scripts/qa/win/extra-scripts.txt) { (Get-Content scripts/qa/win/extra-scripts.txt | Where-Object { $_ -and $_ -notmatch '^\s*#' }) -join ' ' } else { '' }
+          "PHASE1=$phase1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "EXTRA_SCRIPTS=$extra" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "phase1=$phase1 extra=[$extra]"
+
       - name: Install harness deps (playwright-core)
         working-directory: scripts/qa/win
         run: npm install --no-audit --no-fund --loglevel=error
@@ -119,11 +131,10 @@ jobs:
         run: node scripts/qa/win/phase1.mjs
 
       - name: Extra scripts
-        if: inputs.extra_scripts != ''
+        if: env.EXTRA_SCRIPTS != ''
         continue-on-error: true
         timeout-minutes: 60
         env:
-          EXTRA_SCRIPTS: ${{ inputs.extra_scripts }}
           ASTRO_QA_PUBLIK_CREDENTIAL: ${{ secrets.ASTRO_QA_PUBLIK_CREDENTIAL }}
         run: |
           foreach ($s in ($env:EXTRA_SCRIPTS -split '[\s,]+' | Where-Object { $_ })) {
