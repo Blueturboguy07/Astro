@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { signIn, useSession } from '@/lib/auth/auth-client'
+import { getAuthClient, useSession } from '@/lib/auth/auth-client'
 
 type LoginState = 'idle' | 'loading' | 'error'
 
@@ -32,7 +32,7 @@ export const LoginPage: FC = () => {
     setError(null)
 
     try {
-      await signIn.social({
+      await getAuthClient().signIn.social({
         provider: 'google',
         callbackURL: '/home',
       })

@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { resetIdentity } from '@/lib/analytics/identify'
-import { signOut } from '@/lib/auth/auth-client'
+import { getAuthClient } from '@/lib/auth/auth-client'
 import { providersStorage } from '@/lib/llm-providers/storage'
 import { scheduledJobStorage } from '@/lib/schedules/scheduleStorage'
 
@@ -28,7 +28,7 @@ export const LogoutPage: FC = () => {
       await clear()
 
       resetIdentity()
-      await signOut()
+      await getAuthClient().signOut()
       navigate('/home', { replace: true })
     }
 
