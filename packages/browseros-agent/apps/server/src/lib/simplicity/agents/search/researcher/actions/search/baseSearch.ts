@@ -9,6 +9,7 @@ import z from 'zod/v4';
 import Scraper from '../../../../../scraper';
 import { splitText } from '../../../../../utils/splitText';
 import { ensureWebSearchReady } from './webSearchSetup';
+import { words } from '../../../../../uploads/keyword-score';
 
 type SearchHit = Awaited<ReturnType<typeof searchSearxng>>['results'][number];
 
@@ -17,6 +18,55 @@ const unranked = (hits: SearchHit[]): Chunk[] =>
     content: r.content || r.title,
     metadata: { title: r.title, url: r.url, similarity: 1, embedding: [] },
   }));
+
+/* A link the reader can open: absolute http(s) with a host. Some engines
+   gave relative redirect links ("http:///go/v1/...") that answers then
+   cited as dead links (0.0.109 UI run, F-031). */
+export const openableUrl = (url: string): boolean => {
+  /* Checked on the raw text: the URL parser reads "http:///go/v1" as the
+     host "go". */
+  if (!/^https?:\/\/[^/\s]/i.test(url)) return false;
+  try {
+    return new URL(url).hostname.includes('.');
+  } catch {
+    return false;
+  }
+};
+
+const stem = (w: string) =>
+  w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w;
+
+/* Without an embedding signal: rank by how many query words a hit has and
+   drop hits with too few. Rate-limited engines returned hits for one word
+   of the query ("longest", "major", Wells Fargo for "capital") ahead of
+   the real ones, and the answer said the sources did not cover the
+   question (F-061, 0.0.109 UI run). A hit needs 2 query words (1 for a
+   query of 1-2 words); when none qualifies, any match counts, and when
+   nothing matches (a script without spaces) the engine order stays. */
+export const rankByWords = (query: string, hits: SearchHit[]): Chunk[] => {
+  const q = [...new Set(words(query).map(stem))];
+  if (q.length === 0) return unranked(hits);
+  const scored = hits.map((r, i) => {
+    const have = new Set(
+      words(`${r.title} ${r.content ?? ''} ${r.url}`).map(stem),
+    );
+    return { r, i, n: q.filter((w) => have.has(w)).length };
+  });
+  const need = q.length <= 2 ? 1 : 2;
+  let kept = scored.filter((s) => s.n >= need);
+  if (kept.length === 0) kept = scored.filter((s) => s.n > 0);
+  if (kept.length === 0) return unranked(hits);
+  kept.sort((a, b) => b.n - a.n || a.i - b.i);
+  return kept.map(({ r, n }) => ({
+    content: r.content || r.title,
+    metadata: {
+      title: r.title,
+      url: r.url,
+      similarity: n / q.length,
+      embedding: [],
+    },
+  }));
+};
 
 /* Ranks one query's hits by embedding similarity and drops the weak ones.
    Without an embedding provider (the publik default) the registry hands out
@@ -29,9 +79,10 @@ export const scoreResults = async (
   hits: SearchHit[],
   embedding: BaseEmbedding<any>,
 ): Promise<Chunk[]> => {
+  hits = hits.filter((h) => openableUrl(h.url));
   try {
     const queryEmbedding = (await embedding.embedText([query]))[0];
-    if (!queryEmbedding?.some((v) => v !== 0)) return unranked(hits);
+    if (!queryEmbedding?.some((v) => v !== 0)) return rankByWords(query, hits);
 
     const scored = await Promise.all(
       hits.map(async (r) => {
@@ -50,7 +101,7 @@ export const scoreResults = async (
     );
     return scored.filter((c) => c.metadata.similarity > 0.5);
   } catch {
-    return unranked(hits);
+    return rankByWords(query, hits);
   }
 };
 
@@ -148,9 +199,13 @@ export const executeSearch = async (input: {
     results.sort((a, b) => b.metadata.similarity - a.metadata.similarity);
 
     const uniqueSearchResultIndices: Set<number> = new Set();
+    /* The same page from several queries filled the 20 slots several
+       times over when there are no embeddings to compare. */
+    const seenUrls = new Set<string>();
 
     for (let i = 0; i < results.length; i++) {
-      let isDuplicate = false;
+      let isDuplicate = seenUrls.has(results[i].metadata.url);
+      seenUrls.add(results[i].metadata.url);
 
       for (const indice of uniqueSearchResultIndices.keys()) {
         if (
@@ -207,7 +262,7 @@ export const executeSearch = async (input: {
 
       let resultChunks: Chunk[] = [];
 
-      resultChunks = res.results.map((r) => {
+      resultChunks = res.results.filter((r) => openableUrl(r.url)).map((r) => {
         const content = r.content || r.title;
 
         return {
