@@ -18,6 +18,9 @@ const WeatherWidget = () => {
   })
 
   const [loading, setLoading] = useState(true)
+  /* No location (the IP lookup answers 429 when many installs share an
+     address) or no weather: say so instead of a card of zeros (F-058). */
+  const [unavailable, setUnavailable] = useState(false)
 
   const getLocation = async (
     callback: (
@@ -67,6 +70,7 @@ const WeatherWidget = () => {
   const updateWeather = async () => {
     getLocation(async (location) => {
       if (!location) {
+        setUnavailable(true)
         setLoading(false)
         return
       }
@@ -82,9 +86,11 @@ const WeatherWidget = () => {
       const data = await res.json()
 
       if (res.status !== 200) {
+        setUnavailable(true)
         setLoading(false)
         return
       }
+      setUnavailable(false)
 
       setData({
         temperature: data.temperature,
@@ -112,7 +118,11 @@ const WeatherWidget = () => {
 
   return (
     <div className="flex h-24 max-h-[96px] min-h-[96px] w-full flex-row items-center gap-3 rounded-2xl border border-light-200 bg-light-secondary px-3 py-2 shadow-light-200/10 shadow-sm dark:border-dark-200 dark:bg-dark-secondary dark:shadow-black/25">
-      {loading ? (
+      {!loading && unavailable ? (
+        <p className="w-full text-center text-black/50 text-xs dark:text-white/50">
+          Weather is not available right now.
+        </p>
+      ) : loading ? (
         <>
           <div className="flex h-full w-16 min-w-16 max-w-16 animate-pulse flex-col items-center justify-center">
             <div className="mb-2 h-10 w-10 rounded-full bg-light-200 dark:bg-dark-200" />
