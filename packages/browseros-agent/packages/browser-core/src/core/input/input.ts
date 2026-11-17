@@ -41,6 +41,29 @@ const SELECT_OPTION_FN = `function(val){
   return null;
 }`
 
+/* One keyboard sequence per page at a time. Two fills sent in parallel to
+   one page each clicked their field and typed; the keys of both landed in
+   one field and each call reported ok (Astro 0.2.4 QA, F-075). Only the
+   leaf keyboard methods take the lock, so none waits on itself. */
+const pageLocks = new Map<number, Promise<unknown>>()
+
+export function withPageLock<T>(
+  pageId: number,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const before = pageLocks.get(pageId) ?? Promise.resolve()
+  const run = before.then(fn, fn)
+  const tail = run.then(
+    () => {},
+    () => {},
+  )
+  pageLocks.set(pageId, tail)
+  void tail.then(() => {
+    if (pageLocks.get(pageId) === tail) pageLocks.delete(pageId)
+  })
+  return run
+}
+
 /**
  * The action layer over a page's refs. Mouse/scroll dispatch on the element's (frame) session
  * in that session's coordinates; keyboard dispatches on the page session against whatever the
@@ -90,11 +113,13 @@ export class Input {
     text: string,
     clear = false,
   ): Promise<void> {
-    await this.withPageSessionRetry(async (session) => {
-      await dispatchClick(session, x, y, 'left', 1, 0)
-      if (clear) await clearField(session)
-      await typeText(session, text)
-    })
+    await withPageLock(this.pageId, () =>
+      this.withPageSessionRetry(async (session) => {
+        await dispatchClick(session, x, y, 'left', 1, 0)
+        if (clear) await clearField(session)
+        await typeText(session, text)
+      }),
+    )
   }
 
   async dragAt(
@@ -158,8 +183,10 @@ export class Input {
     value: string,
     opts: { clear?: boolean } = {},
   ): Promise<void> {
-    const { session, backendNodeId } = await this.observer.resolveRef(ref)
-    await this.fillNode(session, backendNodeId, value, opts)
+    await withPageLock(this.pageId, async () => {
+      const { session, backendNodeId } = await this.observer.resolveRef(ref)
+      await this.fillNode(session, backendNodeId, value, opts)
+    })
   }
 
   async fillBackendNode(
@@ -167,8 +194,10 @@ export class Input {
     value: string,
     opts: { clear?: boolean } = {},
   ): Promise<{ x: number; y: number } | undefined> {
-    return this.withPageSessionRetry((session) =>
-      this.fillNode(session, backendNodeId, value, opts),
+    return withPageLock(this.pageId, () =>
+      this.withPageSessionRetry((session) =>
+        this.fillNode(session, backendNodeId, value, opts),
+      ),
     )
   }
 
@@ -208,11 +237,15 @@ export class Input {
   }
 
   async type(text: string): Promise<void> {
-    await this.withPageSessionRetry((session) => typeText(session, text))
+    await withPageLock(this.pageId, () =>
+      this.withPageSessionRetry((session) => typeText(session, text)),
+    )
   }
 
   async press(key: string): Promise<void> {
-    await this.withPageSessionRetry((session) => pressCombo(session, key))
+    await withPageLock(this.pageId, () =>
+      this.withPageSessionRetry((session) => pressCombo(session, key)),
+    )
   }
 
   async selectOption(ref: string, value: string): Promise<string | null> {
