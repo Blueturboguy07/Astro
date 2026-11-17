@@ -7,6 +7,7 @@
 import type { LanguageModel, ToolSet } from 'ai'
 import type { ResolvedAgentConfig } from '../../agent/types'
 import { createDeepResearchTool } from './deep-research'
+import { failOnIsError } from './fail-on-error'
 import { createModelCouncilTool } from './model-council'
 import { createWebSearchTool } from './web-search'
 
@@ -17,12 +18,12 @@ export interface SearchToolSetOptions {
 }
 
 export function buildSearchToolSet(options: SearchToolSetOptions): ToolSet {
-  return {
+  return failOnIsError({
     web_search: createWebSearchTool(),
     deep_research: createDeepResearchTool(options.model),
     model_council: createModelCouncilTool(
       options.resolvedConfig,
       options.model,
     ),
-  }
+  })
 }

@@ -201,6 +201,8 @@ export function createDeepResearchTool(model: LanguageModel) {
       const seenUrls = new Set<string>()
       const allSources: Source[] = []
       const ranQueries: string[] = []
+      let failedSearches = 0
+      let lastSearchError: string | undefined
       const plans: string[] = []
 
       let plan: Awaited<ReturnType<typeof planQueries>> | null =
@@ -218,6 +220,9 @@ export function createDeepResearchTool(model: LanguageModel) {
           plan.queries.map((q) =>
             searchSearxng(q).catch((error) => {
               logger.warn(`Search failed for "${q}": ${error}`)
+              failedSearches++
+              lastSearchError ??=
+                error instanceof Error ? error.message : String(error)
               return { results: [], suggestions: [] }
             }),
           ),
@@ -264,6 +269,13 @@ export function createDeepResearchTool(model: LanguageModel) {
       }
 
       if (allSources.length === 0) {
+        /* Every search failed: a failure, not "no sources" (F-047). */
+        if (ranQueries.length > 0 && failedSearches === ranQueries.length) {
+          return {
+            text: `Search failed: ${lastSearchError ?? 'unknown error'}`,
+            isError: true,
+          }
+        }
         return { text: `No sources found for "${params.question}".` }
       }
 
