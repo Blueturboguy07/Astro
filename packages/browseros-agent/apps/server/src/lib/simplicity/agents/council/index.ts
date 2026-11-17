@@ -6,6 +6,7 @@ import { WidgetExecutor } from '../search/widgets';
 import { getWriterPrompt } from '../../prompts/search/writer';
 import { getChairPrompt } from './prompts';
 import { estimateCouncilCost } from './select';
+import { withIdleLimit } from './idle-limit';
 import db from '../../db';
 import { messages } from '../../db/schema';
 import { and, eq, gt } from 'drizzle-orm';
@@ -264,7 +265,9 @@ class CouncilAgent {
         patchMember(index, { status: 'streaming' });
 
         let answer = '';
-        const stream = member.llm.streamText({ messages: writerMessages });
+        const stream = withIdleLimit(
+          member.llm.streamText({ messages: writerMessages }),
+        );
 
         for await (const chunk of stream) {
           if (input.config.signal?.aborted) {
