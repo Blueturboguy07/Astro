@@ -6,11 +6,16 @@ import {
 import { applyChoice, syncProviders } from './providers'
 import {
   ACTIVE_SESSION_ALARM,
+  accountFromWallet,
+  accountStorage,
   choiceStorage,
   ensureSignedIn,
   type GateAction,
   type GateUI,
   gateStorage,
+  RECHECK_ALARM,
+  readCredential,
+  readWallet,
   refreshAccount,
   selfTest,
   sendEvent,
@@ -125,11 +130,39 @@ function runGate(): Promise<void> {
     const gate = await ensureSignedIn(ui)
     await gateStorage.setValue({ status: 'done', at: Date.now() })
     await applyChoice(gate.choice)
+    if (gate.offline) {
+      await chrome.alarms
+        .create(RECHECK_ALARM, { periodInMinutes: 1 })
+        .catch(() => null)
+    }
   })()
   run.catch(() => {
     run = null
   })
   return run
+}
+
+/* F-023: the app opened while publik was not reachable. Once publik
+   answers, a claimed account is stored again; anything else (a revoked key,
+   a signed-out install) runs the gate. Still offline: the next alarm. */
+async function recheck(): Promise<void> {
+  const c = await readCredential().catch(() => null)
+  if (!c) return
+  let r: Awaited<ReturnType<typeof readWallet>>
+  try {
+    r = await readWallet(c.key)
+  } catch {
+    return
+  }
+  await chrome.alarms.clear(RECHECK_ALARM).catch(() => null)
+  if (r.wallet?.claim_state === 'claimed') {
+    await accountStorage.setValue(accountFromWallet(r.wallet))
+    await startTelemetry()
+    return
+  }
+  await gateStorage.setValue(null)
+  run = null
+  void runGate()
 }
 
 async function activeSession(): Promise<void> {
@@ -170,6 +203,7 @@ export function startPublik(): void {
   })
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === ACTIVE_SESSION_ALARM) void activeSession()
+    if (alarm.name === RECHECK_ALARM) void recheck()
   })
   choiceStorage.watch((choice) => {
     void applyChoice(choice)

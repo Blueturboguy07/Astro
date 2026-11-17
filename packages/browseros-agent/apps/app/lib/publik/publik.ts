@@ -43,6 +43,8 @@ const POLL_MS = 3_000
 const POLL_LIMIT_MS = 10 * 60_000
 /** The alarm that sends active_session. lib/publik/background.ts listens for it. */
 export const ACTIVE_SESSION_ALARM = 'publik-active-session'
+/** F-023: after an offline start, the background reads the wallet again on this alarm. */
+export const RECHECK_ALARM = 'publik-recheck'
 
 export type Choice = 'publik' | 'own_key'
 export interface PublikCredential {
@@ -404,10 +406,34 @@ const offline = (e: unknown) =>
   e instanceof TypeError ||
   (e instanceof Error && /abort|timeout/i.test(e.name))
 
+/**
+ * Astro 0.2.4 QA, F-023 (WAITS FOR MANN'S DECISION; this commit can be
+ * dropped on its own). publik not reachable at start locked a person who
+ * had signed in before out of every AI page, also with their own key or a
+ * local model. With a stored key, a stored choice and the account the gate
+ * saw last time, the app opens; the background reads the wallet again
+ * (RECHECK_ALARM) and runs the gate when publik answers otherwise.
+ */
+async function openWithoutPublik(): Promise<{
+  key: string
+  wallet: null
+  choice: Choice | null
+  offline: true
+} | null> {
+  const c = await readCredential().catch(() => null)
+  const account = await accountStorage.getValue().catch(() => null)
+  const choice = USES_AI ? await choiceStorage.getValue() : null
+  if (!c || !account || (USES_AI && !choice)) return null
+  return { key: c.key, wallet: null, choice, offline: true }
+}
+
 /** The gate (see the top of the file). Resolves once the person is signed in; `choice` is null when USES_AI is false. */
-export async function ensureSignedIn(
-  ui: GateUI,
-): Promise<{ key: string; wallet: Wallet; choice: Choice | null }> {
+export async function ensureSignedIn(ui: GateUI): Promise<{
+  key: string
+  wallet: Wallet | null
+  choice: Choice | null
+  offline?: true
+}> {
   let signNote: string | null = null
   let signPoll = true
   let planNote: string | null = null
@@ -419,6 +445,8 @@ export async function ensureSignedIn(
       c = (await readCredential()) ?? (await provision())
       r = await readWallet(c.key)
     } catch (e) {
+      const opened = offline(e) ? await openWithoutPublik() : null
+      if (opened) return opened
       await ask(
         ui,
         gateScreen(

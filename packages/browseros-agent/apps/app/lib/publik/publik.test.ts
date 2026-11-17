@@ -357,7 +357,7 @@ describe('the gate against a fake publik', () => {
       })
       expect(h.opened).toEqual([`${origin}/claim/abc`])
       expect(gate.choice).toBe('publik')
-      expect(gate.wallet.account?.handle).toBe('mann')
+      expect(gate.wallet?.account?.handle).toBe('mann')
       expect(await m.readCredential()).toMatchObject({
         key: 'pk_live_gatetest',
         base_url: baseUrl,
@@ -477,6 +477,30 @@ describe('the gate against a fake publik', () => {
         buttons: [WORDS.retry],
       })
     }
+  })
+
+  /* Astro 0.2.4 QA, F-023 (waits for a decision): a person who signed in
+     before is not locked out when publik is not reachable at start. */
+  it('publik not reachable after an earlier sign-in opens the app with the stored choice', async () => {
+    wallets = [claimedPlan]
+    const first = harness({ [WORDS.connectTitle]: WORDS.connect })
+    expect((await m.ensureSignedIn(first.ui)).choice).toBe('publik')
+
+    globalThis.fetch = (() =>
+      Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch
+    const h = harness()
+    const gate = await m.ensureSignedIn(h.ui)
+    expect(h.screens).toEqual([])
+    expect(gate).toMatchObject({ choice: 'publik', offline: true })
+  })
+
+  it('publik not reachable on a first start still shows Retry', async () => {
+    await m.setChoice('own_key')
+    globalThis.fetch = (() =>
+      Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch
+    const h = harness()
+    await expect(m.ensureSignedIn(h.ui)).rejects.toThrow('gave up')
+    expect(h.screens[0]?.buttons).toEqual([WORDS.retry])
   })
 
   it('a bad app token is a readable message with Retry', async () => {
