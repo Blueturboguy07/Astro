@@ -85,17 +85,8 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         <p className="truncate text-muted-foreground text-sm">
           {isBuiltIn ? (
             <>
-              Astro-hosted model with strict rate limits.{' '}
-              <a
-                href="https://docs.browseros.com/features/bring-your-own-llm"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Bring your own key
-              </a>{' '}
-              for better performance.
+              Astro-hosted model with strict rate limits. Add your own key for
+              better performance.
             </>
           ) : provider.baseUrl ? (
             `${provider.modelId} • ${provider.baseUrl}`
