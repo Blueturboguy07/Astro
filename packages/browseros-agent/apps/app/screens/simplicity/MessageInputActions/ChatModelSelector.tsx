@@ -4,10 +4,12 @@ import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react'
 import { Check, ChevronDown, Cpu, Loader2, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
+import { publikServerProviderIdStorage } from '@/lib/publik/providers'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
 import {
   availableRows,
-  BEST_KEY,
+  CHOSEN_CHAT_MODEL_STORAGE_KEY,
+  parseChosenChatModel,
   type ResolvedRow,
   resolveBest,
 } from '@/lib/simplicity/models/catalog'
@@ -51,6 +53,9 @@ const ModelSelector = () => {
     }
 
     loadProviders()
+    /* publik lands in the list after Connect your plan, possibly after this
+       picker mounted. */
+    return publikServerProviderIdStorage.watch(() => loadProviders())
   }, [])
 
   const rows = useMemo(() => availableRows(providers), [providers])
@@ -58,7 +63,15 @@ const ModelSelector = () => {
   const extraRows = rows.filter((r) => r.row.extra)
 
   const best = resolveBest(providers)
-  const isBestSelected = chatModelProvider?.key === BEST_KEY
+  /* "Best" is a stored choice, not a model key: the context always holds
+     the model it resolved to. */
+  const [bestChosen, setBestChosen] = useState(() => {
+    const chosen = parseChosenChatModel(
+      localStorage.getItem(CHOSEN_CHAT_MODEL_STORAGE_KEY),
+    )
+    return !!chosen && 'best' in chosen
+  })
+  const isBestSelected = bestChosen
 
   const selectedRow = useMemo(
     () =>
@@ -79,16 +92,26 @@ const ModelSelector = () => {
     !isBestSelected && !!selectedRow?.row.thinking && thinking
 
   const selectRow = (r: ResolvedRow) => {
+    setBestChosen(false)
     setChatModelProvider({ providerId: r.providerId, key: r.key })
     localStorage.setItem('chatModelProviderId', r.providerId)
     localStorage.setItem('chatModelKey', r.key)
+    localStorage.setItem(
+      CHOSEN_CHAT_MODEL_STORAGE_KEY,
+      JSON.stringify({ providerId: r.providerId, key: r.key }),
+    )
   }
 
   const selectBest = () => {
     if (!best) return
+    setBestChosen(true)
     /* Store the sentinel so the choice stays "Best" across restarts, but send
        the resolved model — the API needs a real one. */
-    localStorage.setItem('chatModelKey', BEST_KEY)
+    localStorage.setItem(
+      CHOSEN_CHAT_MODEL_STORAGE_KEY,
+      JSON.stringify({ best: true }),
+    )
+    localStorage.setItem('chatModelKey', best.key)
     localStorage.setItem('chatModelProviderId', best.providerId)
     setChatModelProvider({ providerId: best.providerId, key: best.key })
   }

@@ -17,7 +17,12 @@ import type { Block } from '@/lib/simplicity/types'
 import type { Message, Widget } from '@/screens/simplicity/ChatWindow'
 import { getSuggestions } from '../actions'
 import { getAutoMediaSearch } from '../config/clientRegistry'
-import { pickDefaultModel } from '../models/catalog'
+import { publikServerProviderIdStorage } from '@/lib/publik/providers'
+import {
+  CHOSEN_CHAT_MODEL_STORAGE_KEY,
+  parseChosenChatModel,
+  resolveChatModel,
+} from '../models/catalog'
 import type { MinimalProvider } from '../models/types'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
 
@@ -58,6 +63,9 @@ type ChatContext = {
   hasError: boolean
   connectionErrorMessage: string | null
   retryConnection: () => void
+  /* The left rail's New: a fresh thread even when the URL already says
+     #/home (sendMessage rewrites the hash without telling the router). */
+  startNewChat: () => void
   chatModelProvider: ChatModelProvider
   embeddingModelProvider: EmbeddingModelProvider
   researchEnded: boolean
@@ -109,8 +117,6 @@ const checkConfig = async (
   setHasError(false)
   setConnectionErrorMessage(null)
   try {
-    let chatModelKey = localStorage.getItem('chatModelKey')
-    let chatModelProviderId = localStorage.getItem('chatModelProviderId')
     let embeddingModelKey = localStorage.getItem('embeddingModelKey')
     let embeddingModelProviderId = localStorage.getItem(
       'embeddingModelProviderId',
@@ -135,29 +141,28 @@ const checkConfig = async (
       )
     }
 
-    /* Honour a stored choice only if it still resolves to a real model —
-       otherwise fall back to the curated catalog. Picking `chatModels[0]` (the
-       old behaviour) selects whatever the provider's API happened to list
-       first, which is how a Groq safety classifier or a retired gpt-3.5 ends
-       up answering questions and hanging the request. */
-    let chatModelProvider = providers.find((p) => p.id === chatModelProviderId)
-    let resolvedChatKey = chatModelProvider?.chatModels.find(
-      (m) => m.key === chatModelKey,
-    )?.key
-
-    if (!chatModelProvider || !resolvedChatKey) {
-      const fallback = pickDefaultModel(providers)
-      if (!fallback) {
-        throw new Error(
-          'No chat models found, please configure them in the settings page.',
-        )
-      }
-      chatModelProvider = providers.find((p) => p.id === fallback.providerId)!
-      resolvedChatKey = fallback.key
+    /* Honour the person's own pick only while it still resolves to a real
+       model — otherwise fall back to the curated catalog. Picking
+       `chatModels[0]` (the old behaviour) selects whatever the provider's API
+       happened to list first, which is how a Groq safety classifier or a
+       retired gpt-3.5 ends up answering questions and hanging the request.
+       The last resolved model (chatModelKey) is not a choice: re-resolving it
+       lets the default follow what is connected, e.g. publik once the
+       background has registered it. */
+    const resolved = resolveChatModel(
+      providers,
+      parseChosenChatModel(
+        localStorage.getItem(CHOSEN_CHAT_MODEL_STORAGE_KEY),
+      ),
+    )
+    if (!resolved) {
+      throw new Error(
+        'No chat models found, please configure them in the settings page.',
+      )
     }
 
-    chatModelProviderId = chatModelProvider.id
-    chatModelKey = resolvedChatKey
+    const chatModelProviderId = resolved.providerId
+    const chatModelKey = resolved.key
 
     /* Embeddings only rerank search results, so this is never a user choice.
        Prefer a purpose-built embedding model — Ollama lists its chat models
@@ -315,6 +320,7 @@ export const chatContext = createContext<ChatContext>({
   hasError: false,
   connectionErrorMessage: null,
   retryConnection: () => {},
+  startNewChat: () => {},
   isMessagesLoaded: false,
   isReady: false,
   loading: false,
@@ -553,6 +559,19 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     retryConnection()
+    /* Connect your plan registers publik with the local server from the
+       background, which can finish after this page loaded: resolve again
+       when it lands. A pick made in another tab (localStorage is shared by
+       every app page) applies here too. */
+    const unwatch = publikServerProviderIdStorage.watch(() => retryConnection())
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === CHOSEN_CHAT_MODEL_STORAGE_KEY) retryConnection()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => {
+      unwatch()
+      window.removeEventListener('storage', onStorage)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -966,6 +985,24 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     abortRef.current?.abort()
   }
 
+  const startNewChat = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setMessages([])
+    messagesRef.current = []
+    chatHistory.current = []
+    setFiles([])
+    setFileIds([])
+    setNotFound(false)
+    setIncognito(false)
+    setLoading(false)
+    setMessageAppeared(false)
+    setResearchEnded(false)
+    setNewChatCreated(true)
+    setIsMessagesLoaded(true)
+    setChatId(randomHex(20))
+  }
+
   return (
     <chatContext.Provider
       value={{
@@ -979,6 +1016,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         hasError,
         connectionErrorMessage,
         retryConnection,
+        startNewChat,
         isMessagesLoaded,
         isReady,
         loading,

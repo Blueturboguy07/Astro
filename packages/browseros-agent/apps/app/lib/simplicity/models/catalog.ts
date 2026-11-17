@@ -176,18 +176,18 @@ export const BEST_KEY = '__best__'
 
 /* What "Best" resolves to, in order of preference.
  *
- * Ordered by measured end-to-end latency against answer quality, preferring
- * options that cost the user nothing: their own Claude plan and local models
- * rank above metered APIs at comparable quality. */
+ * publik Balanced leads: it is the packaged default the listing promises
+ * ("publik API is preselected"), and the person chose it at the gate. After
+ * it, ordered by measured end-to-end latency against answer quality,
+ * preferring options that cost the user nothing. Keep in step with the
+ * server's copy (apps/server/src/lib/simplicity/models/catalog.ts). */
 /* Exported (beyond resolveBest's own use) so Model Council's auto-pick
    (src/lib/agents/council/select.ts) can rank its distinct-vendor candidates
    by the exact same quality/cost preference order "Best" uses — one source
    of truth for "what's good" instead of a second hand-maintained list. */
 export const BEST_ORDER: Array<{ providerType: string; key: string }> = [
-  { providerType: 'claudecode', key: 'sonnet' },
-  /* The packaged default: a fresh install has nothing else, and a user's
-     own Claude plan (above) still wins when they have one. */
   { providerType: 'openai', key: 'publik-balanced' },
+  { providerType: 'claudecode', key: 'sonnet' },
   { providerType: 'groq', key: 'openai/gpt-oss-120b' },
   { providerType: 'openai', key: 'gpt-5.1' },
   { providerType: 'openai', key: 'gpt-4o' },
@@ -212,6 +212,46 @@ export const resolveBest = (
     if (provider) return { providerId: provider.id, key: candidate.key }
   }
   return null
+}
+
+/* The person's own pick in the model picker, kept apart from the resolved
+   model: before this, the stored model was also whatever the app had picked
+   by itself, so an automatic default (a signed-out Claude Code) looked like a
+   choice and stuck. Only the picker writes this. */
+export type ChosenChatModel = { best: true } | { providerId: string; key: string }
+
+export const CHOSEN_CHAT_MODEL_STORAGE_KEY = 'chatModelChosen'
+
+export const parseChosenChatModel = (
+  raw: string | null,
+): ChosenChatModel | null => {
+  if (!raw) return null
+  try {
+    const v = JSON.parse(raw) as Record<string, unknown>
+    if (v?.best === true) return { best: true }
+    if (typeof v?.providerId === 'string' && typeof v?.key === 'string') {
+      return { providerId: v.providerId, key: v.key }
+    }
+  } catch {}
+  return null
+}
+
+/* The model a question is sent with: the person's pick while it still
+   resolves to a listed model, else the default. */
+export const resolveChatModel = (
+  providers: MinimalProvider[],
+  chosen: ChosenChatModel | null,
+): { providerId: string; key: string } | null => {
+  if (chosen && 'best' in chosen) {
+    const best = resolveBest(providers)
+    if (best) return best
+  } else if (chosen) {
+    const provider = providers.find((p) => p.id === chosen.providerId)
+    if (provider?.chatModels.some((m) => m.key === chosen.key)) {
+      return { providerId: provider.id, key: chosen.key }
+    }
+  }
+  return pickDefaultModel(providers)
 }
 
 /* The default for a fresh install: whatever "Best" resolves to, else the

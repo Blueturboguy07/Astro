@@ -33,7 +33,7 @@ const TIERS: { model: string; name: string }[] = [
 /* The answer-engine provider id the local server assigned: GET /providers
    drops a connection whose model list failed to load, so without this a
    retry would create a second copy. */
-const serverProviderIdStorage = storage.defineItem<string | null>(
+export const publikServerProviderIdStorage = storage.defineItem<string | null>(
   'local:publik-server-provider-id',
   { fallback: null },
 )
@@ -123,7 +123,7 @@ async function ensureAnswerEngineProvider(
   try {
     const listed = await listServerProviders()
     if (!listed) return false
-    const serverId = await serverProviderIdStorage.getValue()
+    const serverId = await publikServerProviderIdStorage.getValue()
     let provider = listed.find((p) => isPublikServerProvider(p, serverId))
     if (!provider && serverId) return true
     if (!provider) {
@@ -158,7 +158,7 @@ async function ensureAnswerEngineProvider(
       if (!res.ok) return false
     }
     if (serverId !== provider.id) {
-      await serverProviderIdStorage.setValue(provider.id)
+      await publikServerProviderIdStorage.setValue(provider.id)
     }
     return true
   } catch {
@@ -170,12 +170,12 @@ async function removeAnswerEngineProvider() {
   try {
     const listed = await listServerProviders()
     if (!listed) return
-    const serverId = await serverProviderIdStorage.getValue()
+    const serverId = await publikServerProviderIdStorage.getValue()
     for (const p of listed) {
       if (!isPublikServerProvider(p, serverId)) continue
       await apiFetch(`/api/providers/${p.id}`, { method: 'DELETE' })
     }
-    await serverProviderIdStorage.setValue(null)
+    await publikServerProviderIdStorage.setValue(null)
   } catch {
     /* Best effort: the key is gone from the agent store either way. */
   }
