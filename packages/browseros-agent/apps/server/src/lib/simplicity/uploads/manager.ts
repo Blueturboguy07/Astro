@@ -3,11 +3,11 @@ import BaseEmbedding from "../models/base/embedding"
 import crypto from "crypto"
 import fs from 'node:fs';
 import { splitText } from "../utils/splitText";
-import { ensureDOMMatrix } from "./dommatrix-polyfill";
+import { extractPdfText } from "./pdf-text";
 import { getBrowserosDir } from "../../browseros-dir";
-/* pdf-parse and officeparser are imported lazily, at the point a file of that
-   type is actually parsed. Both pull heavy document toolchains in at import
-   time — pdf-parse loads pdfjs, which reaches for @napi-rs/canvas and DOMMatrix
+/* pdfjs (in ./pdf-text) and officeparser are imported lazily, at the point a
+   file of that type is actually parsed. Both pull heavy document toolchains in
+   at import time — pdfjs reaches for @napi-rs/canvas and DOMMatrix
    and throws `ReferenceError: DOMMatrix is not defined` inside the
    `bun build --compile` binary, breaking startup for every user whether or not
    they ever open a PDF. Deferring keeps the packaged server bootable. */
@@ -142,22 +142,10 @@ class UploadManager {
 
                 return contentPath;
             case 'application/pdf':
-                const pdfBuffer = fs.readFileSync(filePath);
-                /* Before pdfjs loads: the compiled server has no DOMMatrix
-                   and cannot load @napi-rs/canvas for one (F-042). */
-                ensureDOMMatrix();
-
-                const [{ PDFParse }, { CanvasFactory }] = await Promise.all([
-                    import('pdf-parse'),
-                    import('pdf-parse/worker'),
-                ])
-
-                const parser = new PDFParse({
-                    data: pdfBuffer,
-                    CanvasFactory
-                })
-
-                const pdfText = await parser.getText().then(res => res.text)
+                /* pdfjs without canvas and with its worker in the bundle:
+                   the compiled server loads no native addons and has no
+                   ./pdf.worker.mjs file next to it (F-042). */
+                const pdfText = await extractPdfText(fs.readFileSync(filePath))
 
                 const pdfSplittedText = splitText(pdfText, 512, 128)
                 const pdfEmbeddings = await this.embeddingModel.embedText(pdfSplittedText)

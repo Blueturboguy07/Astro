@@ -1,5 +1,5 @@
 /**
- * A 2D DOMMatrix for pdfjs (through pdf-parse) inside the compiled server.
+ * A 2D DOMMatrix for pdfjs (uploads/pdf-text.ts) inside the compiled server.
  *
  * pdfjs uses DOMMatrix at load time and takes it from @napi-rs/canvas when
  * the runtime has none. That native addon is not in the `bun build

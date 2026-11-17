@@ -3,7 +3,7 @@ import { Matrix2D } from '../../../src/lib/simplicity/uploads/dommatrix-polyfill
 
 /* Astro 0.2.4 QA, F-042: the compiled server has no DOMMatrix, so PDF
    uploads failed. Checked against a compiled probe: without the polyfill
-   pdf-parse throws "DOMMatrix is not defined", with it the text of
+   pdfjs throws "DOMMatrix is not defined", with it the text of
    hello-upload.pdf comes out. Here: the math pdfjs relies on. */
 describe('Matrix2D', () => {
   it('multiplies, translates, scales and inverts like DOMMatrix', () => {
@@ -19,21 +19,18 @@ describe('Matrix2D', () => {
     expect(new Matrix2D().isIdentity).toBe(true)
   })
 
-  it('lets pdf-parse read a PDF with it in place', async () => {
+  it('lets pdfjs read a PDF with it in place', async () => {
     const g = globalThis as { DOMMatrix?: unknown }
     const saved = g.DOMMatrix
     g.DOMMatrix = Matrix2D
     try {
-      const [{ PDFParse }, { CanvasFactory }] = await Promise.all([
-        import('pdf-parse'),
-        import('pdf-parse/worker'),
-      ])
+      const { extractPdfText } = await import(
+        '../../../src/lib/simplicity/uploads/pdf-text'
+      )
       const data = await Bun.file(
         new URL('./hello-upload.pdf', import.meta.url),
       ).bytes()
-      const parser = new PDFParse({ data, CanvasFactory })
-      const { text } = await parser.getText()
-      expect(text).toContain('Hello Astro upload test')
+      expect(await extractPdfText(data)).toContain('Hello Astro upload test')
     } finally {
       g.DOMMatrix = saved
     }
