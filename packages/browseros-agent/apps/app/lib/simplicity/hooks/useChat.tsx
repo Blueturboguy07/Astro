@@ -26,6 +26,11 @@ import {
 import type { MinimalProvider } from '../models/types'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
 import { readTurnStream, TURN_LOST_TEXT } from '@/lib/simplicity/read-turn-stream'
+import {
+  readOptimizationMode,
+  readSources,
+  saveAnswerPref,
+} from '@/lib/simplicity/answer-prefs'
 
 export type Section = {
   message: Message
@@ -374,9 +379,20 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const [files, setFiles] = useState<File[]>([])
   const [fileIds, setFileIds] = useState<string[]>([])
 
-  const [sources, setSources] = useState<string[]>(['web'])
+  const [sources, setSourcesState] = useState<string[]>(readSources)
   const [incognito, setIncognito] = useState(false)
-  const [optimizationMode, setOptimizationMode] = useState('speed')
+  const [optimizationMode, setOptimizationModeState] =
+    useState(readOptimizationMode)
+  /* The person's picks persist (F-065); an opened chat's own sources do
+     not change the default (loadMessages uses the state setter). */
+  const setSources = (next: string[]) => {
+    setSourcesState(next)
+    saveAnswerPref('answerSources', next)
+  }
+  const setOptimizationMode = (mode: string) => {
+    setOptimizationModeState(mode)
+    saveAnswerPref('optimizationMode', mode)
+  }
   const [searchMode, setSearchModeState] = useState<
     'search' | 'deepResearch' | 'council'
   >('search')
@@ -635,7 +651,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         setMessages,
         setIsMessagesLoaded,
         chatHistory,
-        setSources,
+        setSourcesState,
         setNotFound,
         setFiles,
         setFileIds,

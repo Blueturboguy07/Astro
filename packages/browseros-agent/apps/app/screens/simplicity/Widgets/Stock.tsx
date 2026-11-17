@@ -473,8 +473,10 @@ const Stock = (props: StockWidgetProps) => {
                   Dividend Yield
                 </span>
                 <span className="font-medium text-black text-xs dark:text-white">
+                  {/* Yahoo's quote.dividendYield is already in percent
+                      (0.4 = 0.4 %); times 100 showed 31 % (F-065). */}
                   {props.dividendYield
-                    ? `${formatNumber(props.dividendYield * 100, 2)}%`
+                    ? `${formatNumber(props.dividendYield, 2)}%`
                     : 'N/A'}
                 </span>
               </div>
