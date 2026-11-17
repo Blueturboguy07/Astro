@@ -60,9 +60,7 @@ describe('scoreResults', () => {
     failing.embedText = async () => {
       throw new Error('embedding down')
     }
-    expect(
-      await scoreResults('FIFA World Cup final', hits, failing),
-    ).toHaveLength(1)
+    expect(await scoreResults('World Cup final', hits, failing)).toHaveLength(1)
   })
 })
 
