@@ -36,10 +36,13 @@ class FixedEmbedding extends BaseEmbedding<Record<string, never>> {
 }
 
 describe('scoreResults', () => {
-  it('keeps every hit, in engine order, when there is no embedding model', async () => {
-    const chunks = await scoreResults('who won', hits, new NullEmbedding())
-    expect(chunks.map((c) => c.metadata.url)).toEqual(hits.map((h) => h.url))
-    expect(chunks.every((c) => c.metadata.similarity === 1)).toBe(true)
+  it('keeps matching hits, ranked by query words, when there is no embedding model', async () => {
+    const chunks = await scoreResults(
+      'who won the 2026 World Cup final',
+      hits,
+      new NullEmbedding(),
+    )
+    expect(chunks.map((c) => c.metadata.url)).toEqual([hits[0].url])
   })
 
   it('still drops weak hits when a real embedding ranks them', async () => {
@@ -52,12 +55,14 @@ describe('scoreResults', () => {
     expect(chunks.map((c) => c.metadata.title)).toEqual(['2026 FIFA World Cup'])
   })
 
-  it('keeps every hit when the embedding call fails', async () => {
+  it('ranks by words when the embedding call fails', async () => {
     const failing = new FixedEmbedding({})
     failing.embedText = async () => {
       throw new Error('embedding down')
     }
-    expect(await scoreResults('who won', hits, failing)).toHaveLength(2)
+    expect(
+      await scoreResults('FIFA World Cup final', hits, failing),
+    ).toHaveLength(1)
   })
 })
 
@@ -130,7 +135,23 @@ describe('rankByWords and openableUrl (no embedding model)', () => {
     ).toEqual(['Murray River - Wikipedia'])
   })
 
-  it('keeps the engine order when no hit shares a word (e.g. Chinese)', () => {
+  it('drops a page of junk entirely (Microsoft pages for a rivers query)', () => {
+    const junk = [
+      {
+        title: 'Microsoft - Official Home Page',
+        url: 'https://www.microsoft.com/en-us/',
+        content: 'Explore Microsoft products',
+      },
+      {
+        title: 'Sign in to your account',
+        url: 'https://myaccount.microsoft.com/',
+        content: '',
+      },
+    ]
+    expect(rankByWords('rivers in Australia list', junk)).toEqual([])
+  })
+
+  it('keeps the engine order for a query in a script without spaces', () => {
     const zh = [
       {
         title: '堪培拉',

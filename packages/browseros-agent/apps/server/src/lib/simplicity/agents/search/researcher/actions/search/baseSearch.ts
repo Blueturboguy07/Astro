@@ -36,44 +36,42 @@ export const openableUrl = (url: string): boolean => {
 const stem = (w: string) =>
   w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w;
 
+/* Scripts written without spaces: word matching cannot work there. */
+const NO_SPACES = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
+
 /* Without an embedding signal: rank by how many query words a hit has and
    drop hits with too few. Rate-limited engines returned hits for one word
-   of the query ("longest", "major", Wells Fargo for "capital") ahead of
-   the real ones, and the answer said the sources did not cover the
+   of the query ("longest", "major", Wells Fargo for "capital") or for
+   nothing at all (Microsoft sign-in pages for "rivers in Australia") ahead
+   of the real ones, and the answer said the sources did not cover the
    question (F-061, 0.0.109 UI run). A hit needs 2 query words (1 for a
-   query of 1-2 words); when none qualifies, any match counts, and when
-   nothing matches (a script without spaces) the engine order stays. */
+   query of 1-2 words). No fallback: an empty list makes the answer say it
+   found nothing, which is true, instead of citing junk. Queries in a
+   script without spaces keep the engine order. */
 export const rankByWords = (query: string, hits: SearchHit[]): Chunk[] => {
   const q = [...new Set(words(query).map(stem))];
-  if (q.length === 0) return unranked(hits);
-  const scored = hits.map((r, i) => {
-    const have = new Set(
-      words(`${r.title} ${r.content ?? ''} ${r.url}`).map(stem),
-    );
-    return { r, i, n: q.filter((w) => have.has(w)).length };
-  });
+  if (q.length === 0 || NO_SPACES.test(query)) return unranked(hits);
   const need = q.length <= 2 ? 1 : 2;
-  let kept = scored.filter((s) => s.n >= need);
-  if (kept.length === 0) kept = scored.filter((s) => s.n > 0);
-  if (kept.length === 0) return unranked(hits);
-  kept.sort((a, b) => b.n - a.n || a.i - b.i);
-  return kept.map(({ r, n }) => ({
-    content: r.content || r.title,
-    metadata: {
-      title: r.title,
-      url: r.url,
-      similarity: n / q.length,
-      embedding: [],
-    },
-  }));
+  return hits
+    .map((r, i) => {
+      const have = new Set(
+        words(`${r.title} ${r.content ?? ''} ${r.url}`).map(stem),
+      );
+      return { r, i, n: q.filter((w) => have.has(w)).length };
+    })
+    .filter((s) => s.n >= need)
+    .sort((a, b) => b.n - a.n || a.i - b.i)
+    .map(({ r, n }) => ({
+      content: r.content || r.title,
+      metadata: {
+        title: r.title,
+        url: r.url,
+        similarity: n / q.length,
+        embedding: [],
+      },
+    }));
 };
 
-/* Ranks one query's hits by embedding similarity and drops the weak ones.
-   Without an embedding provider (the publik default) the registry hands out
-   NullEmbedding, whose zero vectors give similarity 0 for every hit: the
-   `> 0.5` cut then dropped every web result and each answer said "Found 0
-   results" (Astro 0.2.4 QA, F-002). A query vector with no signal now keeps
-   the engine order, like an embedding failure always did. */
 export const scoreResults = async (
   query: string,
   hits: SearchHit[],
