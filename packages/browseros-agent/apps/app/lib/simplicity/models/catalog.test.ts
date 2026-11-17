@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  availableRows,
   parseChosenChatModel,
   resolveBest,
   resolveChatModel,
@@ -86,5 +87,43 @@ describe('parseChosenChatModel', () => {
     expect(parseChosenChatModel(null)).toBeNull()
     expect(parseChosenChatModel('not json')).toBeNull()
     expect(parseChosenChatModel('"sonnet"')).toBeNull()
+  })
+})
+
+/* F-062 (Astro 0.2.4 QA): a signed-out Claude Code lists only an "error"
+   entry (the server's sign-in check); the 3B could not be picked while the
+   7B was installed; the Thinking switch never showed with publik. */
+describe('the model picker rows', () => {
+  const signedOutClaude: MinimalProvider = {
+    ...claude,
+    chatModels: [{ key: 'error', name: 'Claude Code is not signed in.' }],
+  }
+  const ollama: MinimalProvider = {
+    id: 'o1',
+    type: 'ollama',
+    name: 'Ollama',
+    chatModels: [
+      { key: 'qwen2.5:7b', name: 'qwen2.5:7b' },
+      { key: 'qwen2.5:3b', name: 'qwen2.5:3b' },
+    ],
+    embeddingModels: [],
+  }
+
+  it('never lists or picks a signed-out Claude Code', () => {
+    const rows = availableRows([signedOutClaude, ollama])
+    expect(rows.some((r) => r.providerId === 'c1')).toBe(false)
+    expect(resolveBest([signedOutClaude, ollama])?.providerId).toBe('o1')
+  })
+
+  it('lists each installed local model as its own row', () => {
+    const keys = availableRows([ollama])
+      .filter((r) => r.providerId === 'o1')
+      .map((r) => r.key)
+    expect(keys).toEqual(['qwen2.5:7b', 'qwen2.5:3b'])
+  })
+
+  it('shows the Thinking switch for publik Smart', () => {
+    const smart = availableRows([publik]).find((r) => r.key === 'publik-smart')
+    expect(smart?.row.thinking).toBe(true)
   })
 })

@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import ModelRegistry from '../../../../lib/simplicity/models/registry';
-import { CATALOG_ROWS, availableRows, ResolvedRow } from '../../../../lib/simplicity/models/catalog';
+import { availableRows, ResolvedRow, reasoningEffortFor } from '../../../../lib/simplicity/models/catalog';
 import { ModelWithProvider, MinimalProvider } from '../../../../lib/simplicity/models/types';
 import SearchAgent from '../../../../lib/simplicity/agents/search';
 import CouncilAgent from '../../../../lib/simplicity/agents/council';
@@ -390,16 +390,9 @@ export const POST = async (req: Request) => {
       }
     });
 
-    const reasoningEffort =
-      !isCouncil &&
-      body.thinking &&
-      CATALOG_ROWS.some(
-        (row) =>
-          row.thinking &&
-          row.candidates.some((c) => c.key === body.chatModel.key),
-      )
-        ? ('medium' as const)
-        : undefined;
+    const reasoningEffort = isCouncil
+      ? undefined
+      : reasoningEffortFor(body.chatModel.key, body.thinking);
 
     const sharedConfig = {
       llm,

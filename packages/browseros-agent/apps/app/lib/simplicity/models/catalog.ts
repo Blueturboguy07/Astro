@@ -29,6 +29,8 @@ export type CatalogRow = {
   badge?: 'New'
   /* Shows the nested "Thinking" toggle when this row is selected. */
   thinking?: boolean
+  /* The reasoning effort sent while Thinking is off; unset sends none. */
+  thinkingOff?: 'low'
   /* Provider-type string for the row's logo. */
   icon: string
   /* Rows below the divider: connected models worth listing that Perplexity's
@@ -57,16 +59,33 @@ const publikRow = (
 export const CATALOG_ROWS: CatalogRow[] = [
   publikRow('publik-balanced', 'publik Balanced'),
   publikRow('publik-fast', 'publik Fast', true),
-  publikRow('publik-smart', 'publik Smart', true),
+  /* The gateway passes the app's reasoning_effort to Smart (default
+     medium): Thinking on keeps medium, off asks for low (F-062). */
+  {
+    ...publikRow('publik-smart', 'publik Smart', true),
+    thinking: true,
+    thinkingOff: 'low',
+  },
+  /* One row per installed model: one row with three candidates always
+     resolved to the 7B, so the 3B could not be picked while the 7B was
+     installed (F-062). */
   {
     id: 'local',
     name: 'Local (Ollama)',
     icon: 'ollama',
-    candidates: [
-      { providerType: 'ollama', key: 'qwen2.5:7b', free: true },
-      { providerType: 'ollama', key: 'qwen2.5:3b', free: true },
-      { providerType: 'ollama', key: 'qwen2.5:14b', free: true },
-    ],
+    candidates: [{ providerType: 'ollama', key: 'qwen2.5:7b', free: true }],
+  },
+  {
+    id: 'local-3b',
+    name: 'Local small (Ollama 3B)',
+    icon: 'ollama',
+    candidates: [{ providerType: 'ollama', key: 'qwen2.5:3b', free: true }],
+  },
+  {
+    id: 'local-14b',
+    name: 'Local large (Ollama 14B)',
+    icon: 'ollama',
+    candidates: [{ providerType: 'ollama', key: 'qwen2.5:14b', free: true }],
   },
   {
     id: 'gpt-5.1',
