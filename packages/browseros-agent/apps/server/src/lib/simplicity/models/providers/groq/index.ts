@@ -5,6 +5,7 @@ import BaseEmbedding from '../../base/embedding';
 import BaseModelProvider from '../../base/provider';
 import BaseLLM from '../../base/llm';
 import GroqLLM from './groqLLM';
+import { modelListJson } from '../model-list-response';
 
 interface GroqConfig {
   apiKey: string;
@@ -37,11 +38,11 @@ class GroqProvider extends BaseModelProvider<GroqConfig> {
       },
     });
 
-    const data = await res.json();
+    const data = await modelListJson(res, 'Groq');
 
     const defaultChatModels: Model[] = [];
 
-    data.data.forEach((m: any) => {
+    (data?.data ?? []).forEach((m: any) => {
       defaultChatModels.push({
         key: m.id,
         name: m.id,

@@ -84,6 +84,8 @@ const AddProvider = ({
     } finally {
       setLoading(false)
       setOpen(false)
+      /* The next "Add connection" started with this name (F-040). */
+      setName('')
     }
   }
 

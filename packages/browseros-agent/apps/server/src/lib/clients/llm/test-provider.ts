@@ -74,7 +74,10 @@ export async function testProviderConnection(
     }
   } catch (error) {
     const responseTime = Math.round(performance.now() - startTime)
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    /* Some SDK errors (Bedrock) start with "undefined: " (F-040). */
+    const errorMessage = (
+      error instanceof Error ? error.message : String(error)
+    ).replace(/^undefined:\s*/, '')
 
     return {
       success: false,

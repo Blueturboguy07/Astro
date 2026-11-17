@@ -6,6 +6,7 @@ import BaseEmbedding from '../../base/embedding';
 import BaseModelProvider from '../../base/provider';
 import BaseLLM from '../../base/llm';
 import GeminiLLM from './geminiLLM';
+import { modelListJson } from '../model-list-response';
 
 interface GeminiConfig {
   apiKey: string;
@@ -40,12 +41,12 @@ class GeminiProvider extends BaseModelProvider<GeminiConfig> {
       },
     );
 
-    const data = await res.json();
+    const data = await modelListJson(res, 'Gemini');
 
     let defaultEmbeddingModels: Model[] = [];
     let defaultChatModels: Model[] = [];
 
-    data.models.forEach((m: any) => {
+    (data?.models ?? []).forEach((m: any) => {
       if (
         m.supportedGenerationMethods.some(
           (genMethod: string) =>
