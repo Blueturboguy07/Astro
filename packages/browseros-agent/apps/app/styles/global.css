@@ -125,6 +125,24 @@
   --sidebar-ring: #f97316;
 }
 
+/* The Simplicity (Vane) colour scale. Its screens use bg-light-primary,
+   border-dark-200 and so on; nothing defined these tokens, so menus, the
+   composer and cards were see-through, text overlapped, and the light
+   weather card was unreadable (Astro 0.2.4 QA, F-064). Values follow the
+   app's own light/dark palette above. */
+@theme {
+  --color-light-primary: #ffffff;
+  --color-light-secondary: #f6f8fa;
+  --color-light-100: #eef1f4;
+  --color-light-200: #e1e5ea;
+  --color-light-300: #d0d7de;
+  --color-dark-primary: #0d1117;
+  --color-dark-secondary: #161b22;
+  --color-dark-100: #1c2128;
+  --color-dark-200: #21262d;
+  --color-dark-300: #30363d;
+}
+
 @theme inline {
   --font-sans: "Geist", "Geist Fallback";
   --font-mono: "Geist Mono", "Geist Mono Fallback";

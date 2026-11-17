@@ -3,6 +3,7 @@
 import { Droplets, Gauge, Wind } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { getMeasurementUnit } from '@/lib/simplicity/config/clientRegistry'
+import WeatherIcon from '../WeatherIcon'
 
 type WeatherWidgetProps = {
   location: string
@@ -310,9 +311,9 @@ const Weather = ({
       <div className="relative p-4 text-gray-800 dark:text-white">
         <div className="mb-3 flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <img
-              src={`/weather-ico/${weatherInfo.icon}`}
-              alt={weatherInfo.description}
+            <WeatherIcon
+              name={weatherInfo.icon}
+              label={weatherInfo.description}
               className="h-16 w-16 drop-shadow-lg"
             />
             <div>
@@ -353,11 +354,7 @@ const Weather = ({
               className="flex flex-col items-center rounded-md bg-gray-800/10 p-2 backdrop-blur-sm dark:bg-white/10"
             >
               <p className="mb-1 font-medium text-xs">{day.day}</p>
-              <img
-                src={`/weather-ico/${day.icon}`}
-                alt=""
-                className="mb-1 h-8 w-8"
-              />
+              <WeatherIcon name={day.icon} className="mb-1 h-8 w-8" />
               <div className="flex items-center gap-1 text-xs">
                 <span className="font-semibold">{day.high}°</span>
                 <span className="text-gray-600 dark:text-white/60">

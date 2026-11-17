@@ -4,6 +4,7 @@ import { Wind } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { getApproxLocation } from '@/lib/simplicity/actions'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import WeatherIcon from './WeatherIcon'
 
 const WeatherWidget = () => {
   const [data, setData] = useState({
@@ -143,10 +144,10 @@ const WeatherWidget = () => {
       ) : (
         <>
           <div className="flex h-full w-16 min-w-16 max-w-16 flex-col items-center justify-center">
-            <img
-              src={`/weather-ico/${data.icon}.svg`}
-              alt={data.condition}
-              className="h-10 w-auto"
+            <WeatherIcon
+              name={data.icon}
+              label={data.condition}
+              className="h-10 w-10 text-amber-500 dark:text-amber-300"
             />
             <span className="font-semibold text-base text-black dark:text-white">
               {data.temperature}°{data.temperatureUnit}
