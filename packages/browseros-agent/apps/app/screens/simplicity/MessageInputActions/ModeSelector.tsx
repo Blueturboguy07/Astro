@@ -90,7 +90,7 @@ const ModeSelector = () => {
             {open && (
               <PopoverPanel
                 static
-                className="absolute right-0 z-10 w-64 md:w-[240px]"
+                className="absolute right-0 z-50 w-64 md:w-[240px]"
               >
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}

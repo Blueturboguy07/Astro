@@ -30,16 +30,50 @@ export async function getSuggestions(chatHistory: [string, string][]) {
   return data.suggestions
 }
 
-export async function getApproxLocation() {
-  const res = await fetch('https://free.freeipapi.com/api/json')
-  const data = (await res.json()) as {
-    latitude: number
-    longitude: number
-    cityName: string
-  }
-  return {
-    latitude: data.latitude,
-    longitude: data.longitude,
-    city: data.cityName,
-  }
+export type ApproxLocation = {
+  latitude: number
+  longitude: number
+  city: string
+}
+
+let approxLocation: Promise<ApproxLocation | null> | null = null
+
+/**
+ * The IP-based location, asked once per page load. The weather widget asked
+ * on every render and every 30 s, the service answered 429 with an HTML
+ * page, and parsing it threw "Unexpected token '<'" (Astro 0.2.4 QA, F-058).
+ * Any failure gives null: the widget then shows no weather.
+ */
+export function getApproxLocation(
+  fetchImpl: typeof fetch = fetch,
+): Promise<ApproxLocation | null> {
+  approxLocation ??= (async () => {
+    try {
+      const res = await fetchImpl('https://free.freeipapi.com/api/json')
+      if (!res.ok) return null
+      const data = (await res.json()) as {
+        latitude?: number
+        longitude?: number
+        cityName?: string
+      }
+      if (
+        typeof data.latitude !== 'number' ||
+        typeof data.longitude !== 'number'
+      ) {
+        return null
+      }
+      return {
+        latitude: data.latitude,
+        longitude: data.longitude,
+        city: data.cityName ?? '',
+      }
+    } catch {
+      return null
+    }
+  })()
+  return approxLocation
+}
+
+export function resetApproxLocationForTesting(): void {
+  approxLocation = null
 }

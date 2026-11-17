@@ -20,11 +20,13 @@ const WeatherWidget = () => {
   const [loading, setLoading] = useState(true)
 
   const getLocation = async (
-    callback: (location: {
-      latitude: number
-      longitude: number
-      city: string
-    }) => void,
+    callback: (
+      location: {
+        latitude: number
+        longitude: number
+        city: string
+      } | null,
+    ) => void,
   ) => {
     if (navigator.geolocation) {
       const result = await navigator.permissions.query({
@@ -64,6 +66,10 @@ const WeatherWidget = () => {
 
   const updateWeather = async () => {
     getLocation(async (location) => {
+      if (!location) {
+        setLoading(false)
+        return
+      }
       const res = await apiFetch(`/api/weather`, {
         method: 'POST',
         body: JSON.stringify({
@@ -94,11 +100,15 @@ const WeatherWidget = () => {
     })
   }
 
+  /* Once at mount, then every 10 minutes: with updateWeather (a new
+     function each render) as a dependency the effect ran on every render
+     (F-058). */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: run once at mount
   useEffect(() => {
     updateWeather()
-    const intervalId = setInterval(updateWeather, 30 * 1000)
+    const intervalId = setInterval(updateWeather, 10 * 60 * 1000)
     return () => clearInterval(intervalId)
-  }, [updateWeather])
+  }, [])
 
   return (
     <div className="flex h-24 max-h-[96px] min-h-[96px] w-full flex-row items-center gap-3 rounded-2xl border border-light-200 bg-light-secondary px-3 py-2 shadow-light-200/10 shadow-sm dark:border-dark-200 dark:bg-dark-secondary dark:shadow-black/25">
