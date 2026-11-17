@@ -964,12 +964,27 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     )
 
     /* The local server is down or Stop came before the answer started. */
+    /* Stop: what streamed so far stays on screen and the turn ends as
+       finished. It must not stay 'answering': the reconnect effect then took
+       it for a lost turn and showed "connection ended" twice (0.0.109 UI
+       run). The server saves the row as 'cancelled'. */
+    const endStopped = () => {
+      setResearchEnded(true)
+      setLoading(false)
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.messageId === messageId && msg.status === 'answering'
+            ? { ...msg, status: 'completed' as const }
+            : msg,
+        ),
+      )
+    }
+
     if (res instanceof Error) {
       liveTurnsRef.current.delete(messageId)
       abortRef.current = null
       if (res.name === 'AbortError') {
-        setResearchEnded(true)
-        setLoading(false)
+        endStopped()
       } else {
         failTurn(messageId, TURN_LOST_TEXT)
       }
@@ -1021,13 +1036,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       const outcome = await readTurnStream(res.body, messageHandler)
-      if (outcome === 'lost') failTurn(messageId, TURN_LOST_TEXT)
+      if (outcome === 'lost') {
+        if (abortController.signal.aborted) endStopped()
+        else failTurn(messageId, TURN_LOST_TEXT)
+      }
     } catch (err: any) {
-      /* Stop button: the fetch abort surfaces here as an AbortError. Whatever
-         streamed so far stays on screen; the turn just ends. */
-      if (err?.name === 'AbortError') {
-        setResearchEnded(true)
-        setLoading(false)
+      if (err?.name === 'AbortError' || abortController.signal.aborted) {
+        endStopped()
       } else {
         failTurn(messageId, TURN_LOST_TEXT)
       }
