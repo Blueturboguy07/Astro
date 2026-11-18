@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ASTRO_EXTENSION_ID, UPSTREAM_AGENT_EXTENSION_ID } from './astro-recut'
@@ -8,8 +14,11 @@ import {
   BUGREPORTER_EXTENSION_ID,
   checkServerResources,
   chromeVersionDir,
+  exeVersionStrings,
   parseArgs,
   patchChromeDllUrls,
+  REBRANDED_EXES,
+  rceditArgs,
   validateAppVersion,
   WIN_URL_PATCHES,
 } from './astro-recut-win'
@@ -218,5 +227,60 @@ describe('checkServerResources', () => {
     const bare = make('MZ', false)
     expect(() => checkServerResources(bare)).toThrow(/migrations/)
     rmSync(bare, { recursive: true })
+  })
+})
+
+/* F-015: chrome.exe showed "BrowserOS" in Task Manager and Properties. */
+describe('chrome.exe version info (F-015)', () => {
+  it('names Astro in every string rcedit writes', () => {
+    const strings = exeVersionStrings()
+    expect(strings.ProductName).toBe('Astro')
+    expect(strings.FileDescription).toBe('Astro')
+    expect(strings.CompanyName).toBe('publik')
+    const visible = `${strings.ProductName} ${strings.FileDescription} ${strings.CompanyName}`
+    expect(visible).not.toMatch(/BrowserOS|Felafax/)
+    expect([...REBRANDED_EXES]).toEqual(['chrome.exe', 'chrome_proxy.exe'])
+  })
+
+  it('builds one --set-version-string per key, exe first', () => {
+    expect(rceditArgs('C:/t/chrome.exe', { ProductName: 'Astro' })).toEqual([
+      'C:/t/chrome.exe',
+      '--set-version-string',
+      'ProductName',
+      'Astro',
+    ])
+  })
+
+  it('reads --rcedit and leaves it out by default', () => {
+    const base = [
+      '--tree',
+      't',
+      '--crx',
+      'c.crx',
+      '--server',
+      'srv',
+      '--version',
+      '0.0.114',
+      '--app-version',
+      '0.2.4',
+    ]
+    expect(parseArgs(base).rcedit).toBeUndefined()
+    expect(parseArgs([...base, '--rcedit', 'r.exe']).rcedit).toBe('r.exe')
+  })
+})
+
+describe('release-windows-astro workflow (F-015)', () => {
+  it('passes --rcedit to the re-cut and checks the installed version info', () => {
+    const wf = readFileSync(
+      join(
+        import.meta.dir,
+        '../../../../.github/workflows/release-windows-astro.yml',
+      ),
+      'utf8',
+    )
+    expect(wf).toContain(
+      '--rcedit packages/browseros-agent/third_party/bin/rcedit-x64.exe',
+    )
+    expect(wf).toContain('$vi.ProductName -ne "Astro"')
   })
 })

@@ -287,7 +287,38 @@ export type WinRecutOptions = {
   pkg: 'nsis' | 'zip'
   nsi?: string
   makensis?: string
+  /** rcedit-x64.exe; without it chrome.exe keeps upstream's version info. */
+  rcedit?: string
   dryRun: boolean
+}
+
+/* F-015: Explorer's Properties and Task Manager read these strings from
+   chrome.exe and chrome_proxy.exe ("BrowserOS"). rcedit rewrites them. The
+   exes then lose upstream's Authenticode signature, like chrome.dll, which
+   this re-cut already patches in place; an Astro signature needs Astro's own
+   code-signing certificate (FIXES.md, Needs Mann). The version numbers stay
+   Chromium's: nothing in the tree reads them, chrome://version shows them. */
+export const REBRANDED_EXES = ['chrome.exe', 'chrome_proxy.exe'] as const
+
+export function exeVersionStrings(): Record<string, string> {
+  return {
+    ProductName: 'Astro',
+    FileDescription: 'Astro',
+    CompanyName: 'publik',
+    LegalCopyright:
+      'Copyright (C) The Chromium Authors, (C) 2025 BrowserOS, (C) 2026 publik',
+  }
+}
+
+export function rceditArgs(
+  exe: string,
+  strings: Record<string, string>,
+): string[] {
+  const args = [exe]
+  for (const [key, value] of Object.entries(strings)) {
+    args.push('--set-version-string', key, value)
+  }
+  return args
 }
 
 const run = (cmd: string, args: string[], cwd?: string) => {
@@ -444,6 +475,24 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
     )
   }
 
+  console.log('[4c/5] chrome.exe version info (F-015)')
+  if (!opts.rcedit) {
+    console.log('      skipped: no --rcedit (needs rcedit-x64.exe)')
+  } else if (!opts.dryRun) {
+    const onWindows = process.platform === 'win32'
+    for (const name of REBRANDED_EXES) {
+      const exe = path.join(opts.tree, name)
+      if (!fs.existsSync(exe)) {
+        console.log(`      ${name}: not in the tree, skipped`)
+        continue
+      }
+      const args = rceditArgs(exe, exeVersionStrings())
+      if (onWindows) run(opts.rcedit, args)
+      else run('wine', [opts.rcedit, ...args])
+      console.log(`      ${name}: ProductName/FileDescription = Astro`)
+    }
+  }
+
   console.log(`[5/5] package: ${opts.pkg}`)
   fs.mkdirSync(opts.out, { recursive: true })
   if (opts.pkg === 'zip') {
@@ -509,7 +558,7 @@ export function parseArgs(argv: string[]): WinRecutOptions {
         '--server <windows-x64 server resources dir> ' +
         '--version <CRX version, 0.0.101> --app-version <Astro release, 0.2.4> ' +
         '[--out dir] [--package nsis|zip] [--nsi <.nsi>] ' +
-        '[--makensis <path>] [--dry-run]',
+        '[--makensis <path>] [--rcedit <rcedit-x64.exe>] [--dry-run]',
     )
   }
   const pkg = (get('--package') ?? 'nsis') as 'nsis' | 'zip'
@@ -526,6 +575,7 @@ export function parseArgs(argv: string[]): WinRecutOptions {
     pkg,
     nsi: get('--nsi'),
     makensis: get('--makensis'),
+    rcedit: get('--rcedit'),
     dryRun: argv.includes('--dry-run'),
   }
 }

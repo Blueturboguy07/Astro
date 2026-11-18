@@ -151,7 +151,8 @@ jobs:
             --out dist\win `
             --package nsis `
             --nsi packages/browseros-agent/scripts/release/astro-win.nsi `
-            --makensis "$makensis"
+            --makensis "$makensis" `
+            --rcedit packages/browseros-agent/third_party/bin/rcedit-x64.exe
           if ($LASTEXITCODE -ne 0) { throw "recut failed ($LASTEXITCODE)" }
           $setup = Get-ChildItem dist\win -Filter "Astro-Setup-*.exe" | Select-Object -First 1
           if (-not $setup) { throw "installer not produced" }
@@ -168,6 +169,11 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
           $exe = "$env:ProgramFiles\Astro\chrome.exe"
           if (-not (Test-Path $exe)) { throw "chrome.exe not installed at $exe" }
+          # F-015: Task Manager and Properties show Astro, not BrowserOS.
+          $vi = (Get-Item $exe).VersionInfo
+          if ($vi.ProductName -ne "Astro" -or $vi.FileDescription -ne "Astro") {
+            throw "chrome.exe version info: ProductName '$($vi.ProductName)', FileDescription '$($vi.FileDescription)'"
+          }
           if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk")) {
             throw "Start-menu shortcut missing"
           }
