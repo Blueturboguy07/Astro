@@ -31,6 +31,7 @@ import { AnimatePresence } from 'motion/react'
 import ProductLogo from '@/assets/product_logo.svg'
 import { type FC, type ReactNode, useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router'
+import { readBalanceAfterAnswer } from '@/lib/publik/balance-reads'
 import { refreshPublikAccount, usePublikAccount } from '@/lib/publik/useGate'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
@@ -101,7 +102,8 @@ export const CometSidebar: FC<{ children: ReactNode }> = ({ children }) => {
   /* The balance moves with every paid answer: read the wallet again when
      the rail mounts and after each answer. */
   useEffect(() => {
-    if (!loading) void refreshPublikAccount()
+    if (loading) return
+    return readBalanceAfterAnswer(() => void refreshPublikAccount())
   }, [loading])
 
   useEffect(() => {
