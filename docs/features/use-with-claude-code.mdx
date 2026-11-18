@@ -131,7 +131,7 @@ Wondering how Astro MCP compares to Chrome DevTools MCP or other browser automat
 
 ## Connect from a Remote Machine
 
-The Astro MCP server only listens on `127.0.0.1`, so by default only programs on the same computer can reach it. If your agent runs somewhere else — for example a [Hermes](https://github.com/NousResearch) or OpenClaw agent on a VPS controlling Astro on your laptop — you need a reverse tunnel that forwards requests from the remote machine to the MCP server on your laptop.
+Only programs on the same computer can use the Astro MCP server. The MCP port (the one in the Server URL) is open on all network interfaces, so other computers on your network can see it in a port scan and open a connection, but Astro closes such connections without answering. Astro's own local server listens on `127.0.0.1` only. If your agent runs somewhere else — for example a [Hermes](https://github.com/NousResearch) or OpenClaw agent on a VPS controlling Astro on your laptop — you need a reverse tunnel that forwards requests from the remote machine to the MCP server on your laptop.
 
 <Warning>
 Anyone who can reach this URL has full control of your browser, including every account you are signed into. Prefer a private tunnel like Tailscale over a public URL, and treat public tunnel URLs like passwords.
