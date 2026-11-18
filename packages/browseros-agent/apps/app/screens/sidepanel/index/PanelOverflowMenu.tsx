@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { startNewConversation } from './PanelOverflowMenu.helpers'
 
 export interface PanelOverflowMenuProps {
   onNewConversation: () => void
@@ -42,7 +43,9 @@ export const PanelOverflowMenu: FC<PanelOverflowMenuProps> = ({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={onNewConversation}>
+          <DropdownMenuItem
+            onClick={() => startNewConversation(onNewConversation, navigate)}
+          >
             <Plus className="size-4" />
             New conversation
           </DropdownMenuItem>
