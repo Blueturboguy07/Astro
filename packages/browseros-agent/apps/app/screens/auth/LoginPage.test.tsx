@@ -6,6 +6,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
    went to BrowserOS's Google sign-in (redirect_uri on api.browseros.com).
    It now shows the publik account page and never creates the auth client. */
 
+/* A local .env.development may name the upstream account API; this test
+   is about a build that names none (the run-bun-test wrapper loads it). */
+// biome-ignore lint/style/noProcessEnv: the test clears a build variable that Bun reads from .env
+delete process.env.VITE_PUBLIC_BROWSEROS_API
+
 let authClients = 0
 mock.module('@/lib/auth/auth-client', () => ({
   getAuthClient: () => {
