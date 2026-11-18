@@ -20,6 +20,7 @@ import type {
   ScheduledJob,
   ScheduledJobRun,
 } from '@/lib/schedules/scheduleTypes'
+import { resultPreview } from './result-preview'
 
 dayjs.extend(relativeTime)
 
@@ -107,7 +108,7 @@ export const ScheduledTaskResults: FC<ScheduledTaskResultsProps> = ({
               </div>
               {run.result && (
                 <p className="line-clamp-2 text-ellipsis text-muted-foreground text-xs">
-                  {run.result}
+                  {resultPreview(run.result)}
                 </p>
               )}
             </div>
