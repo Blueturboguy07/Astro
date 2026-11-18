@@ -11,6 +11,7 @@ import {
   type StepResult,
   stepCountIs,
   streamText,
+  type TextStreamPart,
   type ToolSet,
   tool,
 } from 'ai'
@@ -447,5 +448,37 @@ describe('RunBudget site error', () => {
     })
     expect(budget.stopReason).toBe('actions')
     expect(budget.header()).toBe('**Stopped after 40 actions.**')
+  })
+})
+
+describe('RunBudget transform outside a stop (UC-32)', () => {
+  it('passes a csv code block split over many deltas through unchanged', async () => {
+    const budget = new RunBudget({ instructions: INSTRUCTIONS })
+    const answer =
+      'Here are the rows:\n\n```csv\nCountry,Population\nIndia,1417492000\nChina,1408280000\n```\n\nReference: world total.'
+    const deltas = answer.match(/[\s\S]{1,7}/g) ?? []
+    const parts = [
+      { type: 'start-step' },
+      { type: 'text-start', id: 't1' },
+      ...deltas.map((text) => ({ type: 'text-delta', id: 't1', text })),
+      { type: 'text-end', id: 't1' },
+      { type: 'finish-step' },
+    ] as unknown as TextStreamPart<ToolSet>[]
+    const out: TextStreamPart<ToolSet>[] = []
+    const stream = new ReadableStream<TextStreamPart<ToolSet>>({
+      start(controller) {
+        for (const p of parts) controller.enqueue(p)
+        controller.close()
+      },
+    }).pipeThrough(
+      budget.transform({ tools: {} as ToolSet, stopStream: () => {} }),
+    )
+    for await (const p of stream) out.push(p)
+    expect(out).toEqual(parts)
+    const text = out
+      .filter((p) => p.type === 'text-delta')
+      .map((p) => (p as { text: string }).text)
+      .join('')
+    expect(text).toBe(answer)
   })
 })

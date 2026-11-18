@@ -110,3 +110,27 @@ describe('toolErrorText', () => {
     ).toBeUndefined()
   })
 })
+
+describe('getMessageSegments text (UC-32)', () => {
+  it('keeps a csv code block after a tool batch unchanged', () => {
+    const csv =
+      'Here are the rows:\n\n```csv\nCountry,Population\nIndia,1417492000\n```\n\nReference: world total.'
+    const message = {
+      id: 'm1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-read',
+          toolCallId: 'c1',
+          state: 'output-available',
+          input: {},
+          output: { content: [{ type: 'text', text: 'page' }] },
+        },
+        { type: 'text', text: csv },
+      ],
+    } as unknown as UIMessage
+    const segments = getMessageSegments(message, true, false)
+    expect(segments.map((s) => s.type)).toEqual(['tool-batch', 'text'])
+    expect((segments[1] as { text: string }).text).toBe(csv)
+  })
+})
