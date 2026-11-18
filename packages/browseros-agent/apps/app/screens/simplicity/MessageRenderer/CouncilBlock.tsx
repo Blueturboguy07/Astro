@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import Markdown from 'markdown-to-jsx'
 import { parsePublikErrorCard } from '@/lib/publik/limit-error'
+import { LiveLimitText } from './LiveLimitText'
 import { useState } from 'react'
 import type {
   CouncilBlock as CouncilBlockType,
@@ -44,7 +45,8 @@ const SeatError = ({ error }: { error: string }) => {
     <div className="-mt-0.5 px-3 pb-2 text-[11px] text-red-500/80">
       {card ? (
         <>
-          <span className="font-medium">{card.title}.</span> {card.text}{' '}
+          <span className="font-medium">{card.title}.</span>{' '}
+          <LiveLimitText message={error} />{' '}
           <a
             href={card.url}
             target="_blank"

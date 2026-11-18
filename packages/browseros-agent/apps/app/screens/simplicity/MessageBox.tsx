@@ -40,6 +40,7 @@ import SearchVideos from './SearchVideos'
 import ThinkBox from './ThinkBox'
 import Renderer from './Widgets/Renderer'
 import { isPartialStoppedAnswer } from './answer-status'
+import { LiveLimitText } from './MessageRenderer/LiveLimitText'
 
 /* Shown wherever the answer text will land, for as long as the turn is
    running with nothing written yet — the gap between "research done" and the
@@ -327,7 +328,11 @@ const MessageBox = ({
                       {limit ? limit.title : 'This answer failed'}
                     </p>
                     <p className="mt-1 text-black/70 text-sm dark:text-white/70">
-                      {limit ? limit.text : String(block.data)}
+                      {limit ? (
+                        <LiveLimitText message={String(block.data)} />
+                      ) : (
+                        String(block.data)
+                      )}
                     </p>
                   </div>
                   {limit ? (
