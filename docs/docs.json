@@ -7,7 +7,7 @@
     "light": "#FF7A3D",
     "dark": "#D14E10"
   },
-  "favicon": "/logo/favicon.png",
+  "favicon": "/logo/astro.svg",
   "navigation": {
     "groups": [
       {
@@ -107,8 +107,8 @@
     }
   ],
   "logo": {
-    "light": "/logo/logo44.png",
-    "dark": "/logo/logo44.png"
+    "light": "/logo/astro.svg",
+    "dark": "/logo/astro.svg"
   },
   "navbar": {
     "links": [
