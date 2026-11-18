@@ -14,6 +14,7 @@ import {
   resolveCloudChatProvider,
 } from '../llm-providers/provider-runtime'
 import { personalizationStorage } from '../personalization/personalizationStorage'
+import { endRunOnServer } from './end-run'
 import { RUN_IDLE_MS, readWithIdleLimit } from './run-recovery'
 import { scheduleSystemPrompt } from './scheduleSystemPrompt'
 import type { ToolCallExecution } from './scheduleTypes'
@@ -112,6 +113,31 @@ export async function getChatServerResponse(
     // biome-ignore lint/style/noNonNullAssertion: filter guarantees url exists
     .map((s) => ({ name: s.displayName, url: s.config!.url }))
 
+  try {
+    return await runOnServer(agentServerUrl, conversationId, request, {
+      provider,
+      enabledMcpServers,
+      customMcpServers,
+      personalization,
+    })
+  } catch (e) {
+    await endRunOnServer(agentServerUrl, conversationId)
+    throw e
+  }
+}
+
+async function runOnServer(
+  agentServerUrl: string,
+  conversationId: string,
+  request: ChatServerRequest,
+  ctx: {
+    provider: Awaited<ReturnType<typeof resolveProvider>>
+    enabledMcpServers: string[]
+    customMcpServers: { name: string; url: string | undefined }[]
+    personalization: string
+  },
+): Promise<ChatServerResponse> {
+  const { provider, enabledMcpServers, customMcpServers, personalization } = ctx
   const response = await fetch(`${agentServerUrl}/chat`, {
     method: 'POST',
     signal: request.signal,
