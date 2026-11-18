@@ -116,6 +116,13 @@ let installsStatus = 201
 let revokeStatus = 204
 let telemetryStatus = 204
 let walletOkAfterInstalls = Number.POSITIVE_INFINITY
+const KEY_ERROR = { type: 'invalid_key', message: 'This key is not valid.' }
+const TOKEN_ERROR = {
+  type: 'invalid_app_token',
+  message: 'This app token is not valid.',
+}
+let walletError: { type: string; message: string } = KEY_ERROR
+let installsError: { type: string; message: string } = TOKEN_ERROR
 let origin = ''
 let server: ReturnType<typeof Bun.serve>
 
@@ -142,12 +149,7 @@ beforeAll(async () => {
         })
       if (url.pathname === '/api/v1/installs') {
         if (installsStatus !== 201) {
-          return json(installsStatus, {
-            error: {
-              type: 'invalid_app_token',
-              message: 'This app token is not valid.',
-            },
-          })
+          return json(installsStatus, { error: installsError })
         }
         const installs = requests.filter(
           (r) => r.url === '/api/v1/installs',
@@ -162,9 +164,7 @@ beforeAll(async () => {
       }
       if (url.pathname === '/api/v1/wallet') {
         if (walletStatus !== 200) {
-          return json(walletStatus, {
-            error: { type: 'invalid_key', message: 'This key is not valid.' },
-          })
+          return json(walletStatus, { error: walletError })
         }
         const w =
           (wallets.length > 1 ? wallets.shift() : wallets[0]) ?? anonymous
@@ -202,6 +202,8 @@ beforeEach(() => {
   telemetryStatus = 204
   revokeStatus = 204
   walletOkAfterInstalls = Number.POSITIVE_INFINITY
+  walletError = KEY_ERROR
+  installsError = TOKEN_ERROR
   token = 'pat_astro_gatetest'
 })
 
@@ -535,7 +537,141 @@ describe('the gate against a fake publik', () => {
       requests.filter((r) => r.url === '/api/v1/installs').length,
     ).toBeGreaterThanOrEqual(2)
     expect(gate.choice).toBe('publik')
+    expect(gate.offline).toBeUndefined()
     expect(second.screens).toEqual([])
+  })
+})
+
+/* F-092: a publik 429 or 5xx on GET /wallet locked every page behind the
+   full-page gate (the publik outage of 2026-11-18); only a thrown fetch
+   opened the app. */
+describe('publik not answering (F-092)', () => {
+  const BUSY = {
+    type: 'rate_limit_exceeded',
+    message: 'Too many key lookups from this network. Retry shortly.',
+  }
+  const signInWith = async (press: Record<string, string>, w: Wallet) => {
+    wallets = [w]
+    await m.ensureSignedIn(harness(press).ui)
+    requests.length = 0
+  }
+
+  for (const status of [429, 500, 503]) {
+    it(`a ${status} after an earlier sign-in opens the app with the stored plan, no gate screen`, async () => {
+      await signInWith({ [WORDS.connectTitle]: WORDS.connect }, claimedPlan)
+      walletStatus = status
+      walletError = BUSY
+      const h = harness()
+      const gate = await m.ensureSignedIn(h.ui)
+      expect(h.screens).toEqual([])
+      expect(gate).toMatchObject({
+        choice: 'publik',
+        offline: true,
+        status,
+        wallet: null,
+      })
+      // The key stays: no new install, and the plan still pays.
+      expect(requests.filter((r) => r.url === '/api/v1/installs')).toEqual([])
+      expect(await m.readCredential()).toMatchObject({
+        key: 'pk_live_gatetest',
+      })
+      expect((await m.resolveProvider(null)).kind).toBe('publik')
+    })
+  }
+
+  it('a 429 after an earlier "Use my own key" keeps the own key', async () => {
+    await signInWith({ [WORDS.chooseTitle]: WORDS.ownKey }, claimedEmpty)
+    walletStatus = 429
+    const h = harness()
+    const gate = await m.ensureSignedIn(h.ui)
+    expect(h.screens).toEqual([])
+    expect(gate).toMatchObject({ choice: 'own_key', offline: true })
+    expect(
+      (
+        await m.resolveProvider({
+          baseURL: 'http://127.0.0.1:11434/v1',
+          apiKey: 'ollama',
+        })
+      ).kind,
+    ).toBe('own')
+  })
+
+  it('a thrown fetch after an earlier sign-in opens the app with no status', async () => {
+    await signInWith({ [WORDS.connectTitle]: WORDS.connect }, claimedPlan)
+    globalThis.fetch = (() =>
+      Promise.reject(new TypeError('fetch failed'))) as unknown as typeof fetch
+    const h = harness()
+    const gate = await m.ensureSignedIn(h.ui)
+    expect(h.screens).toEqual([])
+    expect(gate).toMatchObject({ offline: true, status: null })
+  })
+
+  it('a 401 is still a revoked key: a new key, never the offline path', async () => {
+    await signInWith({ [WORDS.connectTitle]: WORDS.connect }, claimedPlan)
+    walletStatus = 401
+    walletOkAfterInstalls = 1
+    const gate = await m.ensureSignedIn(harness().ui)
+    expect(gate.offline).toBeUndefined()
+    expect(
+      requests.filter((r) => r.url === '/api/v1/installs').length,
+    ).toBeGreaterThanOrEqual(1)
+  })
+
+  it('first start, 429 from /installs: the gate says publik is not answering, with Retry only', async () => {
+    installsStatus = 429
+    installsError = BUSY
+    const h = harness({ [WORDS.title]: WORDS.retry })
+    await expect(m.ensureSignedIn(h.ui)).rejects.toThrow('gave up')
+    expect(h.screens[0]).toEqual({
+      title: WORDS.title,
+      body: 'publik is not answering (error 429). Click Retry in a minute.',
+      note: BUSY.message,
+      buttons: [WORDS.retry],
+    })
+  })
+
+  it('first start, 503 from /wallet: the same words; Retry goes on once publik answers', async () => {
+    walletStatus = 503
+    walletError = BUSY
+    wallets = [claimedPlan]
+    const screens: { title: string; body: string; buttons: string[] }[] = []
+    const ui: GateUI = {
+      show(s) {
+        screens.push({
+          title: s.title,
+          body: s.body,
+          buttons: s.buttons.map((b) => b.label),
+        })
+        if (s.id === 'unreachable') {
+          walletStatus = 200
+          return Promise.resolve('retry')
+        }
+        return Promise.resolve('connect')
+      },
+      openUrl() {},
+    }
+    const gate = await m.ensureSignedIn(ui)
+    expect(screens[0]).toEqual({
+      title: WORDS.title,
+      body: 'publik is not answering (error 503). Click Retry in a minute.',
+      buttons: [WORDS.retry],
+    })
+    expect(screens[1]?.title).toBe(WORDS.connectTitle)
+    expect(gate).toMatchObject({ choice: 'publik' })
+    expect(gate.offline).toBeUndefined()
+    await wait(200) // app_opened is sent and forgotten; let it land here
+  })
+
+  it('the notice words', () => {
+    expect(m.notAnsweringNotice(429, 5)).toEqual({
+      message: 'publik is not answering.',
+      status: 429,
+      at: 5,
+    })
+    expect(m.isNotAnswering(429)).toBe(true)
+    expect(m.isNotAnswering(502)).toBe(true)
+    expect(m.isNotAnswering(401)).toBe(false)
+    expect(m.isNotAnswering(404)).toBe(false)
   })
 })
 
@@ -582,6 +718,31 @@ describe('signOut', () => {
     expect(requests[0]?.url).toBe('/api/v1/installs')
     expect(after.screens[0]?.title).toBe(WORDS.title)
     expect(after.screens[0]?.buttons).toContain(WORDS.signInButton)
+  })
+})
+
+/* F-022: "Switch publik account" is a sign-out, then the gate with a note:
+   publikhq.com links the account the browser is signed in with. */
+describe('switch publik account', () => {
+  it('the sign-in screen after a switch says how to use another account', async () => {
+    await m.switchAccountStorage.setValue(true)
+    const h = harness({ [WORDS.title]: WORDS.signInButton })
+    await expect(m.ensureSignedIn(h.ui)).rejects.toThrow('gave up')
+    expect(h.screens[0]).toEqual({
+      title: WORDS.title,
+      body: WORDS.signInBody,
+      note: 'To use another publik account, first sign out on publikhq.com in your browser. Then click Sign in with publik.',
+      buttons: [WORDS.signInButton],
+    })
+    expect(h.screens[1]?.note).toBe(WORDS.waiting)
+  })
+
+  it('the note is gone once the person is signed in', async () => {
+    await m.switchAccountStorage.setValue(true)
+    wallets = [claimedPlan]
+    await m.ensureSignedIn(harness({ [WORDS.connectTitle]: WORDS.connect }).ui)
+    expect(await m.switchAccountStorage.getValue()).toBe(false)
+    await wait(200) // app_opened is sent and forgotten; let it land here
   })
 })
 

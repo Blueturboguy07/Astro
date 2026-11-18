@@ -14,6 +14,7 @@ import {
   moneyStorage,
   type PublikAccount,
   setChoice,
+  switchAccountStorage,
   telemetryConsentStorage,
 } from './publik'
 
@@ -89,6 +90,14 @@ export function usePublikAccount(): UsePublikAccount {
     },
     setUsageCounted: (on) => telemetryConsentStorage.setValue({ usage: on }),
   }
+}
+
+/** F-022: sign out of publik, then the gate. With `switchAccount`, the sign-in screen says how to use another account. */
+export async function signOutOfPublik(switchAccount: boolean): Promise<void> {
+  await switchAccountStorage.setValue(switchAccount).catch(() => null)
+  await sendRuntimeMessage(RuntimeMessageType.publikSignOut, undefined).catch(
+    () => null,
+  )
 }
 
 /** Asks the background to write the publik connections again (F-078). */

@@ -92,11 +92,18 @@ export interface PublikAccount {
   linked_at: string | null
   seen_at: number
 }
+/** F-092: the app opened while publik did not answer; the pages show this with a Retry button. */
+export interface PublikNotice {
+  message: string
+  /** The HTTP status publik gave, or null when no answer came at all. */
+  status: number | null
+  at: number
+}
 /** The gate as the pages see it, for this browser session. */
 export type GateState =
   | { status: 'checking'; at: number }
   | { status: 'screen'; screen: GateScreen; at: number }
-  | { status: 'done'; at: number }
+  | { status: 'done'; at: number; notice?: PublikNotice }
 
 /* ---------- storage: the credential file and its neighbours ---------- */
 
@@ -119,6 +126,14 @@ export const gateStorage = storage.defineItem<GateState | null>(
   'session:publik-gate',
   { fallback: null },
 )
+/** F-022: "Switch publik account" was pressed; the next sign-in screen says how to use another account. */
+export const switchAccountStorage = storage.defineItem<boolean>(
+  'session:publik-switch',
+  { fallback: false },
+)
+/** publikhq.com links the browser's signed-in account; another account needs a sign-out there first. */
+const SWITCH_NOTE =
+  'To use another publik account, first sign out on publikhq.com in your browser. Then click Sign in with publik.'
 /** The last 402 the chat saw: its message and the one link. */
 export const moneyStorage = storage.defineItem<{
   message: string
@@ -249,6 +264,30 @@ export async function resolveProvider(
 
 /* ---------- the publik API ---------- */
 
+/** A reply from publik that is not a success. `status` is the HTTP status. */
+class PublikHttpError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'PublikHttpError'
+    this.status = status
+  }
+}
+
+/** F-092: 429 and 5xx mean "publik is busy or down", not "this key is bad". */
+export const isNotAnswering = (status: number) =>
+  status === 429 || status >= 500
+
+/** The words of the small notice (F-092). */
+const NOT_ANSWERING = 'publik is not answering.'
+
+export function notAnsweringNotice(
+  status: number | null,
+  now = Date.now(),
+): PublikNotice {
+  return { message: NOT_ANSWERING, status, at: now }
+}
+
 /** POST /api/v1/installs: this computer's publik key. Throws a readable message. */
 export async function provision(): Promise<PublikCredential> {
   const token = appToken()
@@ -295,7 +334,8 @@ export async function provision(): Promise<PublikCredential> {
       installId = crypto.randomUUID()
       continue
     }
-    throw new Error(
+    throw new PublikHttpError(
+      res.status,
       body.error?.message ??
         `publik could not set up this computer (${res.status}).`,
     )
@@ -429,24 +469,39 @@ const offline = (e: unknown) =>
   (e instanceof Error && /abort|timeout/i.test(e.name))
 
 /**
- * Astro 0.2.4 QA, F-023 (WAITS FOR MANN'S DECISION; this commit can be
- * dropped on its own). publik not reachable at start locked a person who
- * had signed in before out of every AI page, also with their own key or a
- * local model. With a stored key, a stored choice and the account the gate
- * saw last time, the app opens; the background reads the wallet again
- * (RECHECK_ALARM) and runs the gate when publik answers otherwise.
+ * Astro 0.2.4 QA, F-023 and F-092. publik not reachable (F-023), or
+ * answering 429 or 5xx (F-092, the publik outage of 2026-11-18), at start
+ * locked a person who had signed in before out of every page, also with
+ * their own key or a local model. With a stored key, a stored choice and
+ * the account the gate saw last time, the app opens with that choice; the
+ * pages show a small "publik is not answering." notice with Retry, and the
+ * background reads the wallet again (RECHECK_ALARM) and runs the gate when
+ * publik answers otherwise.
  */
-async function openWithoutPublik(): Promise<{
+async function openWithoutPublik(status: number | null): Promise<{
   key: string
   wallet: null
   choice: Choice | null
   offline: true
+  status: number | null
 } | null> {
   const c = await readCredential().catch(() => null)
   const account = await accountStorage.getValue().catch(() => null)
-  const choice = USES_AI ? await choiceStorage.getValue() : null
+  const choice = USES_AI
+    ? await choiceStorage.getValue().catch(() => null)
+    : null
   if (!c || !account || (USES_AI && !choice)) return null
-  return { key: c.key, wallet: null, choice, offline: true }
+  return { key: c.key, wallet: null, choice, offline: true, status }
+}
+
+/** First start while publik answers 429 or 5xx: say so plainly, with Retry only. */
+function notAnsweringScreen(status: number, message: string | null) {
+  return gateScreen(
+    'unreachable',
+    null,
+    message,
+    `publik is not answering (error ${status}). Click Retry in a minute.`,
+  )
 }
 
 /** The gate (see the top of the file). Resolves once the person is signed in; `choice` is null when USES_AI is false. */
@@ -455,8 +510,14 @@ export async function ensureSignedIn(ui: GateUI): Promise<{
   wallet: Wallet | null
   choice: Choice | null
   offline?: true
+  /** With `offline`: the HTTP status publik gave, or null when no answer came. */
+  status?: number | null
 }> {
-  let signNote: string | null = null
+  let signNote: string | null = (await switchAccountStorage
+    .getValue()
+    .catch(() => false))
+    ? SWITCH_NOTE
+    : null
   let signPoll = true
   let planNote: string | null = null
   let planPoll = false
@@ -467,16 +528,23 @@ export async function ensureSignedIn(ui: GateUI): Promise<{
       c = (await readCredential()) ?? (await provision())
       r = await readWallet(c.key)
     } catch (e) {
-      const opened = offline(e) ? await openWithoutPublik() : null
+      const busy =
+        e instanceof PublikHttpError && isNotAnswering(e.status)
+          ? e.status
+          : null
+      const opened =
+        offline(e) || busy !== null ? await openWithoutPublik(busy) : null
       if (opened) return opened
       await ask(
         ui,
-        gateScreen(
-          'unreachable',
-          null,
-          null,
-          offline(e) ? undefined : String((e as Error).message),
-        ),
+        busy !== null
+          ? notAnsweringScreen(busy, (e as Error).message)
+          : gateScreen(
+              'unreachable',
+              null,
+              null,
+              offline(e) ? undefined : String((e as Error).message),
+            ),
       )
       continue
     }
@@ -485,6 +553,12 @@ export async function ensureSignedIn(ui: GateUI): Promise<{
       continue
     }
     const w = r.wallet
+    if (!w && isNotAnswering(r.status)) {
+      const opened = await openWithoutPublik(r.status)
+      if (opened) return opened
+      await ask(ui, notAnsweringScreen(r.status, r.message))
+      continue
+    }
     if (!w) {
       await ask(
         ui,
@@ -543,6 +617,7 @@ export async function ensureSignedIn(ui: GateUI): Promise<{
       await setChoice(choice)
     }
     await accountStorage.setValue(accountFromWallet(w))
+    await switchAccountStorage.setValue(false).catch(() => null)
     await startTelemetry()
     return { key: c.key, wallet: w, choice }
   }

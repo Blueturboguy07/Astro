@@ -13,6 +13,8 @@ import {
   type GateAction,
   type GateUI,
   gateStorage,
+  isNotAnswering,
+  notAnsweringNotice,
   RECHECK_ALARM,
   readCredential,
   readWallet,
@@ -115,7 +117,29 @@ function press(action: GateAction): void {
     p.resolve(action)
     return
   }
+  if (action === 'retry') {
+    void retry()
+    return
+  }
   queued = action
+  void runGate()
+}
+
+/* Retry from the small notice (F-092): the app is open, so read the wallet
+   again; never the full-page gate while publik still does not answer. A
+   Retry that reaches a fresh worker while a gate screen waits is queued as
+   before. */
+async function retry(): Promise<void> {
+  const state = await gateStorage.getValue().catch(() => null)
+  if (state?.status === 'done') {
+    if (state.notice) await recheck()
+    return
+  }
+  if (pending) {
+    press('retry')
+    return
+  }
+  queued = 'retry'
   void runGate()
 }
 
@@ -131,7 +155,15 @@ function runGate(): Promise<void> {
     }
     await gateStorage.setValue({ status: 'checking', at: Date.now() })
     const gate = await ensureSignedIn(ui)
-    await gateStorage.setValue({ status: 'done', at: Date.now() })
+    await gateStorage.setValue(
+      gate.offline
+        ? {
+            status: 'done',
+            at: Date.now(),
+            notice: notAnsweringNotice(gate.status ?? null),
+          }
+        : { status: 'done', at: Date.now() },
+    )
     await applyChoice(gate.choice)
     if (gate.offline) {
       await chrome.alarms
@@ -145,21 +177,49 @@ function runGate(): Promise<void> {
   return run
 }
 
-/* F-023: the app opened while publik was not reachable. Once publik
-   answers, a claimed account is stored again; anything else (a revoked key,
-   a signed-out install) runs the gate. Still offline: the next alarm. */
-async function recheck(): Promise<void> {
+let checking: Promise<void> | null = null
+
+/* F-023, F-092: the app opened while publik did not answer. Once publik
+   answers, a claimed account is stored again and the notice goes away;
+   anything else (a revoked key, a signed-out install) runs the gate. Still
+   no answer, or 429 or 5xx: the notice stays (with a new time, so its Retry
+   button is pressable again) and the next alarm tries again. */
+function recheck(): Promise<void> {
+  checking ??= recheckOnce().finally(() => {
+    checking = null
+  })
+  return checking
+}
+
+async function recheckOnce(): Promise<void> {
+  const state = await gateStorage.getValue().catch(() => null)
+  if (state?.status !== 'done' || !state.notice) {
+    await chrome.alarms.clear(RECHECK_ALARM).catch(() => null)
+    return
+  }
   const c = await readCredential().catch(() => null)
   if (!c) return
+  const stillDown = (status: number | null) =>
+    gateStorage.setValue({
+      status: 'done',
+      at: Date.now(),
+      notice: notAnsweringNotice(status),
+    })
   let r: Awaited<ReturnType<typeof readWallet>>
   try {
     r = await readWallet(c.key)
   } catch {
+    await stillDown(null)
+    return
+  }
+  if (!r.wallet && isNotAnswering(r.status)) {
+    await stillDown(r.status)
     return
   }
   await chrome.alarms.clear(RECHECK_ALARM).catch(() => null)
   if (r.wallet?.claim_state === 'claimed') {
     await accountStorage.setValue(accountFromWallet(r.wallet))
+    await gateStorage.setValue({ status: 'done', at: Date.now() })
     await startTelemetry()
     return
   }

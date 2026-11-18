@@ -1,7 +1,7 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { type ReactNode, useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
-import type { GateAction, GateScreen } from '@/lib/publik/publik'
+import type { GateAction, GateScreen, PublikNotice } from '@/lib/publik/publik'
 import { pressGate, useGateState } from '@/lib/publik/useGate'
 import { cn } from '@/lib/simplicity/utils'
 import ProviderLogo from '@/screens/simplicity/ui/ProviderLogo'
@@ -26,10 +26,68 @@ export const PublikGate = ({ children }: { children: ReactNode }) => {
   const state = useGateState()
   const { pathname } = useLocation()
   if (pathname === SELF_TEST_PATH) return <>{children}</>
-  if (state?.status === 'done') return <>{children}</>
+  if (state?.status === 'done') {
+    return (
+      <>
+        {children}
+        {state.notice && <NotAnsweringNotice notice={state.notice} />}
+      </>
+    )
+  }
   /* Loading from storage: draw nothing rather than a flash of the app. */
   if (state === undefined) return null
   return <GatePage screen={state?.status === 'screen' ? state.screen : null} />
+}
+
+/* F-092: the app is open with the last choice while publik answers 429 or
+ * 5xx (or not at all). A small notice, not the full-page gate: own keys,
+ * local models and every page keep working. Retry asks the background to
+ * read the wallet again; the notice goes away when publik answers. */
+const NotAnsweringNotice = ({ notice }: { notice: PublikNotice }) => {
+  const [pressed, setPressed] = useState(false)
+  const [hidden, setHidden] = useState(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new time means the background tried again
+  useEffect(() => {
+    setPressed(false)
+  }, [notice.at])
+  useEffect(() => {
+    if (!pressed) return
+    const t = setTimeout(() => setPressed(false), 20_000)
+    return () => clearTimeout(t)
+  }, [pressed])
+  if (hidden) return null
+
+  return (
+    <div
+      role="status"
+      title={
+        notice.status ? `publik answered ${notice.status}` : 'No answer came'
+      }
+      className="fixed top-2 left-1/2 z-[60] flex max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-row items-center gap-2 rounded-full border border-neutral-200 bg-white/95 py-1 pr-1 pl-3 text-black/70 text-xs shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95 dark:text-white/70"
+    >
+      <span className="truncate">{notice.message}</span>
+      <button
+        type="button"
+        disabled={pressed}
+        onClick={() => {
+          setPressed(true)
+          void pressGate('retry')
+        }}
+        className="flex shrink-0 flex-row items-center gap-1 rounded-full bg-[#24A0ED] px-2.5 py-1 font-medium text-white transition-all hover:bg-[#1e8fd1] active:scale-95 disabled:opacity-60"
+      >
+        {pressed && <Loader2 className="h-3 w-3 animate-spin" />}
+        Retry
+      </button>
+      <button
+        type="button"
+        aria-label="Hide"
+        onClick={() => setHidden(true)}
+        className="shrink-0 rounded-full p-1 text-black/40 hover:bg-black/5 dark:text-white/40 dark:hover:bg-white/10"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  )
 }
 
 const GatePage = ({ screen }: { screen: GateScreen | null }) => {
