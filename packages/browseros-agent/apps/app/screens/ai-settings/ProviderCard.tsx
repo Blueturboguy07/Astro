@@ -35,7 +35,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
     <label
       htmlFor={inputId}
       className={cn(
-        'group flex w-full cursor-pointer items-center gap-4 rounded-xl border p-4 text-left transition-all',
+        'group relative flex w-full cursor-pointer items-center gap-4 rounded-xl border p-4 text-left transition-all',
         isSelected
           ? 'border-[var(--accent-orange)] bg-[var(--accent-orange)]/5 shadow-md'
           : 'border-border bg-card hover:border-[var(--accent-orange)]/50 hover:shadow-sm',
@@ -115,6 +115,8 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant="ghost"
             size="icon-sm"
             className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label={`Delete ${provider.name}`}
+            title={`Delete ${provider.name}`}
             onClick={() => onDelete?.()}
           >
             <Trash2 className="h-4 w-4" />

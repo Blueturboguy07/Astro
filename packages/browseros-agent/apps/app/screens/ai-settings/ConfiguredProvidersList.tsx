@@ -24,6 +24,17 @@ export const ConfiguredProvidersList: FC<ConfiguredProvidersListProps> = ({
   onEditProvider,
   onDeleteProvider,
 }) => {
+  if (providers.length === 0) {
+    return (
+      <p
+        className="rounded-xl border border-dashed p-4 text-muted-foreground text-sm"
+        data-testid="no-providers"
+      >
+        No AI provider yet. Choose a template above or click "Add". Use your own
+        API key, or a local model (Ollama, or any "OpenAI Compatible" server).
+      </p>
+    )
+  }
   return (
     <div className="space-y-3">
       {providers.map((provider) => {

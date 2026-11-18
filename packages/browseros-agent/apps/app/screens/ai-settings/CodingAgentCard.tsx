@@ -48,7 +48,7 @@ export const CodingAgentCard: FC<CodingAgentCardProps> = ({
     <label
       htmlFor={inputId}
       className={cn(
-        'group flex w-full cursor-pointer items-center gap-4 rounded-xl border p-4 text-left transition-all',
+        'group relative flex w-full cursor-pointer items-center gap-4 rounded-xl border p-4 text-left transition-all',
         isSelected
           ? 'border-[var(--accent-orange)] bg-[var(--accent-orange)]/5 shadow-md'
           : 'border-border bg-card hover:border-[var(--accent-orange)]/50 hover:shadow-sm',

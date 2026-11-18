@@ -4,6 +4,19 @@ import type { SidepanelChatTargetSelection } from '@/modules/chat/sidepanel-chat
 // resolves tsconfig `@/` aliases for erased type imports only, not values.
 import { resolveDefaultProviderId } from '../../lib/llm-providers/provider-selection'
 
+/**
+ * The providers the AI settings pane lists and can make the default. The
+ * built-in "Astro" placeholder (type `browseros`, endpoint astro.invalid) has
+ * no model behind it: it was listed and marked DEFAULT in own-key mode, and a
+ * chat sent to it failed (Astro 0.2.4 QA, O4-M-36). The side panel already
+ * drops it (F-018); the pane now does the same.
+ */
+export function listedProviders(
+  providers: LlmProviderConfig[],
+): LlmProviderConfig[] {
+  return providers.filter((provider) => provider.type !== 'browseros')
+}
+
 export interface ResolveEffectiveDefaultTargetInput {
   providers: LlmProviderConfig[]
   agents: ReadonlyArray<{ id: string }>

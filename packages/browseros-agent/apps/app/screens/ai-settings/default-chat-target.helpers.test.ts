@@ -3,6 +3,7 @@ import type { LlmProviderConfig } from '@/lib/llm-providers/types'
 import {
   decodeTargetValue,
   encodeTargetValue,
+  listedProviders,
   resolveEffectiveDefaultTarget,
 } from './default-chat-target.helpers'
 
@@ -128,5 +129,51 @@ describe('encodeTargetValue / decodeTargetValue', () => {
     expect(decodeTargetValue('bogus')).toBeNull()
     expect(decodeTargetValue('http:provider')).toBeNull()
     expect(decodeTargetValue('llm:')).toBeNull()
+  })
+})
+
+describe('listedProviders (own-key built-in provider, O4-M-36)', () => {
+  it('drops the built-in placeholder that has no model behind it', () => {
+    expect(listedProviders(providers).map((p) => p.id)).toEqual(
+      providers.filter((p) => p.type !== 'browseros').map((p) => p.id),
+    )
+    expect(listedProviders(providers).some((p) => p.id === 'browseros')).toBe(
+      false,
+    )
+  })
+
+  it('a stored default on the placeholder resolves to the first real provider', () => {
+    const listed = listedProviders(providers)
+    expect(
+      resolveEffectiveDefaultTarget({
+        providers: listed,
+        agents: [],
+        selection: null,
+        defaultProviderId: 'browseros',
+      }),
+    ).toEqual({ kind: 'llm', id: listed[0].id })
+  })
+
+  it('a click on another provider (the saved selection) wins over the stored id', () => {
+    const other: LlmProviderConfig = {
+      ...providers[1],
+      id: 'ollama-local',
+      type: 'ollama',
+      name: 'Ollama',
+    }
+    const listed = listedProviders([...providers, other])
+    expect(listed[0].id).not.toBe(other.id)
+    expect(
+      resolveEffectiveDefaultTarget({
+        providers: listed,
+        agents: [],
+        selection: { kind: 'llm', id: other.id },
+        defaultProviderId: 'browseros',
+      }),
+    ).toEqual({ kind: 'llm', id: other.id })
+  })
+
+  it('only the placeholder: nothing is listed', () => {
+    expect(listedProviders([providers[0]])).toEqual([])
   })
 })

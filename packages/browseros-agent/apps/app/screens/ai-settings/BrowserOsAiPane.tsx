@@ -44,6 +44,7 @@ import { CodingAgentsList } from './CodingAgentsList'
 import { ConfiguredProvidersList } from './ConfiguredProvidersList'
 import { useCodingAgents } from './coding-agents.hooks'
 import { DeviceCodeDialog } from './DeviceCodeDialog'
+import { listedProviders } from './default-chat-target.helpers'
 import { useDefaultChatTarget } from './default-chat-target.hooks'
 import {
   DeleteRemoteLlmProviderDocument,
@@ -103,12 +104,13 @@ const OAUTH_PROVIDERS_CONFIG: Record<string, OAuthProviderFlowConfig> = {
  */
 export const BrowserOsAiPane: FC = () => {
   const {
-    providers,
+    providers: storedProviders,
     defaultProviderId,
     saveProvider,
     setDefaultProvider,
     deleteProvider,
   } = useLlmProviders()
+  const providers = listedProviders(storedProviders)
   const { baseUrl: agentServerUrl } = useAgentServerUrl()
   const { sessionInfo } = useSessionInfo()
   const queryClient = useQueryClient()
