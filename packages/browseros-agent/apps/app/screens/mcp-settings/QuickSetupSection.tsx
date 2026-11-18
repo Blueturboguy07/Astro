@@ -41,7 +41,7 @@ const clients: ClientConfig[] = [
       JSON.stringify(
         {
           mcpServers: {
-            browseros: { type: 'http', url },
+            astro: { type: 'http', url },
           },
         },
         null,
@@ -54,7 +54,7 @@ const clients: ClientConfig[] = [
     kind: 'command',
     action: 'Run in your terminal:',
     getSnippet: (url) =>
-      `claude mcp add --transport http browseros ${url} --scope user`,
+      `claude mcp add --transport http astro ${url} --scope user`,
   },
   {
     id: 'claude-desktop',
@@ -73,7 +73,7 @@ const clients: ClientConfig[] = [
       JSON.stringify(
         {
           mcpServers: {
-            browseros: {
+            astro: {
               command: 'npx',
               args: ['mcp-remote', url],
             },
@@ -90,7 +90,7 @@ const clients: ClientConfig[] = [
     action: 'Run in your terminal:',
     /* --url: without it Codex stores the URL as a stdio command
        (Astro 0.2.4 QA, F-027). */
-    getSnippet: (url) => `codex mcp add browseros --url ${url}`,
+    getSnippet: (url) => `codex mcp add astro --url ${url}`,
   },
 ]
 

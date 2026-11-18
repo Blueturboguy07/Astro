@@ -48,7 +48,7 @@ describe('QuickSetupSection', () => {
     const html = render()
 
     expect(html).toContain(
-      'claude mcp add --transport http browseros http://127.0.0.1:9200/mcp --scope user',
+      'claude mcp add --transport http astro http://127.0.0.1:9200/mcp --scope user',
     )
   })
 
@@ -72,9 +72,15 @@ describe('QuickSetupSection', () => {
     )
   })
 
+  it('names the server astro in every snippet (INV-BRAND-10, INV-SET-39)', () => {
+    const html = render()
+    expect(html).toContain('&quot;astro&quot;: {')
+    expect(html).not.toContain('browseros')
+  })
+
   it('gives Codex the URL with --url (F-027)', () => {
     expect(render()).toContain(
-      'codex mcp add browseros --url http://127.0.0.1:9200/mcp',
+      'codex mcp add astro --url http://127.0.0.1:9200/mcp',
     )
   })
 })
