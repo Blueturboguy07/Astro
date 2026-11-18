@@ -21,8 +21,10 @@ describe('parseAlphaFeaturesFlag', () => {
 })
 
 describe('parseAstroApiUrl', () => {
-  it('defaults to the production Astro API when unset', () => {
-    expect(parseAstroApiUrl(undefined)).toBe('https://api.browseros.com')
+  /* F-011, F-032: no build may default to the upstream account service. */
+  it('defaults to a host that never resolves when unset', () => {
+    expect(parseAstroApiUrl(undefined)).toBe('https://account.astro.invalid')
+    expect(new URL(parseAstroApiUrl('')).hostname).toEndWith('.invalid')
   })
 
   it('preserves explicit overrides', () => {
@@ -32,7 +34,7 @@ describe('parseAstroApiUrl', () => {
   })
 
   it('rejects overrides without a scheme', () => {
-    expect(() => parseAstroApiUrl('api.browseros.com')).toThrow(
+    expect(() => parseAstroApiUrl('account.example.test')).toThrow(
       'VITE_PUBLIC_BROWSEROS_API must be a valid URL including http:// or https://',
     )
   })

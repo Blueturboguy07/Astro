@@ -1,4 +1,17 @@
-const GATEWAY_URL = 'https://llm.browseros.com'
+import { isNotAnswering, note402, resolveProvider } from '@/lib/publik/publik'
+
+/* Astro 0.2.4 QA, F-011 d: upstream sent every recording to BrowserOS's own
+   transcription service. Astro sends it to publik's OpenAI-compatible
+   POST /audio/transcriptions with this computer's publik key, and only when
+   the person pays with publik ("Connect your plan"); publik charges the
+   audio minutes to that plan. With "Use my own key" there is no publik key
+   to send, so voice input says so plainly instead of calling anyone. */
+
+/** publik has no tier name for speech; whisper-1 is the one model that returns verbose_json (per-segment confidence) and meters by duration. */
+export const TRANSCRIBE_MODEL = 'whisper-1'
+
+export const VOICE_NEEDS_PUBLIK =
+  'Voice input needs a publik plan. Open Settings > Models and press Connect your plan, or type your message.'
 
 const BIAS_PROMPT =
   'Transcript of a user dictating a chat message. Do not describe non-speech sounds.'
@@ -21,8 +34,12 @@ interface TranscribeResponse {
 export async function transcribeAudio(
   audioBlob: Blob,
 ): Promise<TranscribeResult> {
+  const provider = await resolveProvider(null)
+  if (provider.kind !== 'publik') throw new Error(VOICE_NEEDS_PUBLIK)
+
   const formData = new FormData()
   formData.append('file', audioBlob, 'recording.webm')
+  formData.append('model', TRANSCRIBE_MODEL)
   // verbose_json gives us per-segment avg_logprob; if the gateway
   // ignores it we still get the plain text back and just skip the
   // confidence-based drop in the sanitizer.
@@ -39,19 +56,36 @@ export async function transcribeAudio(
   // transcribe the audio.
   formData.append('prompt', BIAS_PROMPT)
 
-  const response = await fetch(`${GATEWAY_URL}/api/transcribe`, {
-    method: 'POST',
-    body: formData,
-    signal: AbortSignal.timeout(30_000),
-  })
+  let response: Response
+  try {
+    response = await fetch(
+      `${provider.baseURL.replace(/\/+$/, '')}/audio/transcriptions`,
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${provider.apiKey}` },
+        body: formData,
+        signal: AbortSignal.timeout(60_000),
+      },
+    )
+  } catch {
+    throw new Error('publik is not reachable. Check your connection.')
+  }
 
   if (!response.ok) {
-    const errorBody: { error?: string } = await response
+    const body: { error?: { message?: string } } = await response
       .json()
-      .catch(() => ({ error: 'Transcription failed' }))
-    throw new Error(
-      errorBody.error || `Transcription failed: ${response.status}`,
-    )
+      .catch(() => ({}))
+    const message = body.error?.message
+    if (response.status === 402) {
+      /* The chat's money banner shows the message with its one link. */
+      await note402(`402 ${message ?? ''}`).catch(() => false)
+    }
+    if (isNotAnswering(response.status)) {
+      throw new Error(
+        `publik is not answering (error ${response.status}). Try again in a minute.`,
+      )
+    }
+    throw new Error(message || `Transcription failed (${response.status}).`)
   }
 
   const result: TranscribeResponse = await response.json()

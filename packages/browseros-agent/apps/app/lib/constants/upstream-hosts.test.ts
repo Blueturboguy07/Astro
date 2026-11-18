@@ -13,15 +13,6 @@ const UPSTREAM_HOST =
   /(?:[a-z0-9*-]+\.)*browseros\.(?:com|ai)|jtbd-agent[a-z0-9.-]*|(?:dub\.sh|git\.new|discord\.gg)\/[A-Za-z0-9_-]+/gi
 
 const ALLOWED_IN_SOURCE: Record<string, { hosts: string[]; reason: string }> = {
-  'lib/browseros-api-url.ts': {
-    hosts: ['api.browseros.com'],
-    reason:
-      'default account API; used only when a build names one (Astro names none, F-011)',
-  },
-  'lib/voice/transcribe-audio.ts': {
-    hosts: ['llm.browseros.com'],
-    reason: 'voice transcription service; decision pending (F-011 d)',
-  },
   'lib/constants/productWebHost.ts': {
     hosts: ['browseros.com'],
     reason: 'manifest web_accessible_resources for the legacy agent bridge',
@@ -29,13 +20,15 @@ const ALLOWED_IN_SOURCE: Record<string, { hosts: string[]; reason: string }> = {
 }
 
 const ALLOWED_IN_BUILD: Record<string, string> = {
-  'api.browseros.com':
-    'account API default, built-in provider placeholder, manifest externally_connectable and the auth content script match',
-  '*.api.browseros.com': 'manifest externally_connectable',
   'browseros.com': 'manifest web_accessible_resources (legacy agent bridge)',
   '*.browseros.com': 'manifest web_accessible_resources (legacy agent bridge)',
-  'llm.browseros.com': 'voice transcription (F-011 d)',
 }
+
+/* F-011 / F-032: the upstream account API (login, sync, get-session) and
+   the upstream LLM gateway (voice transcription, Klavis) are services of
+   BrowserOS, not Astro. No allow-list may name them again: the account API
+   default is account.astro.invalid and voice input goes to publik. */
+const NEVER_ALLOWED = ['api.browseros.com', 'llm.browseros.com']
 
 const SKIP_DIRS = new Set([
   'node_modules',
@@ -84,6 +77,19 @@ describe('upstream hosts in the extension (F-079)', () => {
       'jtbd-agent.fly.dev',
       'dub.sh/browseros-usage-limit',
     ])
+  })
+
+  it('the account API and the LLM gateway of BrowserOS are never allow-listed', () => {
+    const listed = [
+      ...Object.values(ALLOWED_IN_SOURCE).flatMap((a) => a.hosts),
+      ...Object.keys(ALLOWED_IN_BUILD),
+    ]
+    for (const host of NEVER_ALLOWED) {
+      expect(
+        listed.filter((h) => h === host || h.endsWith(`.${host}`)),
+      ).toEqual([])
+      expect(hostsInLiterals(`const u = 'https://${host}/x'`)).toEqual([host])
+    }
   })
 
   it('source: only allow-listed files name an upstream host', () => {
