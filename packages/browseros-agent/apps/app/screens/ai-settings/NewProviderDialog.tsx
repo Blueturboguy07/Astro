@@ -921,7 +921,10 @@ export const NewProviderDialog: FC<NewProviderDialogProps> = ({
                   />
                 </FormControl>
                 <FormDescription>
-                  Your API key is encrypted and stored locally.{' '}
+                  {/* F-038: the key is in plain text (extension storage and
+                      ~/.browseros/simplicity/config.json); say so. */}
+                  Your API key is stored on this computer in Astro's settings,
+                  not encrypted.{' '}
                   {setupGuideUrl && (
                     <a
                       href={setupGuideUrl}

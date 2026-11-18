@@ -33,7 +33,7 @@ export interface LlmProviderConfig {
   baseUrl?: string
   /** Model identifier */
   modelId: string
-  /** API key (encrypted and stored locally) */
+  /** API key, in plain text in extension storage (F-038: not encrypted) */
   apiKey?: string
   /** Whether this provider supports image inputs */
   supportsImages: boolean

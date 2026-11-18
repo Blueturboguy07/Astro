@@ -5,6 +5,19 @@ import { hashObj } from '../utils/hash';
 import { getModelProvidersUIConfigSection } from '../models/providers';
 import { getBrowserosDir } from '../../browseros-dir';
 
+/* F-038: config.json holds every provider key in plain text (the publik pk_
+   key and the person's own keys). Only the owner may read it: the file is
+   0600 and its folder 0700. chmod is a no-op on Windows, where the profile
+   folder's ACL already limits access to the user. */
+export const CONFIG_DIR_MODE = 0o700;
+export const CONFIG_FILE_MODE = 0o600;
+
+function makePrivate(target: string, mode: number): void {
+  try {
+    fs.chmodSync(target, mode);
+  } catch {}
+}
+
 /* Upstream wrote ./data/config.json relative to process.cwd(). The server's cwd
    is not a writable app-state location (and under `bun test` it is the package
    root, where ./data does not exist), so this follows the BrowserOS data dir the
@@ -13,11 +26,13 @@ function resolveConfigDir(): string {
   const dir = process.env.DATA_DIR
     ? path.join(process.env.DATA_DIR, 'data')
     : path.join(getBrowserosDir(), 'simplicity');
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(dir, { recursive: true, mode: CONFIG_DIR_MODE });
+  /* A folder made by an earlier build is 0755: fix it at each start. */
+  makePrivate(dir, CONFIG_DIR_MODE);
   return dir;
 }
 
-class ConfigManager {
+export class ConfigManager {
   configPath: string = path.join(resolveConfigDir(), 'config.json');
   configVersion = 1;
   currentConfig: Config = {
@@ -143,7 +158,10 @@ class ConfigManager {
      the build. */
   private saveConfig() {
     const tmpPath = `${this.configPath}.${process.pid}.${Date.now()}.tmp`;
-    fs.writeFileSync(tmpPath, JSON.stringify(this.currentConfig, null, 2));
+    fs.writeFileSync(tmpPath, JSON.stringify(this.currentConfig, null, 2), {
+      mode: CONFIG_FILE_MODE,
+    });
+    makePrivate(tmpPath, CONFIG_FILE_MODE);
     fs.renameSync(tmpPath, this.configPath);
   }
 
@@ -153,8 +171,12 @@ class ConfigManager {
       fs.writeFileSync(
         this.configPath,
         JSON.stringify(this.currentConfig, null, 2),
+        { mode: CONFIG_FILE_MODE },
       );
+      makePrivate(this.configPath, CONFIG_FILE_MODE);
     } else {
+      /* A file written by an earlier build is 0644: fix it at each start. */
+      makePrivate(this.configPath, CONFIG_FILE_MODE);
       try {
         this.currentConfig = JSON.parse(
           fs.readFileSync(this.configPath, 'utf-8'),
@@ -170,6 +192,7 @@ class ConfigManager {
           const backupPath = `${this.configPath}.corrupt-${Date.now()}`;
           try {
             fs.copyFileSync(this.configPath, backupPath);
+            makePrivate(backupPath, CONFIG_FILE_MODE);
             console.log(`Corrupt config backed up to ${backupPath}`);
           } catch {}
           console.log(
