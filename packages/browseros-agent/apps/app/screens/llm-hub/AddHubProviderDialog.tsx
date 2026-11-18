@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { HUB_PROVIDER_ADDED_EVENT } from '@/lib/constants/analyticsEvents'
 import { track } from '@/lib/metrics/track'
+import { hubProviderUrl } from './hub-provider-url'
 import type { LlmHubProvider } from './models'
 
 const formSchema = z.object({
@@ -34,17 +35,9 @@ const formSchema = z.object({
   url: z
     .string()
     .min(1, 'URL is required')
-    .refine(
-      (val) => {
-        try {
-          new URL(val.startsWith('http') ? val : `https://${val}`)
-          return true
-        } catch {
-          return false
-        }
-      },
-      { message: 'Please enter a valid URL' },
-    ),
+    .refine((val) => hubProviderUrl(val) !== null, {
+      message: 'Enter a web address, for example chatgpt.com',
+    }),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -80,13 +73,8 @@ export const AddHubProviderDialog: FC<AddHubProviderDialogProps> = ({
   }, [open, initialValues, form])
 
   const onSubmit = (values: FormValues) => {
-    let url = values.url.trim()
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = `https://${url}`
-    }
-    if (url.endsWith('/')) {
-      url = url.slice(0, -1)
-    }
+    const url = hubProviderUrl(values.url)
+    if (!url) return
 
     onSave({ name: values.name.trim(), url })
     if (!isEditing) {
