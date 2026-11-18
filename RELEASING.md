@@ -282,22 +282,39 @@ use (session note `publik-desktop-signing`).
 
 ## 7. Verify before publishing
 
+Run this section on every release, before §8. To check a release that is
+already published, download its `Astro.dmg` from the release page, open it, and
+set `APP=/Volumes/Astro/Astro.app` instead.
+
 ```bash
-spctl -a -vvv -t install dist/astro-recut/Astro.app
-codesign -dvv dist/astro-recut/Astro.app 2>&1 | grep -E 'Authority|TeamIdentifier'
-plutil -p dist/astro-recut/Astro.app/Contents/Info.plist | grep -E 'SU(Enable|Feed|Public)'
-FW="dist/astro-recut/Astro.app/Contents/Frameworks/BrowserOS Framework.framework/Versions"/*/"BrowserOS Framework"
+APP=dist/astro-recut/Astro.app
+spctl -a -vvv -t install "$APP"
+codesign -dvv "$APP" 2>&1 | grep -E 'Authority|TeamIdentifier'
+plutil -p "$APP/Contents/Info.plist" | grep -E 'SU(Enable|Feed|Public)'
+# A glob does not expand in an assignment, so let ls expand it (bash and zsh).
+FW=$(ls -d "$APP/Contents/Frameworks/BrowserOS Framework.framework/Versions/"*/"BrowserOS Framework" | head -n 1)
 strings -a "$FW" | grep -c 'cdn.browseros.com/appcast'   # must be 0
 strings -a "$FW" | grep -c 'kofbmbngmnnpmopgbhpbajhnnnoflolg'  # must be >= 1
 strings -a "$FW" | grep -c 'bflpfmnmnokmjhmgnolecpppdbdophmk'  # must be 0
 ```
 
-Then a real launch on a clean profile:
+Then a real launch on a clean profile. Your everyday Astro profile already has
+a stored choice and does not show the gate, so use a new, empty profile:
 
-1. Run the self-test of §4b first. It must print `publik self-test: ok astro
-   <version>`.
-2. Move the app to `/Applications` and launch it. The first page is **Sign in
-   with publik**: the title, the sentence "This app uses your publik account.
+1. Run the self-test of §4b first, with its `APP=` line set to the same app as
+   above. It must print `publik self-test: ok astro <version>`.
+2. Quit every Astro window. Open the dmg (`dist/astro-recut/Astro.dmg`, or the
+   one you downloaded), drag **Astro** to Applications, and click **Replace**
+   if macOS asks. Then start it with an empty profile:
+
+   ```bash
+   PROFILE=$(mktemp -d)
+   open -n -a /Applications/Astro.app --args --user-data-dir="$PROFILE"
+   date -u +%Y-%m-%dT%H:%M:%SZ   # the start time of this check, for step 7
+   ```
+
+   The first page is **Sign in with publik**: the title, the sentence "This
+   app uses your publik account.
    Click Sign in with publik, then sign in in your browser. This window
    continues when you are signed in." and one button. Nothing else of Astro is
    reachable (a new tab, the side panel: the same page).
@@ -313,8 +330,19 @@ Then a real launch on a clean profile:
    balance, the choice, **Use my own key** / **Connect your plan** / **Ask
    again at next start**, and the usage-count switch. Press **Use my own key**:
    the publik connection leaves the list and your own connections stay.
-6. Quit and start Astro again: no gate (the choice is stored), and a second
-   `app_opened` on your publik dashboard's weekly users.
+6. Quit Astro (Cmd+Q) and start it again with the same profile
+   (`open -n -a /Applications/Astro.app --args --user-data-dir="$PROFILE"`): no
+   gate (the choice is stored), and a second `app_opened` on your publik
+   dashboard's weekly users.
+7. Only when steps 1–6 pass: record the check on the publik listing. In
+   `~/publik/lib/apps-config.ts`, in the `astro` entry, set
+   `publikApi.verifiedAt` to the UTC time that step 2 printed (for example
+   `"2026-11-18T16:05:00Z"`). Never use the release date or a guess: the
+   listing shows this value as "Checked on a real device on <date>". Commit it
+   and deploy publik (a push alone does not deploy; session note
+   `publik-ship-from-clean-worktree`). If you publish a release without this
+   check, set `verifiedAt` to `null`: a date from an older release must not
+   stay on the listing.
 
 ## 8. Publish
 

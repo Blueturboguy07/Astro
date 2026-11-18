@@ -36,7 +36,7 @@ tabs, click, read and fill forms — in the same window.
 | **Deep Research** | Plans queries, searches in parallel, reads the best sources in full, refines, and cites |
 | **Model Council** | Several models answer from one shared retrieval; a chair compares them and surfaces the disagreements |
 | **Browser use** | 16 CDP tools — tabs, navigation, clicking, reading, forms, screenshots |
-| **Your models** | Your publik plan; Claude Code, Codex and Copilot subscriptions; any API key; or fully local via Ollama / LM Studio |
+| **Your models** | Your publik plan (chosen after Sign in with publik). Or, from **Add Connection** in the answer engine's Settings → Models: your Claude Code sign-in (*Claude (your account)*); an OpenAI, Anthropic, Gemini, Groq or xAI key; any OpenAI-compatible endpoint (the OpenAI type with your own Base URL); or fully local via Ollama or Lemonade. The side panel assistant has its own provider list in Settings → AI & Agents |
 
 Scraped page content is fenced as untrusted data before it reaches a model, so a
 web page cannot issue instructions to your agent.

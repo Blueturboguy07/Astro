@@ -5,49 +5,37 @@ description: "How to fix connection issues when Astro's local server is not resp
 
 If the side panel says **"Connection failed. Astro could not reach its local server"** (or **"Astro lost the connection to its local server during the answer"**), or the new tab says **"Can't reach the local Astro server"**, Astro's local server has stopped. It restarts by itself: try again after a few seconds. If that does not help, use the steps below.
 
-<Note>On Windows, Task Manager and the firewall show Astro's local server as **BrowserOS Agent** (`browseros_server.exe`), its upstream name.</Note>
+<Note>Astro's local server is a separate program next to the browser. Its file keeps its upstream BrowserOS name: `browseros_server` on macOS and Linux, `browseros_server.exe` on Windows. On Windows, the **Processes** tab of Task Manager shows it as **Bun**, and the **Details** tab shows it as `browseros_server.exe`.</Note>
 
 <Frame>
   <img src="/troubleshooting/failed-to-fetch-error.png" alt="Failed to fetch error" />
 </Frame>
 
-## Windows: Did you allow the BrowserOS Agent (Astro's local server)?
+## Windows: did you allow Astro's local server through the firewall?
 
-When Astro starts for the first time on Windows, a popup may ask if you want to allow **BrowserOS Agent** (Astro's local server) to access the network. Click **Allow** — the agent runs as a separate process alongside the browser and needs this permission to work. If you clicked **Cancel** or missed this prompt, the agent won't be able to connect.
+When Astro starts for the first time on Windows, Windows Security may ask if you want to allow an app to access public and private networks. That app is Astro's local server. Windows shows it with the name **Bun**; click **Show more** to see its path, which ends in `browseros_server.exe`. Click **Allow**. The local server needs this permission. If you clicked **Cancel** or missed this prompt, Astro cannot reach its local server.
 
-<Frame>
-  <img src="/troubleshooting/windows-installation-allow-browseros-agent.png" alt="Allow BrowserOS Agent network access prompt" />
-</Frame>
-
-To fix this, go to **Windows Security → Allow an app through your network settings**, and make sure **BrowserOS Agent** is enabled.
+To fix this, go to **Windows Security → Firewall & network protection → Allow an app through firewall**. Find the entry for `browseros_server.exe` (shown as **Bun**) and allow it.
 
 ## Fix It
 
 <Steps>
-  <Step title="Go to Settings → Astro as MCP and click Restart server">
-    Open **Settings** from the sidebar, open **Astro as MCP**, and click **Restart server**. Wait a couple of minutes.
-
-    <Frame>
-      <img src="/troubleshooting/mcp-server-restart.png" alt="Click Restart in MCP Server Settings" />
-    </Frame>
+  <Step title="Go to Settings → Astro as MCP and restart the server">
+    Open **Settings** from the sidebar and open **Astro as MCP**. Next to the **Server URL**, click the **Restart server** button (the circular arrows). Wait a couple of minutes.
   </Step>
 
-  <Step title="If restart doesn't work, restart the BrowserOS Agent manually">
+  <Step title="If that does not work, stop the local server and restart Astro">
     <Tabs>
       <Tab title="Windows">
-        1. Open **Task Manager** — press `Ctrl + Shift + Esc` or right-click the taskbar and select **Task Manager**.
-        2. In the search bar at the top, type **browseros agent**.
-        3. Right-click **BrowserOS Agent** and select **End task**.
-        4. Reopen **Astro** — the agent will restart automatically.
+        1. Open **Task Manager**: press `Ctrl + Shift + Esc`, or right-click the taskbar and select **Task Manager**.
+        2. Open the **Details** tab and find `browseros_server.exe`. (On the **Processes** tab, the same program shows as **Bun**.)
+        3. Right-click `browseros_server.exe` and select **End task**.
+        4. Quit Astro and open it again. Astro starts its local server when it starts.
 
-        <Frame>
-          <img src="/troubleshooting/troubleshoot-search-restart-agent-task-manager.png" alt="Search for BrowserOS Agent in Task Manager and restart it" />
-        </Frame>
-
-        <Note>If the agent still doesn't reconnect, end both **Astro** and **BrowserOS Agent** in Task Manager, then reopen the app.</Note>
+        <Note>If Astro still cannot reach its local server, end both **Astro** and `browseros_server.exe` in Task Manager, then open Astro again.</Note>
       </Tab>
       <Tab title="macOS">
-        Right-click Astro in the Dock → **Quit**, then reopen the app.
+        Right-click Astro in the Dock → **Quit**, then open Astro again.
       </Tab>
     </Tabs>
   </Step>
@@ -56,39 +44,33 @@ To fix this, go to **Windows Security → Allow an app through your network sett
 ## Still Not Working?
 
 <AccordionGroup>
-  <Accordion title="Check if another application is using the port">
-    The agent runs on port `9100` by default. If another application is using this port, Astro cannot start the agent.
+  <Accordion title="Check the ports Astro uses">
+    Astro has no fixed ports. Each time it starts, the browser picks free ports for its local server, the MCP proxy and the browser's debugging (CDP) connection. The numbers can be different on your computer and can change from one start to the next.
+
+    To read the port that MCP clients use, open **Settings → Astro as MCP**. The **Server URL** has the form `http://127.0.0.1:<port>/mcp`. To use a different port, click the pencil button (**Edit server port**) next to the URL.
+
+    To see which program listens on a port, replace `<port>` with the number:
 
     <Tabs>
       <Tab title="macOS/Linux">
-        Find the process:
         ```bash
-        lsof -i :9100
-        ```
-
-        Kill it (replace `PID` with the process ID from above):
-        ```bash
-        kill -9 PID
+        lsof -nP -iTCP:<port> -sTCP:LISTEN
         ```
       </Tab>
       <Tab title="Windows">
-        Find the process:
         ```powershell
-        netstat -ano | findstr :9100
+        netstat -ano | findstr :<port>
         ```
 
-        Kill it (replace `PID` with the process ID from above):
-        ```powershell
-        taskkill /PID PID /F
-        ```
+        The last column is the process ID (PID). Find that PID in the **PID** column of the **Details** tab of Task Manager.
       </Tab>
     </Tabs>
 
-    Then restart Astro.
+    If another program holds the port that you set, choose a different port with **Edit server port**, or close that program. Then restart Astro.
   </Accordion>
 
   <Accordion title="Check your firewall or antivirus settings">
-    Some firewalls may block local connections. Make sure your firewall allows connections to `127.0.0.1:9100`.
+    Some firewalls block local connections. Make sure that your firewall lets Astro and its local server (`browseros_server`, on Windows `browseros_server.exe`) connect to `127.0.0.1`.
 
     **Windows users:** Antivirus software sometimes triggers a false positive. Try temporarily disabling your antivirus and restarting Astro.
   </Accordion>

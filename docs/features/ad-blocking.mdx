@@ -1,19 +1,21 @@
 ---
 title: "Ad Blocking"
-description: "Install the full uBlock Origin extension in Astro"
+description: "Astro has no built-in ad blocker. Install uBlock Origin Lite from the Chrome Web Store"
 ---
 
-Astro has no ad blocker of its own. You can install the full [uBlock Origin](https://ublockorigin.com/) extension — not the reduced "Lite" version.
+Astro has no ad blocker of its own. Like Chrome, it loads ads and trackers until you install an ad-blocking extension.
 
-## Why This Works in Astro
+## Install uBlock Origin Lite
 
-Chrome [removed support](https://developer.chrome.com/docs/extensions/develop/migrate/mv2-deprecation-timeline) for Manifest V2 extensions, so Chrome users can only install "uBlock Origin Lite", which cannot use the advanced filtering rules.
+The Chrome Web Store offers **uBlock Origin Lite**, the Manifest V3 version of [uBlock Origin](https://ublockorigin.com/). It installs in Astro like any other Chrome extension.
 
-Astro runs on BrowserOS's Chromium build, which keeps Manifest V2 support. So you can install and run the original uBlock Origin.
-
-<Card title="Install uBlock Origin" icon="shield-check" href="https://chromewebstore.google.com/detail/ublock-origin/cjpalhdlnbpafiamejdnhcphjbkeiagm">
-  Install the full uBlock Origin extension from the Chrome Web Store.
+<Card title="Install uBlock Origin Lite" icon="shield-check" href="https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh">
+  Install uBlock Origin Lite from the Chrome Web Store.
 </Card>
+
+<Note>
+The full uBlock Origin (Manifest V2) is no longer available in the Chrome Web Store, so you cannot install it from there. Chrome [ended support](https://developer.chrome.com/docs/extensions/develop/migrate/mv2-deprecation-timeline) for Manifest V2 extensions. uBlock Origin Lite has fewer advanced filtering options than the full version.
+</Note>
 
 ## What This Means
 

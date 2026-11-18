@@ -22,18 +22,26 @@ warning and no right-click trick.
 > and therefore a browser profile, and BrowserOS will remove Astro's agent
 > extension from it. Use one or the other for now.
 
-Everything below is for **Windows, Linux, and anyone working on Astro itself.**
+## Windows: download the installer
+
+Astro also ships as a complete browser on Windows (x64). Download
+`Astro-Setup.exe` from the
+[latest release](https://github.com/Blueturboguy07/Astro/releases/latest), or
+follow the [Windows install guide](https://publikhq.com/astro/install/windows).
+The installer is unsigned: in SmartScreen click **More info**, then **Run
+anyway**. Do not use the BrowserOS path below on Windows.
+
+Everything below is for **Linux, and anyone working on Astro itself.**
 Cutting a release of that dmg is its own ritual — see [RELEASING.md](RELEASING.md).
 
 ---
 
-## Windows and Linux: run Astro on top of BrowserOS
+## Linux: run Astro on top of BrowserOS
 
-There is no standalone build for these platforms yet. Shipping a branded
-browser means building Chromium, which needs ~100 GB of disk per platform and
-cannot be cross-compiled — a Windows build needs Windows, a Linux build needs
-Linux. Until then you can run Astro's UI and agent on top of an installed
-BrowserOS, which takes about ten minutes.
+There is no standalone Linux build yet. Shipping a branded browser means
+building Chromium, which needs ~100 GB of disk per platform and cannot be
+cross-compiled — a Linux build needs Linux. Until then you can run Astro's UI
+and agent on top of an installed BrowserOS, which takes about ten minutes.
 
 ## 1. Install BrowserOS
 
@@ -41,18 +49,13 @@ Astro drives the BrowserOS binary rather than shipping its own.
 
 | Platform | Download |
 |---|---|
-| Windows | [BrowserOS_installer.exe](https://files.browseros.com/download/BrowserOS_installer.exe) |
 | Linux (AppImage) | [BrowserOS.AppImage](https://files.browseros.com/download/BrowserOS.AppImage) |
 | Linux (Debian) | [BrowserOS.deb](https://cdn.browseros.com/download/BrowserOS.deb) |
 
 ### You will hit a security warning
 
-BrowserOS is **not** signed on Windows, and Linux has no signing at all. You
-have to allow it explicitly:
+Linux has no signing at all. You have to allow BrowserOS explicitly:
 
-- **Windows** — SmartScreen shows *"Windows protected your PC."* Click **More
-  info**, then **Run anyway**. If your browser blocks the download itself, open
-  Downloads and choose **Keep**.
 - **Linux (AppImage)** — mark it executable before running:
   ```bash
   chmod +x BrowserOS.AppImage
@@ -142,16 +145,26 @@ bun run dev:watch -- --new
 
 ## 5. Add a model
 
-Open **Settings** from the sidebar. Astro works with:
+Astro opens with **Sign in with publik** (a dev build needs
+`VITE_PUBLIK_APP_TOKEN` in `.env.development`, see [RELEASING.md](RELEASING.md)
+§2). After the sign-in, choose **Connect your plan** to use your publik plan, or
+**Use my own key**.
 
-- **Claude Code / Codex / GitHub Copilot** — reuses a subscription you already
-  pay for, no API key
-- **Any API key** — OpenAI, Anthropic, Gemini, Groq, xAI and others
-- **Local models** — Ollama or LM Studio, nothing leaves your machine
+The answer engine (the new tab) keeps its own connections: click the gear at
+the bottom left, open **Models**, and click **Add Connection**. It offers:
 
-Web search needs no key at all. The first search downloads a private
+- **Claude (your account)** — your Claude Code sign-in, no API key
+- **API keys** — OpenAI, Anthropic, Gemini, Groq, xAI; the OpenAI type with your
+  own Base URL reaches any OpenAI-compatible endpoint
+- **Local models** — Ollama or Lemonade, nothing leaves your machine
+
+The side panel assistant has its own provider list in **Settings → AI &
+Agents**.
+
+Web search needs no search API key. The first search downloads a private
 [SearXNG](https://searxng.org) instance (~150 MB, one time) and runs it on
-localhost — no Docker, no account, no search API key.
+localhost — no Docker, no account, no search API key. Search still needs a
+model: the model writes the answer.
 
 ---
 
