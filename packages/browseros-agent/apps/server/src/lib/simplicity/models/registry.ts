@@ -6,6 +6,7 @@ import { MinimalProvider, ModelList } from './types';
 import configManager from '../config';
 import NullEmbedding from './base/null-embedding';
 import { limitModel } from './time-limits';
+import { redactConfig } from './redact-config';
 
 class ModelRegistry {
   activeProviders: (ConfigModelProvider & {
@@ -30,7 +31,7 @@ class ModelRegistry {
         });
       } catch (err) {
         console.error(
-          `Failed to initialize provider. Type: ${p.type}, ID: ${p.id}, Config: ${JSON.stringify(p.config)}, Error: ${err}`,
+          `Failed to initialize provider. Type: ${p.type}, ID: ${p.id}, Config: ${JSON.stringify(redactConfig(p.config))}, Error: ${err}`,
         );
       }
     });
