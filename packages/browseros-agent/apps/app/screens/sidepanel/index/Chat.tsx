@@ -221,6 +221,7 @@ export const Chat = () => {
             onClickLike={onClickLike}
             disliked={disliked}
             onClickDislike={onClickDislike}
+            onContinue={(text) => sendMessage({ text })}
           />
         )}
         {agentUrlError && (

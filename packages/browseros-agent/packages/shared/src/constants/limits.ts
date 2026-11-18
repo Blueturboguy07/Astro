@@ -14,6 +14,12 @@ export const AGENT_LIMITS = {
   MAX_TURNS: 100,
   DEFAULT_CONTEXT_WINDOW: 200_000,
 
+  /* Run budget of one interactive turn (F-072). At either limit the agent
+     stops and reports; the user can send "Continue". Scheduled runs keep
+     their own 15-min/5-min limits in the app (F-071). */
+  RUN_MAX_TOOL_CALLS: 40,
+  RUN_NO_PROGRESS_MS: 3 * 60_000,
+
   // Compression settings for context compaction heuristics
   COMPRESSION_MIN_HEADROOM: 10_000,
   COMPRESSION_MAX_RATIO: 0.75,
@@ -67,6 +73,10 @@ export const TOOL_LIMITS = {
   GREP_MATCH_LINE_MAX_CHARS: 500,
   FILESYSTEM_READ_MAX_LINES: 500,
   FILESYSTEM_READ_MAX_CHARS: 15_000,
+  /** read format="attributes" / grep over="attributes": elements listed (F-070). */
+  ATTRIBUTE_LINES_MAX: 4_000,
+  /** A PDF tab larger than this is not fetched for its text (F-070). */
+  PDF_TAB_MAX_BYTES: 50 * 1024 * 1024,
 } as const
 
 export const PAGINATION = {

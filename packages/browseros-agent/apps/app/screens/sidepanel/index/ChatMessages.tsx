@@ -1,5 +1,5 @@
 import type { UIMessage } from 'ai'
-import { Bot } from 'lucide-react'
+import { Bot, Play } from 'lucide-react'
 import { type FC, Fragment } from 'react'
 import {
   Conversation,
@@ -16,10 +16,12 @@ import {
   ReasoningContent,
   ReasoningTrigger,
 } from '@/components/ai-elements/reasoning'
+import { Button } from '@/components/ui/button'
 import type { ChatAction } from '@/lib/chat-actions/types'
 import { ChatMessageActions } from './ChatMessageActions'
 import { ConnectAppCard } from './ConnectAppCard'
 import { getMessageSegments } from './getMessageSegments'
+import { CONTINUE_MESSAGE, isRunBudgetStop } from './run-budget-stop'
 import { ScheduleSuggestionCard } from './ScheduleSuggestionCard'
 import { ToolBatch } from './ToolBatch'
 import { UserActionMessage } from './UserActionMessage'
@@ -32,6 +34,8 @@ export interface ChatMessagesProps {
   onClickLike: (messageId: string) => void
   disliked: Record<string, boolean>
   onClickDislike: (messageId: string, comment?: string) => void
+  /** Sends "Continue" after a run-budget stop (F-072). */
+  onContinue?: (text: string) => void
 }
 
 export const ChatMessages: FC<ChatMessagesProps> = ({
@@ -42,6 +46,7 @@ export const ChatMessages: FC<ChatMessagesProps> = ({
   disliked,
   onClickLike,
   onClickDislike,
+  onContinue,
 }) => {
   const isStreaming = status === 'streaming' || status === 'submitted'
 
@@ -139,6 +144,21 @@ export const ChatMessages: FC<ChatMessagesProps> = ({
                     onClickLike={likeAction}
                     onClickDislike={dislikeAction}
                   />
+                ) : null}
+                {onContinue &&
+                isLastMessage &&
+                !isStreaming &&
+                isRunBudgetStop(message) ? (
+                  <div className="flex px-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onContinue(CONTINUE_MESSAGE)}
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      {CONTINUE_MESSAGE}
+                    </Button>
+                  </div>
                 ) : null}
               </Fragment>
             )

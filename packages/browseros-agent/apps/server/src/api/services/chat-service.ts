@@ -338,6 +338,7 @@ export class ChatService {
       agent: session.agent.toolLoopAgent,
       uiMessages: promptUiMessages,
       abortSignal,
+      experimental_transform: session.agent.runBudgetTransform,
       onError: chatErrorText,
       onFinish: async ({ messages }: { messages: UIMessage[] }) => {
         // The agent loop returns `messages` containing the prompt-

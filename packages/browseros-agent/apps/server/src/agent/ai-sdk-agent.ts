@@ -14,6 +14,7 @@ import { LLM_PROVIDERS } from '@browseros/shared/schemas/llm'
 import {
   type LanguageModel,
   type ModelMessage,
+  type StopCondition,
   stepCountIs,
   ToolLoopAgent,
   type ToolSet,
@@ -37,6 +38,7 @@ import {
 import { buildNudgeToolSet, nudgeStopConditions } from './nudge-tools'
 import { buildSystemPrompt } from './prompt'
 import { createLanguageModel } from './provider-factory'
+import { RunBudget } from './run-budget'
 import { streamIdleTimeoutMiddleware } from './stream-idle-timeout'
 import { buildBrowserToolSet } from './tool-adapter'
 import type { ResolvedAgentConfig } from './types'
@@ -56,6 +58,38 @@ function scheduledRunWindowId(config: AiSdkAgentConfig): number | undefined {
   return config.resolvedConfig.isScheduledTask
     ? config.browserContext?.windowId
     : undefined
+}
+
+/**
+ * Interactive turns stop after 40 actions or 3 minutes without progress
+ * (F-072). Scheduled runs keep the app's 15-min/5-min limits (F-071), and
+ * ACP agents run their own tool loop inside one step.
+ */
+export function runBudgetFor(
+  config: Pick<AiSdkAgentConfig, 'resolvedConfig'>,
+  instructions: string,
+): RunBudget | undefined {
+  if (config.resolvedConfig.isScheduledTask) return undefined
+  if (isAcpProvider(config.resolvedConfig.provider)) return undefined
+  return new RunBudget({ instructions })
+}
+
+function agentStopConditions(runBudget?: RunBudget): StopCondition<ToolSet>[] {
+  return [
+    stepCountIs(AGENT_LIMITS.MAX_TURNS),
+    ...nudgeStopConditions(),
+    ...(runBudget ? [runBudget.stopCondition] : []),
+  ]
+}
+
+/** The tool-free report step once the budget is spent, else undefined. */
+function runBudgetStep(
+  runBudget: RunBudget | undefined,
+  steps: ReadonlyArray<StepWithUsage>,
+): ReturnType<RunBudget['prepareStep']> {
+  return runBudget?.prepareStep(
+    steps as Parameters<RunBudget['prepareStep']>[0],
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -387,19 +421,23 @@ export class AiSdkAgent {
     const normalizationOptions = getMessageNormalizationOptions(
       config.resolvedConfig,
     )
+    const runBudget = runBudgetFor(config, instructions)
     const prepareStep = async (options: {
       messages: ModelMessage[]
       steps: ReadonlyArray<StepWithUsage>
       model: LanguageModel
       experimental_context: unknown
-    }) =>
-      compactionPrepareStep({
+    }) => {
+      const reportStep = runBudgetStep(runBudget, options.steps)
+      const compacted = await compactionPrepareStep({
         ...options,
         messages: normalizeMessagesForModel(
           options.messages,
           normalizationOptions,
         ),
       })
+      return { ...compacted, ...reportStep }
+    }
 
     // Codex requires store=false — tell the SDK to inline content
     // instead of using item_reference (which fails with store=false)
@@ -410,7 +448,7 @@ export class AiSdkAgent {
       model,
       instructions,
       tools,
-      stopWhen: [stepCountIs(AGENT_LIMITS.MAX_TURNS), ...nudgeStopConditions()],
+      stopWhen: agentStopConditions(runBudget),
       prepareStep,
       ...(isChatGPTPro && {
         providerOptions: {
@@ -431,7 +469,7 @@ export class AiSdkAgent {
       toolCount: Object.keys(tools).length,
     })
 
-    return new AiSdkAgent(
+    const created = new AiSdkAgent(
       agent,
       [],
       clients,
@@ -439,10 +477,19 @@ export class AiSdkAgent {
       new Set(Object.keys(tools)),
       modelClose,
     )
+    created._runBudget = runBudget
+    return created
   }
+
+  private _runBudget?: RunBudget
 
   get toolLoopAgent(): ToolLoopAgent {
     return this._agent
+  }
+
+  /** Writes the fixed first line and the Continue line of a budget stop (F-072). */
+  get runBudgetTransform(): RunBudget['transform'] | undefined {
+    return this._runBudget?.transform
   }
 
   get messages(): UIMessage[] {

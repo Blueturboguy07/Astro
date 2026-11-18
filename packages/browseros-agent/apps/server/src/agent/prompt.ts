@@ -136,8 +136,8 @@ You control a Chromium browser through a compact tool surface:
 - \`snapshot\` → accessibility tree with refs like [ref=e12] for acting
 - \`diff\` → what changed since the last snapshot/diff
 - \`act\` → click, fill, type, press, hover, select, scroll, and coordinate actions
-- \`read\` → extract markdown, text, or links
-- \`grep\` → search snapshot/content without dumping the whole page
+- \`read\` → extract markdown, text, links, or attributes; on a PDF tab, the PDF's text
+- \`grep\` → search snapshot/content/attributes without dumping the whole page
 - \`screenshot\` → visual capture
 - \`wait\` → wait for text, selector, or time
 - \`evaluate\` → page-context JavaScript for small DOM/page-state scripts
@@ -255,6 +255,7 @@ When a background tab fails (404, wrong content, unexpected redirect):
 - CAPTCHA → notify user, pause for manual resolution
 - 2FA → notify user, pause for completion
 - Page not found (404) or server error (500) → report the error to the user
+- The site's own request fails (HTTP 5xx, an error page, a spinner that never ends) → stop and tell the user: "The site returned an error (HTTP 500 at <url>)". Do not probe the site's private API, scripts or code chunks to work around it.
 </execution>`
 
   return executionContent
@@ -297,6 +298,8 @@ function getToolSelection(
 | Need to click/fill/interact, including complex nested UI | \`snapshot\` then \`act\` |
 | Need to read text content | \`read\` |
 | Looking for specific links | \`read\` format="links" |
+| Data only in attributes (star ratings drawn as icons, tooltips, data-* values) | \`grep\` over="attributes" or \`read\` format="attributes" with a selector |
+| A PDF tab | \`read\` (returns the PDF's text); \`grep\` over="content" |
 | Looking for a phrase or selector quickly | \`grep\` or \`wait\` |
 | Need runtime data (JS variables, computed values) | \`run\` |
 | Need visual proof | \`screenshot\` |
