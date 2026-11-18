@@ -2,6 +2,7 @@ import type { ChatStatus, ToolUIPart, UIMessage } from 'ai'
 import { useEffect, useRef } from 'react'
 import type { GlowMessage } from '@/entrypoints/glow.content/GlowMessage'
 import { firstRunConfettiShownStorage } from '@/lib/onboarding/onboardingStorage'
+import { type GlowReply, stopGlowOnTabs } from './confetti-once'
 
 function extractTabId(toolPart: ToolUIPart | null): number | undefined {
   if (!toolPart) return undefined
@@ -59,20 +60,17 @@ export const useNotifyActiveTab = ({
           allGlowed.clear()
 
           const alreadyShown = await firstRunConfettiShownStorage.getValue()
-          let showConfetti = !alreadyShown
-
-          for (const tabId of tabIds) {
-            sendGlow(tabId, {
-              conversationId,
-              isActive: false,
-              showConfetti,
-            })
-            showConfetti = false
-          }
-
-          if (!alreadyShown) {
-            await firstRunConfettiShownStorage.setValue(true)
-          }
+          const shown = await stopGlowOnTabs(
+            tabIds,
+            alreadyShown,
+            (tabId, showConfetti) =>
+              chrome.tabs.sendMessage(tabId, {
+                conversationId,
+                isActive: false,
+                showConfetti,
+              } satisfies GlowMessage) as Promise<GlowReply | undefined>,
+          )
+          if (shown) await firstRunConfettiShownStorage.setValue(true)
         }
         deactivate()
       }

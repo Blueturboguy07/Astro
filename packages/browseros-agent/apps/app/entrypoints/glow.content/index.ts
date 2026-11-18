@@ -207,6 +207,7 @@ export default defineContentScript({
           return
         }
 
+        let confetti = false
         if (message.isActive) {
           activeConversationId = message.conversationId
           startGlow()
@@ -215,10 +216,13 @@ export default defineContentScript({
           stopGlow()
           if (message.showConfetti) {
             fireConfetti()
+            confetti = true
           }
         }
 
-        sendResponse({ success: true })
+        /* `confetti` tells the panel the one-time confetti really showed
+           here (INV-PANEL-21). */
+        sendResponse({ success: true, confetti })
         return true
       },
     )
