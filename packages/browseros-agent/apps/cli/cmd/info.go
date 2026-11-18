@@ -23,7 +23,7 @@ var browserOSInfoTopics = map[string]string{
 	"bring-your-own-llm": "Connect BrowserOS to your preferred LLM provider or local model from BrowserOS settings.",
 	"scheduled-tasks":    "Scheduled Tasks run BrowserOS automations on a recurring schedule while BrowserOS is open.",
 	"chat-hub":           "Chat and LLM Hub provide side-panel AI chat and model comparison across webpages.",
-	"ad-blocking":        "BrowserOS includes built-in ad blocking powered by uBlock Origin.",
+	"ad-blocking":        "There is no built-in ad blocker. Install uBlock Origin Lite from the Chrome Web Store.",
 }
 
 func init() {
