@@ -10,6 +10,7 @@ import Scraper from '../../../../../scraper';
 import { splitText } from '../../../../../utils/splitText';
 import { ensureWebSearchReady } from './webSearchSetup';
 import { words } from '../../../../../uploads/keyword-score';
+import type { SearchReport } from '../../../../../search-report';
 
 type SearchHit = Awaited<ReturnType<typeof searchSearxng>>['results'][number];
 
@@ -111,10 +112,13 @@ export const executeSearch = async (input: {
   session: InstanceType<typeof SessionManager>;
   llm: BaseLLM<any>;
   embedding: BaseEmbedding<any>;
+  /* Collects engine failures and usable-hit counts for the turn (F-088). */
+  report?: SearchReport;
 }) => {
   const researchBlock = input.researchBlock;
 
   if (!(await ensureWebSearchReady(researchBlock, input.session))) {
+    input.report?.noteError('The local search engine could not start');
     return [];
   }
 
@@ -149,10 +153,14 @@ export const executeSearch = async (input: {
         });
       } catch (err) {
         console.error(`SearxNG query failed: "${q}"`, err);
+        input.report?.noteError(err);
         return;
       }
 
+      input.report?.noteEngines(res.unresponsive);
+
       const resultChunks = await scoreResults(q, res.results, input.embedding);
+      input.report?.noteUsable(resultChunks.length);
       results.push(...resultChunks);
 
       if (!searchResultsEmitted) {
@@ -255,8 +263,11 @@ export const executeSearch = async (input: {
         });
       } catch (err) {
         console.error(`SearxNG query failed: "${q}"`, err);
+        input.report?.noteError(err);
         return;
       }
+
+      input.report?.noteEngines(res.unresponsive);
 
       let resultChunks: Chunk[] = [];
 
@@ -274,6 +285,7 @@ export const executeSearch = async (input: {
         };
       });
 
+      input.report?.noteUsable(resultChunks.length);
       searchResults.push(...resultChunks);
 
       if (!searchResultsEmitted) {

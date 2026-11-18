@@ -12,6 +12,8 @@ import { and, eq, gt } from 'drizzle-orm';
 import { TextBlock } from '../../types';
 import { CONTEXT_TOKEN_BUDGET, budgetChunks } from './contextBudget';
 import { getTokenCount } from '../../utils/splitText';
+import { searchFailureToShow } from '../../search-report';
+import { endWithSearchFailed } from './search-failed';
 
 class SearchAgent {
   async searchAsync(session: SessionManager, input: SearchAgentInput) {
@@ -115,6 +117,16 @@ class SearchAgent {
     session.emit('data', {
       type: 'researchComplete',
     });
+
+    const failure = searchFailureToShow(
+      searchResults,
+      widgetOutputs.length,
+      input.config.signal,
+    );
+    if (failure) {
+      await endWithSearchFailed(session, input, failure);
+      return;
+    }
 
     let finalContext =
       '<Query to be answered without searching; Search not made>';

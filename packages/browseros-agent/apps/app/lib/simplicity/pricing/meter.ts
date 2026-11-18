@@ -31,6 +31,10 @@ export type UsageBreakdownEntry = {
   outputTokens: number
   cost: number | null // null = unpriced/free
   free: boolean
+  /* A priced call that is not a model, such as a publik web search
+     (F-088): no tokens, `count` calls. */
+  kind?: 'search'
+  count?: number
 }
 
 export type UsageSummary = {

@@ -1,6 +1,7 @@
 import { getSearxngURL } from './config/serverRegistry';
 import { getRunningURL, start } from '../searxng/provision';
 import { makeSearxngURLWithoutWaiting } from './searxng-background';
+import { readUnresponsive } from './search-report';
 
 /** See searxng-background.ts: for pages that must not wait for the setup. */
 export const searxngURLWithoutWaiting = makeSearxngURLWithoutWaiting({
@@ -66,10 +67,12 @@ export const searchSearxng = async (
 
     const data = await res.json();
 
-    const results: SearxngSearchResult[] = data.results;
-    const suggestions: string[] = data.suggestions;
+    const results: SearxngSearchResult[] = data.results ?? [];
+    const suggestions: string[] = data.suggestions ?? [];
+    /* Kept so an empty answer can say which engines failed and why. */
+    const unresponsive = readUnresponsive(data.unresponsive_engines);
 
-    return { results, suggestions };
+    return { results, suggestions, unresponsive };
   } catch (err: any) {
     if (err.name === 'AbortError') {
       throw new Error('SearXNG search timed out');

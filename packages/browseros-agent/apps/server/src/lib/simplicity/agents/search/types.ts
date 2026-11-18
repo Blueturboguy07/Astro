@@ -2,8 +2,9 @@ import z from 'zod/v4';
 import BaseLLM from '../../models/base/llm';
 import BaseEmbedding from '../../models/base/embedding';
 import SessionManager from '../../session';
-import { ChatTurnMessage, Chunk } from '../../types';
+import { ChatTurnMessage, Chunk, SearchFailure } from '../../types';
 import { UsageMeter } from '../../pricing/meter';
+import type { PublikSearchAccess } from '../../publik-search';
 
 export type SearchSources = 'web' | 'discussions' | 'academic';
 
@@ -47,6 +48,10 @@ export type SearchAgentConfig = {
      end-of-turn cost summary. Optional so every existing caller/test that
      never set it keeps behaving exactly as before. */
   usageMeter?: UsageMeter;
+  /* Set when the turn's model runs on publik: the fallback web search
+     when SearXNG gives no usable result (F-088). Holds the pk_ key: never
+     log it. */
+  publikSearch?: PublikSearchAccess;
 };
 
 export type SearchAgentInput = {
@@ -146,6 +151,8 @@ export type ResearcherInput = {
 export type ResearcherOutput = {
   findings: ActionOutput[];
   searchFindings: Chunk[];
+  /* Set when web search gave nothing to write from (F-088). */
+  searchFailed?: SearchFailure;
 };
 
 export type SearchActionOutput = {

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import type { UsageBlock } from '@/lib/simplicity/types'
 import { cn } from '@/lib/simplicity/utils'
 import ProviderLogo from '../ui/ProviderLogo'
+import { usageParts } from './usage-parts'
 
 /* Never renders raw floats like $0.00417382 — 2 sig figs above a cent,
    nearest tenth-of-a-cent below it. */
@@ -41,10 +42,12 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
 
   if (breakdown.length === 0) return null
 
-  const totalTokens = breakdown.reduce(
-    (sum, e) => sum + e.inputTokens + e.outputTokens,
-    0,
-  )
+  const {
+    tokens: totalTokens,
+    modelCount,
+    searchCount,
+    searchCost,
+  } = usageParts(block.data)
 
   return (
     <div className="w-full">
@@ -60,10 +63,18 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
         ) : null}
         {(free || priced) && <span>·</span>}
         <span className="tabular-nums">{formatTokens(totalTokens)} tokens</span>
-        {breakdown.length > 1 && (
+        {modelCount > 1 && (
           <>
             <span>·</span>
-            <span>{breakdown.length} models</span>
+            <span>{modelCount} models</span>
+          </>
+        )}
+        {searchCount > 0 && (
+          <>
+            <span>·</span>
+            <span className="tabular-nums">
+              web search {formatCost(searchCost)}
+            </span>
           </>
         )}
         {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -92,8 +103,14 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
               </div>
               <div className="flex flex-shrink-0 items-center gap-3">
                 <span className="text-black/40 tabular-nums dark:text-white/40">
-                  {entry.inputTokens.toLocaleString()} in ·{' '}
-                  {entry.outputTokens.toLocaleString()} out
+                  {entry.kind === 'search' ? (
+                    `${entry.count ?? 1} ${(entry.count ?? 1) === 1 ? 'search' : 'searches'}`
+                  ) : (
+                    <>
+                      {entry.inputTokens.toLocaleString()} in ·{' '}
+                      {entry.outputTokens.toLocaleString()} out
+                    </>
+                  )}
                 </span>
                 {entry.free ? (
                   <FreeChip />

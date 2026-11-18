@@ -18,6 +18,7 @@ import { type Section, useChat } from '@/lib/simplicity/hooks/useChat'
 import type {
   CouncilBlock,
   ResearchBlock,
+  SearchFailedBlock,
   TextBlock,
   UsageBlock,
 } from '@/lib/simplicity/types'
@@ -31,6 +32,7 @@ import MessageBoxLoading from './MessageBoxLoading'
 import Citation from './MessageRenderer/Citation'
 import CodeBlock from './MessageRenderer/CodeBlock'
 import CouncilBlockRenderer from './MessageRenderer/CouncilBlock'
+import SearchFailedCard from './MessageRenderer/SearchFailedCard'
 import { annotateCitations } from './MessageRenderer/citationParser'
 import UsageLine from './MessageRenderer/UsageLine'
 import SearchImages from './SearchImages'
@@ -348,6 +350,21 @@ const MessageBox = ({
                 </div>
               )
             })}
+
+          {/* Web search gave nothing to write from: no answer, the engines
+              that failed and why, and Retry (F-088). */}
+          {section.message.responseBlocks
+            .filter(
+              (block): block is SearchFailedBlock =>
+                block.type === 'searchFailed',
+            )
+            .map((block) => (
+              <SearchFailedCard
+                key={block.id}
+                block={block}
+                onRetry={() => rewrite(section.message.messageId)}
+              />
+            ))}
 
           {/* Stopped before any answer text (Stop, or a reload, which ends
               the server's turn): say so and offer Retry instead of a bare

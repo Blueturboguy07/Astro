@@ -21,6 +21,8 @@ import { and, eq } from 'drizzle-orm';
 import { chats, messages as messagesSchema } from '../../../../lib/simplicity/db/schema';
 import UploadManager from '../../../../lib/simplicity/uploads/manager';
 import { UsageMeter, LLMUsage } from '../../../../lib/simplicity/pricing/meter';
+import { getConfiguredModelProviderById } from '../../../../lib/simplicity/config/serverRegistry';
+import { publikSearchAccess } from '../../../../lib/simplicity/publik-search';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -395,6 +397,17 @@ export const POST = async (req: Request) => {
       ? undefined
       : reasoningEffortFor(body.chatModel.key, body.thinking);
 
+    /* The publik search fallback (F-088) is for a turn whose own model
+       runs on publik: the same key pays for both. */
+    const writerProviderIds = isCouncil
+      ? [chairPick?.providerId, ...pickedRows.map((r) => r.providerId)]
+      : [body.chatModel.providerId];
+    const publikSearch = writerProviderIds
+      .map((id) =>
+        id ? publikSearchAccess(getConfiguredModelProviderById(id)) : undefined,
+      )
+      .find((a) => a !== undefined);
+
     const sharedConfig = {
       llm,
       utilityLLM: utilityLLM?.llm ?? undefined,
@@ -408,6 +421,7 @@ export const POST = async (req: Request) => {
       signal: req.signal,
       usageMeter,
       incognito: body.incognito,
+      publikSearch,
     };
 
     /* This promise is deliberately not awaited — the response streams while it

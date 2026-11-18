@@ -27,6 +27,18 @@ export type UsageBreakdownEntry = {
   outputTokens: number;
   cost: number | null; // null = unpriced/free
   free: boolean;
+  /* A priced call that is not a model, such as a publik web search
+     (F-088): no tokens, `count` calls. */
+  kind?: 'search';
+  count?: number;
+};
+
+export type MeterCharge = {
+  label: string;
+  model: string;
+  providerId: string;
+  providerType: string;
+  cost: number;
 };
 
 export type UsageSummary = {
@@ -42,6 +54,7 @@ type Group = UsageBreakdownEntry & { cachedInputTokens: number };
 
 export class UsageMeter {
   private records: LLMUsage[] = [];
+  private charges: MeterCharge[] = [];
 
   /** Optional: resolves a friendly label (e.g. a catalog row name) for a
    *  record; falls back to the raw model key when it returns nothing. */
@@ -49,6 +62,33 @@ export class UsageMeter {
 
   record(u: LLMUsage) {
     this.records.push(u);
+  }
+
+  recordCharge(c: MeterCharge) {
+    this.charges.push(c);
+  }
+
+  private chargeEntries(): UsageBreakdownEntry[] {
+    const groups = new Map<string, UsageBreakdownEntry>();
+    for (const c of this.charges) {
+      const key = `${c.providerId}::${c.model}`;
+      const g = groups.get(key) ?? {
+        label: c.label,
+        model: c.model,
+        providerId: c.providerId,
+        providerType: c.providerType,
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+        free: false,
+        kind: 'search' as const,
+        count: 0,
+      };
+      g.cost = (g.cost ?? 0) + c.cost;
+      g.count = (g.count ?? 0) + 1;
+      groups.set(key, g);
+    }
+    return [...groups.values()];
   }
 
   summarize(): UsageSummary {
@@ -88,9 +128,10 @@ export class UsageMeter {
       groups.set(key, g);
     }
 
-    const breakdown: UsageBreakdownEntry[] = [...groups.values()].map(
-      ({ cachedInputTokens, ...entry }) => entry,
-    );
+    const breakdown: UsageBreakdownEntry[] = [
+      ...[...groups.values()].map(({ cachedInputTokens, ...entry }) => entry),
+      ...this.chargeEntries(),
+    ];
     const totalCost = breakdown.reduce((sum, e) => sum + (e.cost ?? 0), 0);
     const free = breakdown.every((e) => e.free);
     const priced = breakdown.every((e) => e.free || e.cost != null);

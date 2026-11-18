@@ -10,6 +10,8 @@ import { planQueries, refineQueries } from './queryPlanner';
 import SessionManager from '../../../session';
 import { Chunk, ResearchBlock } from '../../../types';
 import { SearxngSearchOptions } from '../../../searxng';
+import { SearchReport } from '../../../search-report';
+import { runPublikFallback } from './publik-fallback';
 
 /* Deterministic, code-driven research.
  *
@@ -55,6 +57,7 @@ class Researcher {
       input.classification.standaloneFollowUp || input.followUp;
 
     const researchBlockId = crypto.randomUUID();
+    const report = new SearchReport();
 
     session.emitBlock({
       id: researchBlockId,
@@ -122,6 +125,7 @@ class Researcher {
               researchBlock: block,
               session,
               searchConfig: vertical.searchConfig,
+              report,
             });
           } catch (err) {
             console.error(`Search vertical '${vertical.name}' failed:`, err);
@@ -331,6 +335,7 @@ class Researcher {
           queries: [standaloneQuery],
           researchBlock: block,
           session,
+          report,
         });
         if (backstopResults.length > 0) {
           actionOutput.push({ type: 'search_results', results: backstopResults });
@@ -338,6 +343,24 @@ class Researcher {
       } catch (err) {
         console.error('Backstop search failed:', err);
       }
+    }
+
+    /* Attached files that matched are enough to answer from: no paid
+       search then. */
+    const haveResults = actionOutput.some(
+      (a) => a.type === 'search_results' && a.results.length > 0,
+    );
+    const fallbackResults = await runPublikFallback({
+      access: haveResults ? undefined : input.config.publikSearch,
+      query: standaloneQuery,
+      report,
+      researchBlock: block,
+      session,
+      meter: input.config.usageMeter,
+      signal: input.config.signal,
+    });
+    if (fallbackResults.length > 0) {
+      actionOutput.push({ type: 'search_results', results: fallbackResults });
     }
 
     const searchResults = actionOutput
@@ -371,9 +394,17 @@ class Researcher {
       data: filteredSearchResults,
     });
 
+    /* Nothing to write from: the writer would only say it found nothing
+       (F-088). The agents show the failure instead. */
+    const searchFailed =
+      filteredSearchResults.length === 0 && !input.config.signal?.aborted
+        ? report.failure()
+        : undefined;
+
     return {
       findings: actionOutput,
       searchFindings: filteredSearchResults,
+      ...(searchFailed && { searchFailed }),
     };
   }
 }

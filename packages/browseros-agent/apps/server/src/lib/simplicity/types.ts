@@ -206,6 +206,22 @@ export type ErrorBlock = {
   data: string;
 };
 
+/* Web search gave no usable result (F-088): which engines did not answer
+   and why, errors not tied to one engine, and what the publik search
+   fallback did. The writer does not run for that turn (no answer without
+   sources); the UI shows a "Web search failed" card with Retry. */
+export type SearchFailure = {
+  engines: { engine: string; reason: string }[];
+  errors: string[];
+  fallback?: string;
+};
+
+export type SearchFailedBlock = {
+  id: string;
+  type: 'searchFailed';
+  data: SearchFailure;
+};
+
 export type Block =
   | TextBlock
   | SourceBlock
@@ -214,4 +230,5 @@ export type Block =
   | ResearchBlock
   | UsageBlock
   | CouncilBlock
-  | ErrorBlock;
+  | ErrorBlock
+  | SearchFailedBlock;

@@ -2,6 +2,8 @@ import SessionManager from '../../session';
 import { turnEndStatus } from '../../turn-end';
 import { classify } from '../search/classifier';
 import Researcher from '../search/researcher';
+import { searchFailureToShow } from '../../search-report';
+import { endWithSearchFailed } from '../search/search-failed';
 import { CONTEXT_TOKEN_BUDGET, budgetChunks } from '../search/contextBudget';
 import { WidgetExecutor } from '../search/widgets';
 import { getWriterPrompt } from '../../prompts/search/writer';
@@ -137,6 +139,16 @@ class CouncilAgent {
     ]);
 
     session.emit('data', { type: 'researchComplete' });
+
+    const failure = searchFailureToShow(
+      searchResults,
+      widgetOutputs.length,
+      input.config.signal,
+    );
+    if (failure) {
+      await endWithSearchFailed(session, input, failure);
+      return;
+    }
 
     let finalContext =
       '<Query to be answered without searching; Search not made>';

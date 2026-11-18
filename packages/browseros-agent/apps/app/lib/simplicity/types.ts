@@ -209,6 +209,19 @@ export type ErrorBlock = {
   data: string
 }
 
+/* Sent by the server when web search gave nothing to write from (F-088):
+   the engines that did not answer and why, errors not tied to one engine,
+   and what the publik search fallback did. The turn has no answer text. */
+export type SearchFailedBlock = {
+  id: string
+  type: 'searchFailed'
+  data: {
+    engines: { engine: string; reason: string }[]
+    errors: string[]
+    fallback?: string
+  }
+}
+
 export type Block =
   | TextBlock
   | SourceBlock
@@ -218,3 +231,4 @@ export type Block =
   | UsageBlock
   | CouncilBlock
   | ErrorBlock
+  | SearchFailedBlock
