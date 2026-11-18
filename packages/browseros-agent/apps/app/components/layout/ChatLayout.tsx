@@ -1,18 +1,22 @@
-import type { FC } from 'react'
+import { type FC, useState } from 'react'
 import { Outlet } from 'react-router'
 import {
   ChatSessionProvider,
   useChatSessionContext,
 } from '@/modules/chat/chat-session-context'
 import { PanelOverflowMenu } from '@/screens/sidepanel/index/PanelOverflowMenu'
+import { showChatLayoutSpinner } from './chat-layout-gate'
 
 const ChatLayoutContent: FC = () => {
   const { resetConversation, isLoading } = useChatSessionContext()
+  const [chatShown, setChatShown] = useState(false)
+  if (!isLoading && !chatShown) setChatShown(true)
 
   /* Only while loading: with no AI connection there is no selected
      provider, and the chat shows how to add one (F-018). Waiting for a
-     provider here left a spinner forever. */
-  if (isLoading) {
+     provider here left a spinner forever. Only the first load: a later
+     loading flag would unmount the composer and its typed text. */
+  if (showChatLayoutSpinner(isLoading, chatShown)) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />

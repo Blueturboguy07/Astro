@@ -28,6 +28,7 @@ import { ChatError } from './ChatError'
 import { ChatFooter } from './ChatFooter'
 import { ChatMessages } from './ChatMessages'
 import { ChatNoConnection } from './ChatNoConnection'
+import { readComposerDraft, writeComposerDraft } from './composer-draft'
 
 /**
  * @public
@@ -59,7 +60,10 @@ export const Chat = () => {
   chatSessionRef.current = { sendMessage, stop, status, messages }
   const voiceLoop = useVoiceLoop({ chatSessionRef })
 
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(readComposerDraft)
+  useEffect(() => {
+    writeComposerDraft(input)
+  }, [input])
   const [attachedTabs, setAttachedTabs] = useState<chrome.tabs.Tab[]>([])
   const [mounted, setMounted] = useState(false)
 

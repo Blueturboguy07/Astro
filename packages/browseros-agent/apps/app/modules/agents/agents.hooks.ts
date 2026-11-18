@@ -12,6 +12,7 @@ import {
   type HarnessQueuedMessage,
   mapHarnessAgentToEntry,
 } from './agent-harness-types'
+import { harnessPollInterval, isFirstLoad } from './harness-query-loading'
 
 interface HarnessAgentsResponse {
   agents: HarnessAgent[]
@@ -66,7 +67,7 @@ export function useAgentAdapters(enabled = true) {
     adapters: agentsSupported ? (query.data ?? []) : [],
     loading:
       capabilitiesLoading ||
-      (agentsSupported && (query.isLoading || urlLoading)),
+      (agentsSupported && (isFirstLoad(query) || urlLoading)),
     error: agentsSupported ? (query.error ?? urlError) : null,
     refetch: query.refetch,
   }
@@ -95,9 +96,9 @@ export function useHarnessAgents(enabled = true) {
     enabled: Boolean(baseUrl) && !urlLoading && enabled && agentsSupported,
     // Poll every 5s so the per-agent liveness state (working / idle /
     // asleep / error) and last-used timestamps stay fresh without a
-    // websocket. `refetchIntervalInBackground: false` lets a hidden
+    // websocket; once a minute while the endpoint fails. `refetchIntervalInBackground: false` lets a hidden
     // tab go quiet — react-query's default, made explicit.
-    refetchInterval: 5_000,
+    refetchInterval: (q) => harnessPollInterval(q.state),
     refetchIntervalInBackground: false,
   })
 
@@ -108,7 +109,7 @@ export function useHarnessAgents(enabled = true) {
     harnessAgents: agentsSupported ? (query.data?.agents ?? []) : [],
     loading:
       capabilitiesLoading ||
-      (agentsSupported && (query.isLoading || urlLoading)),
+      (agentsSupported && (isFirstLoad(query) || urlLoading)),
     error: agentsSupported ? (query.error ?? urlError) : null,
     refetch: query.refetch,
   }
