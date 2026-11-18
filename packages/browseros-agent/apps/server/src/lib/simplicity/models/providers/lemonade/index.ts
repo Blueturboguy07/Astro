@@ -1,11 +1,12 @@
 import { UIConfigField } from '../../../config/types';
 import { getConfiguredModelProviderById } from '../../../config/serverRegistry';
 import BaseModelProvider from '../../base/provider';
-import { Model, ModelList, ProviderMetadata } from '../../types';
+import { ModelList, ProviderMetadata } from '../../types';
 import BaseLLM from '../../base/llm';
 import LemonadeLLM from './lemonadeLLM';
 import BaseEmbedding from '../../base/embedding';
 import LemonadeEmbedding from './lemonadeEmbedding';
+import { lemonadeChatModels, lemonadeEmbeddingModels } from './model-list';
 
 interface LemonadeConfig {
   baseURL: string;
@@ -54,18 +55,9 @@ class LemonadeProvider extends BaseModelProvider<LemonadeConfig> {
 
       const data = await res.json();
 
-      const models: Model[] = data.data
-        .filter((m: any) => m.recipe === 'llamacpp')
-        .map((m: any) => {
-          return {
-            name: m.id,
-            key: m.id,
-          };
-        });
-
       return {
-        embedding: models,
-        chat: models,
+        embedding: lemonadeEmbeddingModels(data),
+        chat: lemonadeChatModels(data),
       };
     } catch (err) {
       if (err instanceof TypeError) {
