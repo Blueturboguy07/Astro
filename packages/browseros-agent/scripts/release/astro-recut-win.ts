@@ -72,7 +72,9 @@ import {
   type BinaryPatch,
   countAscii,
   patchAsciiInPlace,
+  patchUtf16InPlace,
   UPSTREAM_AGENT_EXTENSION_ID,
+  VISIBLE_UTF16_PATCHES,
   validateExtensionVersion,
 } from './astro-recut'
 import { rebrandResourcePaks } from './pak-rebrand'
@@ -258,6 +260,11 @@ export function patchChromeDllUrls(buf: Uint8Array): BinaryPatch[] {
       )
     }
     out.push(res)
+  }
+  /* Not required: the Windows chrome.dll was not checked for the UTF-16
+     tooltip yet; the count is logged with the url rows (F-091 c). */
+  for (const p of VISIBLE_UTF16_PATCHES) {
+    out.push(patchUtf16InPlace(buf, p.from, p.to, { required: false }))
   }
   return out
 }

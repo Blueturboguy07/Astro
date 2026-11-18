@@ -142,6 +142,17 @@ export const TELEMETRY_MARKERS = [
 export const VISIBLE_STRING_PATCHES: readonly { from: string; to: string }[] =
   []
 
+/**
+ * Same-length swaps for UTF-16 strings in the framework (C++ u"" literals).
+ * The toolbar button's tooltip, which screen readers read as its name
+ * ("Ask BrowserOS - pinned"), comes from chromium_patches
+ * browser_actions.cc:134 (Astro 0.2.4 QA, F-091 c). One occurrence in the
+ * 0.2.4 framework; the Windows recut applies the same list to chrome.dll.
+ */
+export const VISIBLE_UTF16_PATCHES: readonly { from: string; to: string }[] = [
+  { from: 'Ask BrowserOS', to: 'Astro sidebar' },
+]
+
 export const DEVELOPER_ID =
   'Developer ID Application: Mann Bellani (R5R3ZS54LV)'
 /* `xcrun notarytool store-credentials AC_PASSWORD` — the profile the other
@@ -321,6 +332,46 @@ export function patchAsciiInPlace(
     throw new Error(`String not found in binary: "${from}"`)
   }
   return { from, to, occurrences }
+}
+
+/** patchAsciiInPlace for a UTF-16LE string (same number of UTF-16 units). */
+export function patchUtf16InPlace(
+  buf: Uint8Array,
+  from: string,
+  to: string,
+  opts: { required?: boolean } = {},
+): BinaryPatch {
+  if (from.length !== to.length) {
+    throw new Error(
+      `Replacement must be the same length: "${from}" is ${from.length} units, ` +
+        `"${to}" is ${to.length}`,
+    )
+  }
+  const fromBytes = utf16le(from)
+  const toBytes = utf16le(to)
+  let occurrences = 0
+  outer: for (let i = 0; i + fromBytes.length <= buf.length; i++) {
+    for (let j = 0; j < fromBytes.length; j++) {
+      if (buf[i + j] !== fromBytes[j]) continue outer
+    }
+    buf.set(toBytes, i)
+    occurrences++
+    i += fromBytes.length - 1
+  }
+  if (occurrences === 0 && opts.required !== false) {
+    throw new Error(`UTF-16 string not found in binary: "${from}"`)
+  }
+  return { from, to, occurrences }
+}
+
+function utf16le(text: string): Uint8Array {
+  const out = new Uint8Array(text.length * 2)
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i)
+    out[i * 2] = c & 0xff
+    out[i * 2 + 1] = c >> 8
+  }
+  return out
 }
 
 export function countAscii(buf: Uint8Array, needle: string): number {
@@ -752,6 +803,10 @@ export async function recut(opts: RecutOptions): Promise<string> {
     for (const p of VISIBLE_STRING_PATCHES) {
       const r = patchAsciiInPlace(fw, p.from, p.to)
       console.log(`      visible "${p.from}" → "${p.to}" ×${r.occurrences}`)
+    }
+    for (const p of VISIBLE_UTF16_PATCHES) {
+      const r = patchUtf16InPlace(fw, p.from, p.to)
+      console.log(`      visible u"${p.from}" → "${p.to}" ×${r.occurrences}`)
     }
     fs.writeFileSync(frameworkBinary, fw)
     const total = applied.reduce((n, p) => n + p.occurrences, 0)

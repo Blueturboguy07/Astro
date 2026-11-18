@@ -23,6 +23,7 @@ import {
   PUBLIK_APPCAST_URL,
   parseArgs,
   patchAsciiInPlace,
+  patchUtf16InPlace,
   plutilArgs,
   SERVER_BINARY_PATH,
   sparklePlistOps,
@@ -30,6 +31,7 @@ import {
   UPSTREAM_AGENT_EXTENSION_ID,
   UPSTREAM_APPCAST_URL,
   VISIBLE_STRING_PATCHES,
+  VISIBLE_UTF16_PATCHES,
   validateExtensionVersion,
 } from './astro-recut'
 
@@ -514,5 +516,43 @@ describe('dmg', () => {
       cmds.findIndex((c) => c.startsWith('ln -s /Applications')),
     )
     expect(cmds.at(-1)).toStartWith('codesign --force --timestamp')
+  })
+})
+
+describe('patchUtf16InPlace (F-091 c: toolbar button name)', () => {
+  const u16 = (t: string) => {
+    const b = new Uint8Array(t.length * 2)
+    for (let i = 0; i < t.length; i++) b[i * 2] = t.charCodeAt(i)
+    return b
+  }
+
+  it('swaps the tooltip literal and keeps the length', () => {
+    const buf = new Uint8Array([1, 2, ...u16('Ask BrowserOS'), 0, 0, 9])
+    const before = buf.length
+    const r = patchUtf16InPlace(buf, 'Ask BrowserOS', 'Astro sidebar')
+    expect(r.occurrences).toBe(1)
+    expect(buf.length).toBe(before)
+    expect(new TextDecoder('utf-16le').decode(buf.slice(2, 28))).toBe(
+      'Astro sidebar',
+    )
+  })
+
+  it('fails loud when the string is missing, unless not required', () => {
+    const buf = u16('nothing here')
+    expect(() =>
+      patchUtf16InPlace(buf, 'Ask BrowserOS', 'Astro sidebar'),
+    ).toThrow(/not found/)
+    expect(
+      patchUtf16InPlace(buf, 'Ask BrowserOS', 'Astro sidebar', {
+        required: false,
+      }).occurrences,
+    ).toBe(0)
+  })
+
+  it('every listed pair is the same length and names Astro', () => {
+    for (const p of VISIBLE_UTF16_PATCHES) {
+      expect(p.to.length).toBe(p.from.length)
+      expect(p.to).toContain('Astro')
+    }
   })
 })

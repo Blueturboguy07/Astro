@@ -131,7 +131,7 @@ index 8a43e7c2fcde5..2f9e4a7a80b4b 100644
 +                bwi))
 +            .SetActionId(kActionBrowserOSAgent)
 +            .SetText(u"Assistant")
-+            .SetTooltipText(u"Ask BrowserOS")
++            .SetTooltipText(u"Ask Astro")
 +            .SetImage(ui::ImageModel::FromResourceId(IDR_PRODUCT_LOGO_16))
 +            .SetProperty(
 +                actions::kActionItemPinnableKey,
