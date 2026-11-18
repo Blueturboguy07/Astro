@@ -5,6 +5,13 @@ description: "What's new in Astro"
 
 Astro's releases, with download links and full notes, are on [GitHub Releases](https://github.com/Blueturboguy07/Astro/releases). Astro is a fork of BrowserOS; changes that come from upstream are in [BrowserOS's releases](https://github.com/browseros-ai/BrowserOS/releases).
 
+<Update label="0.2.5" description="November 2026">
+- Fixes from a full test of 0.2.4 on macOS and Windows: web search on the first question, search setup that no longer stops the local server, publik Balanced as the default model after **Connect your plan**, answers that end, and clear messages for daily limits and an empty balance.
+- `chrome://settings` opens on macOS. The Windows installer carries Astro's own local server.
+- Agent tasks stop on a page that stays on a loading screen and after an action limit. On macOS a sandbox keeps shell commands inside the workspace folder.
+- Agent extension 0.0.115. Files: `Astro.dmg` (macOS, Apple silicon), `Astro-Setup.exe` (Windows x64, unsigned).
+</Update>
+
 <Update label="0.2.4" description="November 11, 2026">
 - The app opens with **Sign in with publik**. After the sign-in you choose once: **Connect your plan** (or **Get a plan**) or **Use my own key**. You can change the choice in Settings → Models.
 - Usage counts: `app_opened` once per browser session and `active_session` every 30 minutes, with your install key. No content is sent. The switch is in Settings → Models.

@@ -72,6 +72,16 @@ unset VITE_PUBLIK_APP_TOKEN
 
 Output: `apps/app/dist/chrome-mv3/`.
 
+**No `.env.development` in `packages/browseros-agent` during this build.**
+`bun run` loads it, and the example file (which CI copies for the tests) sets
+`VITE_PUBLIC_BROWSEROS_API=https://api.browseros.com`. A build that sees it
+names the upstream account API again and brings back its sign-in (QA F-011,
+F-032). Move the file away for the build, then check the built extension:
+
+```bash
+ASTRO_REQUIRE_BUILT_SCAN=1 bun test ./apps/app/lib/constants/upstream-hosts.test.ts
+```
+
 Check it took, without printing the token:
 
 ```bash
@@ -101,10 +111,24 @@ the extension.
 cd packages/browseros-agent
 bun scripts/release/astro-recut.ts \
   --source /Volumes/Astro/Astro.app \
-  --crx dist/astro-agent-0.0.101.crx \
+  --crx dist/astro-agent-0.0.115.crx \
+  --server dist/prod/server/darwin-arm64/resources/bin/browseros_server \
+  --paks-from /Volumes/BrowserOS/BrowserOS.app \
+  --app-version 0.2.5 \
   --out dist/astro-recut \
   --sign
 ```
+
+- `--source`: the previous Astro bundle (0.2.4 for 0.2.5). Its framework
+  already carries Astro's extension id, and its `third_party/bun` already
+  carries our signature.
+- `--paks-from`: upstream's bundle of the **same Chromium version** as the
+  source (0.2.4 and 0.2.5: BrowserOS 0.47.18, Chromium 148.0.7966.97,
+  `BrowserOS_v0.47.18_arm64.dmg` on upstream's v0.47.18 release). The paks of
+  Astro bundles up to 0.2.4 are broken (QA F-009); the re-cut refuses them.
+  Mount the dmg read-only with `hdiutil attach -readonly -nobrowse`.
+- `--app-version`: what Finder and About show (`CFBundleShortVersionString`).
+  Without it the bundle keeps the source's version.
 
 What it does, in order, failing loudly rather than shipping something wrong:
 
@@ -252,11 +276,20 @@ on a release.
 
 ## 6. Notarize, staple, dmg
 
-The re-cut prints these with the real paths filled in.
+The re-cut prints these with the real paths filled in. Notarize and staple the
+**app first**, then build the dmg around the stapled app. The dmg holds a copy
+of the app: stapling `$APP` after the dmg exists staples only the copy outside
+the dmg.
 
 ```bash
 APP=dist/astro-recut/Astro.app
 DMG=dist/astro-recut/Astro.dmg
+
+ditto -c -k --keepParent "$APP" "$APP.zip"
+xcrun notarytool submit "$APP.zip" --keychain-profile AC_PASSWORD --wait
+xcrun stapler staple "$APP"
+xcrun stapler validate "$APP"
+rm "$APP.zip"
 
 # The dmg holds Astro.app AND a link to /Applications (0.2.4 had only the app: QA F-007).
 STAGE=dist/astro-recut/dmg-stage
@@ -269,7 +302,7 @@ codesign --force --timestamp --sign "Developer ID Application: Mann Bellani (R5R
 
 xcrun notarytool submit "$DMG" --keychain-profile AC_PASSWORD --wait
 xcrun stapler staple "$DMG"
-xcrun stapler staple "$APP"    # staple the APP too, not only the dmg
+xcrun stapler validate "$DMG"
 ```
 
 Stapling the app as well as the dmg is not optional — a stapled dmg holding an
@@ -347,9 +380,18 @@ a stored choice and does not show the gate, so use a new, empty profile:
 ## 8. Publish
 
 ```bash
-gh release create v0.1.1 dist/astro-recut/Astro.dmg -R Blueturboguy07/Astro \
-  --title "Astro 0.1.1" --notes "…"
+cp dist/astro-agent-0.0.115.crx dist/astro-agent.crx   # the asset name §9 downloads
+gh release create v0.2.5 dist/astro-recut/Astro.dmg dist/astro-agent.crx \
+  -R Blueturboguy07/Astro --title "Astro 0.2.5" --notes-file release-notes/v0.2.5.md \
+  --latest=false
 ```
+
+`--latest=false` keeps `releases/latest` on the previous release until §9 has
+put `Astro-Setup.exe` on this one: the publik guide links
+`releases/latest/download/Astro-Setup.exe`, and a latest release without it
+breaks every Windows download. After §9: `gh release edit v0.2.5 --latest`.
+Do not use `--draft`: the Windows job downloads `astro-agent.crx` without a
+token, and a draft's assets answer 404 to that.
 
 Keep the asset named `Astro.dmg` — the publik install guide links
 `releases/latest/download/Astro.dmg` (`~/publik/lib/guides/astro.ts`) and
@@ -376,6 +418,37 @@ https://github.com/Blueturboguy07/Astro/blob/main/SETUP.md
 Do not link `https://publikhq.com/astro/install/linux`: that page does not
 exist (it answers 200 with "Page not found"). Check every link in the notes
 with `curl -sL <url> | grep -o '<title>[^<]*</title>'` before you publish.
+
+## 9. Windows
+
+`Astro-Setup.exe` comes from `.github/workflows/release-windows-astro.yml` on a
+GitHub `windows-latest` runner. It runs `scripts/release/astro-recut-win.ts`:
+it downloads upstream's prebuilt Windows installer, builds Astro's server for
+windows-x64, puts in the CRX of the release, patches `chrome.dll`, rebrands the
+paks, sets the version info of `chrome.exe` with rcedit, packs NSIS, installs,
+tests the agent, `/health`, `/api/providers` and the loopback bind, uninstalls,
+and with `release_tag` uploads `Astro-Setup.exe` to that release.
+
+```bash
+gh workflow run release-windows-astro.yml -R Blueturboguy07/Astro --ref main \
+  -f version=0.0.115 -f app_version=0.2.5 -f release_tag=v0.2.5 \
+  -f agent_crx_url=https://github.com/Blueturboguy07/Astro/releases/download/v0.2.5/astro-agent.crx \
+  -f installer_url=https://github.com/browseros-ai/BrowserOS/releases/download/v0.51.0/BrowserOS_v0.51.0_x64_installer.exe
+```
+
+- Pass `agent_crx_url`: its default is `releases/latest/download/astro-agent.crx`,
+  which is the previous release's CRX while §8 keeps this one off "latest".
+- Pin `installer_url`: the default `files.browseros.com/download/BrowserOS_installer.exe`
+  is whatever upstream ships today. 0.2.1 to 0.2.5 on Windows are BrowserOS
+  0.51.0 (Chromium 151).
+- The job runs the workflow file of `--ref`. The file must also exist on the
+  default branch for `workflow_dispatch` to accept the run (it does).
+- Unsigned: there is no Windows code-signing certificate. rcedit also removes
+  upstream's Authenticode signature from `chrome.exe` and `chrome_proxy.exe`.
+  SmartScreen asks for **More info → Run anyway**.
+
+Then add `Astro-Setup.exe` to `SHA256SUMS.txt`, upload it with `--clobber`, and
+mark the release latest (§8).
 
 ---
 
