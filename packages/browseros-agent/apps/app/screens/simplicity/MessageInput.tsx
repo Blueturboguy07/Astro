@@ -2,7 +2,7 @@ import { ArrowUp, Square } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import TextareaAutosize from 'react-textarea-autosize'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
-import { enterAction, HOLD_HINT } from './composer-enter'
+import { enterAction, HOLD_HINT, stopClick } from './composer-enter'
 import ModelSelector from './MessageInputActions/ChatModelSelector'
 import ModeSelector from './MessageInputActions/ModeSelector'
 import PlusMenu from './MessageInputActions/PlusMenu'
@@ -21,8 +21,9 @@ const SendOrStopButton = ({
 }) =>
   loading ? (
     <button
+      key="stop"
       type="button"
-      onClick={onStop}
+      onClick={(e) => stopClick(e, onStop)}
       aria-label="Stop generating"
       className="rounded-full bg-black p-2 text-white transition duration-100 hover:opacity-85 dark:bg-white dark:text-black"
     >
@@ -30,6 +31,8 @@ const SendOrStopButton = ({
     </button>
   ) : (
     <button
+      key="send"
+      type="submit"
       disabled={disabled}
       aria-label="Send"
       className="rounded-full bg-[#24A0ED] p-2 text-white transition duration-100 hover:bg-opacity-85 disabled:bg-[#e0e0dc79] disabled:text-black/50 dark:disabled:bg-[#ececec21] dark:disabled:text-white/50"
