@@ -67,6 +67,11 @@ export const ToolBatch: FC<ToolBatchProps> = ({
               <ToolStatusIcon state={tool.state} />
               <span className="flex-1">{formatToolName(tool.toolName)}</span>
             </TaskItem>
+            {tool.errorText ? (
+              <p className="break-words pl-5.5 text-muted-foreground text-xs">
+                {tool.errorText}
+              </p>
+            ) : null}
           </div>
         ))}
       </TaskContent>

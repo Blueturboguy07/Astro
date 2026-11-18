@@ -32,6 +32,38 @@ function hidden(el) {
   return s.display === 'none' || s.visibility === 'hidden';
 }
 
+// A rating drawn only with icons has no text; its value lives in an
+// attribute (class="star-rating Four", aria-label="4.5 out of 5 stars").
+// Attributes are tested first so textContent runs only on candidates.
+var RATING = /(^|[^a-z])(stars?|ratings?|rated)([^a-z]|$)|star-?rating/i;
+var RATING_LABEL = /\\d([.,]\\d+)?\\s*(out of|\\/)\\s*\\d|\\d([.,]\\d+)?\\s*stars?\\b|rating|rated/i;
+var RATING_DATA = /^data-[\\w-]*(rating|stars|score)/i;
+function ratingHint(el) {
+  var label = el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('alt') || '';
+  var cls = el.getAttribute('class') || '';
+  var data = '';
+  for (var i = 0; i < el.attributes.length; i++) {
+    var a = el.attributes[i];
+    if (a.value && RATING_DATA.test(a.name)) { data = a.name + '="' + a.value + '"'; break; }
+  }
+  var byLabel = !!label && RATING_LABEL.test(label);
+  if (!byLabel && !data && !(cls && RATING.test(cls))) return '';
+  if ((el.textContent || '').trim()) return '';
+  if (byLabel) return ' [' + label.trim() + '] ';
+  if (data) return ' [' + data + '] ';
+  return ' [class="' + cls.trim().replace(/\\s+/g, ' ') + '"' + childClasses(el) + '] ';
+}
+
+// Icons that differ (full, half, empty star) carry the value themselves.
+function childClasses(el) {
+  var list = [];
+  for (var i = 0; i < el.children.length && i < 10; i++)
+    list.push((el.children[i].getAttribute('class') || '').trim());
+  for (var j = 1; j < list.length; j++)
+    if (list[j] !== list[0]) return ' icons: ' + list.join(', ');
+  return '';
+}
+
 function outOfView(el) {
   if (!o.viewport) return false;
   var r = el.getBoundingClientRect();
@@ -112,6 +144,8 @@ function walk(node, ctx) {
   var T = el.tagName;
   if (SKIP[T] || FORM[T]) return '';
   if (hidden(el)) return '';
+  var rating = ratingHint(el);
+  if (rating) return rating;
 
   var t;
   switch (T) {

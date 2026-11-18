@@ -2,6 +2,11 @@ import { TOOL_LIMITS } from '@browseros/shared/constants/limits'
 import { z } from 'zod'
 import { defineTool, errorResult, textResult } from './framework'
 import { writeTempToolOutputFile } from './output-file'
+import {
+  ATTRIBUTES_DESCRIPTION,
+  buildAttributeLinesExpression,
+} from './page-attributes'
+import { pdfTabText } from './pdf-tab-text'
 import { wrapUntrusted } from './trust-boundary'
 
 const DEFAULT_LIMIT = 50
@@ -10,12 +15,11 @@ const REF_SUFFIX_PATTERN = / \[ref=e\d+\]$/
 
 export const grep = defineTool({
   name: 'grep',
-  description:
-    'Search the page without dumping it. over="ax" greps the snapshot lines (matches keep their [ref=eN]); over="content" greps visible text. Returns matching lines.',
+  description: `Search the page without dumping it. over="ax" greps the snapshot lines (matches keep their [ref=eN]); over="content" greps visible text (the PDF text on a PDF tab); over="attributes" greps ${ATTRIBUTES_DESCRIPTION}. Returns matching lines.`,
   input: z.object({
     page: z.number().int(),
     pattern: z.string().describe('Case-insensitive regular expression.'),
-    over: z.enum(['ax', 'content']).default('ax'),
+    over: z.enum(['ax', 'content', 'attributes']).default('ax'),
     limit: z.number().optional().describe('Max matching lines (default 50).'),
   }),
   annotations: { title: 'Search page', readOnlyHint: true },
@@ -35,10 +39,29 @@ export const grep = defineTool({
     } else {
       const { session } = await ctx.session.pages.getSession(args.page)
       const result = await session.Runtime.evaluate({
-        expression: "(document.body?.innerText ?? '')",
+        expression:
+          args.over === 'attributes'
+            ? buildAttributeLinesExpression({
+                maxLines: TOOL_LIMITS.ATTRIBUTE_LINES_MAX,
+              })
+            : "(document.body?.innerText ?? '')",
         returnByValue: true,
       })
       haystack = (result.result?.value as string) ?? ''
+      if (args.over === 'content') {
+        const fromPdf = await pdfTabText({
+          url: ctx.session.pages.getInfo(args.page)?.url,
+          pageText: haystack,
+          session,
+          signal: ctx.signal,
+        })
+        if (fromPdf && !fromPdf.ok) {
+          return errorResult(
+            `grep: this tab shows a PDF (${fromPdf.url}), but its text could not be read: ${fromPdf.error}`,
+          )
+        }
+        if (fromPdf) haystack = fromPdf.text
+      }
     }
 
     const limit = clampLimit(args.limit)

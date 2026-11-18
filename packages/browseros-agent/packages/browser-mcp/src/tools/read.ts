@@ -3,13 +3,23 @@ import { TOOL_LIMITS } from '@browseros/shared/constants/limits'
 import { z } from 'zod'
 import { defineTool, errorResult, textResult } from './framework'
 import { writeTempToolOutputFile } from './output-file'
+import {
+  ATTRIBUTES_DESCRIPTION,
+  buildAttributeLinesExpression,
+} from './page-attributes'
+import { pdfTabText } from './pdf-tab-text'
 import { wrapUntrusted } from './trust-boundary'
 
-function expressionFor(
-  format: 'markdown' | 'text' | 'links',
-  selector?: string,
-): string {
+type ReadFormat = 'markdown' | 'text' | 'links' | 'attributes'
+
+function expressionFor(format: ReadFormat, selector?: string): string {
   if (format === 'markdown') return buildContentMarkdownExpression({ selector })
+  if (format === 'attributes') {
+    return buildAttributeLinesExpression({
+      selector,
+      maxLines: TOOL_LIMITS.ATTRIBUTE_LINES_MAX,
+    })
+  }
   const root = selector
     ? `document.querySelector(${JSON.stringify(selector)})`
     : 'document.body'
@@ -19,11 +29,12 @@ function expressionFor(
 
 export const read = defineTool({
   name: 'read',
-  description:
-    'Extract page content as markdown (default), plain text, or a list of links. For reading/scraping, not acting.',
+  description: `Extract page content as markdown (default), plain text, a list of links, or attributes (${ATTRIBUTES_DESCRIPTION}). On a tab that shows a PDF, markdown and text return the PDF's text. For reading/scraping, not acting.`,
   input: z.object({
     page: z.number().int(),
-    format: z.enum(['markdown', 'text', 'links']).default('markdown'),
+    format: z
+      .enum(['markdown', 'text', 'links', 'attributes'])
+      .default('markdown'),
     selector: z.string().optional().describe('Restrict to a CSS subtree.'),
     viewportOnly: z
       .boolean()
@@ -63,8 +74,27 @@ export const read = defineTool({
       )
     }
 
-    const text = (result.result?.value as string) ?? ''
+    let text = (result.result?.value as string) ?? ''
     const origin = ctx.session.pages.getInfo(args.page)?.url ?? 'unknown'
+
+    let pdf = false
+    if (args.format === 'markdown' || args.format === 'text') {
+      const fromPdf = await pdfTabText({
+        url: origin,
+        pageText: text,
+        session,
+        signal: ctx.signal,
+      })
+      if (fromPdf && !fromPdf.ok) {
+        return errorResult(
+          `read: this tab shows a PDF (${fromPdf.url}), but its text could not be read: ${fromPdf.error}`,
+        )
+      }
+      if (fromPdf) {
+        text = fromPdf.text
+        pdf = true
+      }
+    }
 
     if (text.length <= TOOL_LIMITS.INLINE_PAGE_CONTENT_MAX_CHARS) {
       return textResult(wrapUntrusted(text || '(empty)', origin), {
@@ -72,12 +102,13 @@ export const read = defineTool({
         format: args.format,
         contentLength: text.length,
         writtenToFile: false,
+        ...(pdf && { pdf }),
       })
     }
 
     const path = await writeTempToolOutputFile({
       toolName: 'read',
-      extension: args.format === 'markdown' ? 'md' : 'txt',
+      extension: args.format === 'markdown' && !pdf ? 'md' : 'txt',
       content: wrapUntrusted(text, origin),
     })
     const truncated = text.slice(0, TOOL_LIMITS.INLINE_PAGE_CONTENT_MAX_CHARS)
@@ -92,6 +123,7 @@ export const read = defineTool({
         path,
         contentLength: text.length,
         writtenToFile: true,
+        ...(pdf && { pdf }),
       },
     )
   },

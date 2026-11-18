@@ -19,6 +19,8 @@ export interface ToolInvocationInfo {
   input: Record<string, unknown>
   output: unknown[]
   approval?: { id: string; approved?: boolean; reason?: string }
+  /** Why a failed tool failed, in one short line (F-070). */
+  errorText?: string
 }
 
 export type NudgeType = 'schedule_suggestion' | 'app_connection'
@@ -52,6 +54,44 @@ export function shownToolState(
     typeof output === 'object' &&
     (output as { isError?: unknown }).isError === true
   return failed ? 'output-error' : state
+}
+
+const UNKNOWN_TOOL = /^Model tried to call unavailable tool '([^']+)'/
+const ERROR_TEXT_MAX = 200
+
+/**
+ * One line that says why a tool failed. UC-32 (Astro 0.2.4 QA, F-070): the
+ * model called a tool "browser_read" that does not exist and the panel showed
+ * only a red mark.
+ */
+export function toolErrorText(
+  state: ToolInvocationState,
+  output: unknown,
+  errorText: string | undefined,
+): string | undefined {
+  if (state !== 'output-error') return undefined
+  const raw = errorText || outputText(output)
+  if (!raw) return undefined
+  const unknown = raw.match(UNKNOWN_TOOL)?.[1]
+  if (unknown) {
+    return `The tool "${unknown}" is not available here. The agent got the list of tools it can use.`
+  }
+  const line = raw.split('\n').find((l) => l.trim()) ?? raw
+  return line.length > ERROR_TEXT_MAX
+    ? `${line.slice(0, ERROR_TEXT_MAX - 1)}…`
+    : line
+}
+
+function outputText(output: unknown): string {
+  const content = (output as { content?: unknown } | null)?.content
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((item) =>
+      item && typeof item === 'object' && typeof item.text === 'string'
+        ? item.text
+        : '',
+    )
+    .join('\n')
 }
 
 function parseNudgeOutput(output: unknown): NudgeData | null {
@@ -129,6 +169,7 @@ export const getMessageSegments = (
         state: ToolInvocationState
         input: Record<string, unknown>
         output: unknown
+        errorText?: string
         approval?: { id: string; approved?: boolean; reason?: string }
       }
       // Phantom acpx-ai-provider tool-input-* stream emitted under a fresh
@@ -157,13 +198,20 @@ export const getMessageSegments = (
           })
         }
       } else if (!NUDGE_TOOLS.has(toolName)) {
+        const state = shownToolState(toolPart.state, toolPart.output)
+        const errorText = toolErrorText(
+          state,
+          toolPart.output,
+          toolPart.errorText,
+        )
         currentToolBatch.push({
-          state: shownToolState(toolPart.state, toolPart.output),
+          state,
           toolCallId: toolPart.toolCallId,
           toolName,
           input: toolPart?.input ?? {},
           output: (toolPart?.output as unknown[]) ?? [],
           approval: toolPart?.approval,
+          ...(errorText && { errorText }),
         })
       }
     }

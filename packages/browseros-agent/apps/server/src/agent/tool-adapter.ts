@@ -16,6 +16,7 @@ import {
 import { type ToolSet, tool } from 'ai'
 import { logger } from '../lib/logger'
 import { metrics } from '../lib/metrics'
+import { registerPdfTabText } from './pdf-tab-text'
 
 export interface BrowserToolSetOptions {
   readOnly?: boolean
@@ -30,6 +31,11 @@ interface ToolExecuteOptions {
 }
 
 const BROWSER_TOOL_TIMEOUT_MS = 120_000
+
+/* read/grep on a PDF tab get the PDF text from the server (F-070). The
+   chat agent and the /mcp route share the browser-mcp tools, and this module
+   loads with the agent at server start. */
+registerPdfTabText()
 
 function summarizeBrowserToolParams(params: unknown): Record<string, unknown> {
   if (!params || typeof params !== 'object') {
