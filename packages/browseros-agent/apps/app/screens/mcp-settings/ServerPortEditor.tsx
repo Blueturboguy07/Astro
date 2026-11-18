@@ -16,6 +16,8 @@ import { MCP_PROXY_PORT_CHANGED_EVENT } from '@/lib/constants/analyticsEvents'
 import { track } from '@/lib/metrics/track'
 import { waitForServerHealth } from './server-health'
 import {
+  canSavePort,
+  currentPortAfterSave,
   PROXY_PORT_MIN,
   parseProxyPort,
   portFieldError,
@@ -66,7 +68,7 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
 
   const parsed = parseProxyPort(value)
   const fieldError = portFieldError(value, error)
-  const canSave = parsed.ok && !isSaving && parsed.port !== currentPort
+  const canSave = canSavePort(value, currentPort, isSaving)
 
   const handleSave = async () => {
     const result = parseProxyPort(value)
@@ -96,6 +98,9 @@ export const ServerPortEditor: FC<ServerPortEditorProps> = ({
         onPortChanged?.()
         setOpen(false)
       } else {
+        setCurrentPort(
+          currentPortAfterSave('timeout', result.port, currentPort),
+        )
         setError(
           "Port saved, but the server didn't restart in time. Quit and relaunch the browser to apply it.",
         )

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  canSavePort,
+  currentPortAfterSave,
   PROXY_PORT_MAX,
   PROXY_PORT_MIN,
   parseProxyPort,
@@ -73,5 +75,24 @@ describe('parseProxyPort', () => {
 
   it('trims surrounding whitespace', () => {
     expect(parseProxyPort('  9100 ')).toEqual({ ok: true, port: 9100 })
+  })
+})
+
+describe('port editor after a time-out (INV-SET-36)', () => {
+  it('a time-out makes the saved port current, so the old one can be saved again', () => {
+    const current = currentPortAfterSave('timeout', 9105, 9100)
+    expect(current).toBe(9105)
+    expect(canSavePort('9100', current, false)).toBe(true)
+    expect(canSavePort('9105', current, false)).toBe(false)
+  })
+
+  it('a failed save keeps the old port', () => {
+    expect(currentPortAfterSave('failed', 9105, 9100)).toBe(9100)
+    expect(canSavePort('9105', 9100, false)).toBe(true)
+  })
+
+  it('no Save while saving or for a bad port', () => {
+    expect(canSavePort('9105', 9100, true)).toBe(false)
+    expect(canSavePort('80', 9100, false)).toBe(false)
   })
 })

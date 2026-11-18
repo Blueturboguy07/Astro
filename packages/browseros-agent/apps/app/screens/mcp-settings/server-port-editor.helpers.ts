@@ -40,3 +40,26 @@ export function parseProxyPort(raw: string): ParseResult {
   }
   return { ok: true, port }
 }
+
+export type PortSaveOutcome = 'healthy' | 'timeout' | 'failed'
+
+/** The port the editor compares against after a save. A time-out still
+    wrote the pref, so the saved port is now the current one; keeping the old
+    one made the old port unsavable (Save disabled when the person typed it
+    back) until the popover was reopened (Astro 0.2.4 QA, INV-SET-36). */
+export function currentPortAfterSave(
+  outcome: PortSaveOutcome,
+  savedPort: number,
+  previousPort: number | null,
+): number | null {
+  return outcome === 'failed' ? previousPort : savedPort
+}
+
+export function canSavePort(
+  raw: string,
+  currentPort: number | null,
+  isSaving: boolean,
+): boolean {
+  const parsed = parseProxyPort(raw)
+  return parsed.ok && !isSaving && parsed.port !== currentPort
+}

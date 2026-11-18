@@ -17,20 +17,34 @@ async function checkServerHealth(): Promise<boolean> {
  * elapses. checkHealth resolves its URL from the live proxy_port pref, so this
  * automatically targets whatever port the server is (re)binding to.
  */
-export async function waitForServerHealth(): Promise<boolean> {
+export async function waitForServerHealth(
+  check: () => Promise<boolean> = checkServerHealth,
+  timeoutMs = HEALTH_CHECK_TIMEOUT_MS,
+  intervalMs = HEALTH_CHECK_INTERVAL_MS,
+): Promise<boolean> {
   const startTime = Date.now()
+  /* One probe may never answer while the server restarts (the message to
+     the background has no deadline); cap it so the overall time-out holds
+     and Save is enabled again. */
+  const probe = () =>
+    Promise.race([
+      check().catch(() => false),
+      new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), intervalMs * 2),
+      ),
+    ])
   return new Promise((resolve) => {
-    const check = async () => {
-      if (Date.now() - startTime >= HEALTH_CHECK_TIMEOUT_MS) {
+    const tick = async () => {
+      if (Date.now() - startTime >= timeoutMs) {
         resolve(false)
         return
       }
-      if (await checkServerHealth()) {
+      if (await probe()) {
         resolve(true)
         return
       }
-      setTimeout(check, HEALTH_CHECK_INTERVAL_MS)
+      setTimeout(tick, intervalMs)
     }
-    setTimeout(check, HEALTH_CHECK_INTERVAL_MS)
+    setTimeout(tick, intervalMs)
   })
 }
