@@ -186,6 +186,21 @@ export function validateExtensionVersion(version: string): string {
 }
 
 /**
+ * The Astro release version (CFBundleShortVersionString: Finder, About).
+ * Without it a re-cut from the previous Astro bundle keeps that bundle's
+ * version, so 0.2.5 would say 0.2.4.
+ */
+export function validateAppVersion(version: string): string {
+  const v = version.replace(/^v/, '')
+  if (!/^\d+\.\d+\.\d+$/.test(v)) {
+    throw new Error(
+      `--app-version must be x.y.z (e.g. 0.2.5), got "${version}"`,
+    )
+  }
+  return v
+}
+
+/**
  * Where the zip starts inside a CRX3: `Cr24` magic, u32 format version, u32
  * header length, then the protobuf header.
  */
@@ -568,6 +583,8 @@ export type RecutOptions = {
   crx: string
   out: string
   version?: string
+  /** CFBundleShortVersionString, e.g. 0.2.5. CFBundleVersion stays the browser's. */
+  appVersion?: string
   sparkle: 'disable' | 'keep'
   sparkleFeed?: string
   sparkleEdKey?: string
@@ -888,6 +905,28 @@ export async function recut(opts: RecutOptions): Promise<string> {
       run('plutil', ['-replace', key, '-string', 'Astro', infoPlist])
     }
     console.log('      CFBundleName / CFBundleDisplayName = Astro')
+    /* CFBundleVersion stays the browser's (10000.<BrowserOS version>): the
+       browser finds its framework by it, and Sparkle compares it. */
+    if (opts.appVersion) {
+      run('plutil', [
+        '-replace',
+        'CFBundleShortVersionString',
+        '-string',
+        opts.appVersion,
+        infoPlist,
+      ])
+      console.log(`      CFBundleShortVersionString = ${opts.appVersion}`)
+    } else {
+      const kept = run('plutil', [
+        '-extract',
+        'CFBundleShortVersionString',
+        'raw',
+        infoPlist,
+      ]).trim()
+      console.log(
+        `      WARNING: no --app-version; CFBundleShortVersionString stays ${kept} (the source's)`,
+      )
+    }
   }
 
   console.log(`[5/7] Sparkle: ${opts.sparkle}`)
@@ -1059,7 +1098,7 @@ export function parseArgs(argv: string[]): RecutOptions {
   if (!source || !crx) {
     throw new Error(
       'Usage: bun scripts/release/astro-recut.ts --source <Astro.app> --crx <file.crx> ' +
-        '[--out dir] [--version 0.0.101] [--sparkle disable|keep] ' +
+        '[--out dir] [--version 0.0.101] [--app-version 0.2.5] [--sparkle disable|keep] ' +
         '[--sparkle-feed url] [--sparkle-ed-key base64] [--server browseros_server] ' +
         '[--paks-from upstream/BrowserOS.app] ' +
         '[--patch-id] [--sign] [--dry-run]',
@@ -1076,11 +1115,13 @@ export function parseArgs(argv: string[]): RecutOptions {
         `(it overwrites a string inside the framework); "${sparkleFeed}" is ${sparkleFeed.length}`,
     )
   }
+  const appVersion = get('--app-version')
   return {
     source,
     crx,
     out: get('--out') ?? 'dist/astro-recut',
     version: get('--version'),
+    appVersion: appVersion ? validateAppVersion(appVersion) : undefined,
     sparkle,
     sparkleFeed,
     sparkleEdKey: get('--sparkle-ed-key'),

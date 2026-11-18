@@ -32,6 +32,7 @@ import {
   UPSTREAM_APPCAST_URL,
   VISIBLE_STRING_PATCHES,
   VISIBLE_UTF16_PATCHES,
+  validateAppVersion,
   validateExtensionVersion,
 } from './astro-recut'
 
@@ -424,6 +425,23 @@ describe('argument parsing', () => {
   it('needs both a source bundle and a CRX', () => {
     expect(() => parseArgs(['--source', 'A.app'])).toThrow(/Usage/)
     expect(() => parseArgs(['--crx', 'a.crx'])).toThrow(/Usage/)
+  })
+
+  /* A re-cut from the 0.2.4 bundle kept CFBundleShortVersionString 0.2.4. */
+  it('parses --app-version as x.y.z and leaves it unset by default', () => {
+    const base = ['--source', 'A.app', '--crx', 'a.crx']
+    expect(parseArgs(base).appVersion).toBe(undefined)
+    expect(parseArgs([...base, '--app-version', '0.2.5']).appVersion).toBe(
+      '0.2.5',
+    )
+    expect(parseArgs([...base, '--app-version', 'v0.2.5']).appVersion).toBe(
+      '0.2.5',
+    )
+    expect(() => parseArgs([...base, '--app-version', '0.2'])).toThrow(
+      /x\.y\.z/,
+    )
+    expect(validateAppVersion('10.0.1')).toBe('10.0.1')
+    expect(() => validateAppVersion('0.2.5-beta')).toThrow(/x\.y\.z/)
   })
 })
 
