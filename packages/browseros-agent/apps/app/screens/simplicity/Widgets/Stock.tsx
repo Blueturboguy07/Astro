@@ -9,6 +9,7 @@ import {
 } from 'lightweight-charts'
 import { ArrowDownRight, ArrowUpRight, Clock, Minus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { formatCompact, formatMoneyCompact } from './stock-format'
 
 type StockWidgetProps = {
   symbol: string
@@ -71,15 +72,6 @@ const formatNumber = (num: number | undefined, decimals = 2): string => {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })
-}
-
-const formatLargeNumber = (num: number | undefined): string => {
-  if (num === undefined || num === null) return 'N/A'
-  if (num >= 1e12) return `$${(num / 1e12).toFixed(2)}T`
-  if (num >= 1e9) return `$${(num / 1e9).toFixed(2)}B`
-  if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`
-  if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`
-  return `$${num.toFixed(2)}`
 }
 
 const Stock = (props: StockWidgetProps) => {
@@ -449,7 +441,7 @@ const Stock = (props: StockWidgetProps) => {
                   Market Cap
                 </span>
                 <span className="font-medium text-black text-xs dark:text-white">
-                  {formatLargeNumber(props.marketCap)}
+                  {formatMoneyCompact(props.marketCap, props.currency)}
                 </span>
               </div>
               <div className="flex justify-between border-light-200 border-t border-r p-3 dark:border-dark-200">
@@ -494,7 +486,7 @@ const Stock = (props: StockWidgetProps) => {
                   Volume
                 </span>
                 <span className="font-medium text-black text-xs dark:text-white">
-                  {formatLargeNumber(props.regularMarketVolume)}
+                  {formatCompact(props.regularMarketVolume)}
                 </span>
               </div>
               <div className="flex justify-between border-light-200 border-t p-3 dark:border-dark-200">
