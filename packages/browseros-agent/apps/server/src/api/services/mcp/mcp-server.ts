@@ -36,7 +36,8 @@ export function createMcpServer(deps: McpServiceDeps) {
   })
 
   const server = createBrowserMcpServer({
-    name: 'browseros_mcp',
+    /* Astro 0.2.4 QA, F-091/F-027: MCP clients show this name. */
+    name: 'astro_mcp',
     title: 'Astro MCP server',
     version: deps.version,
     browserSession: deps.browserSession,

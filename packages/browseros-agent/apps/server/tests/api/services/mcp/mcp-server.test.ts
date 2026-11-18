@@ -69,3 +69,16 @@ describe('createMcpServer structured browser results', () => {
     })
   })
 })
+
+describe('createMcpServer name (F-091, F-027)', () => {
+  it('introduces itself to MCP clients as Astro, not BrowserOS', () => {
+    const server = createMcpServer({
+      version: 'test',
+      browserSession: browserSession(),
+    }) as unknown as {
+      server: { _serverInfo: { name: string; title?: string } }
+    }
+    expect(server.server._serverInfo.name).toBe('astro_mcp')
+    expect(server.server._serverInfo.title).toBe('Astro MCP server')
+  })
+})
