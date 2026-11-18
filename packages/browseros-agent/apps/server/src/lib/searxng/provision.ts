@@ -26,6 +26,7 @@ import net from 'node:net'
 import path from 'node:path'
 import { getBrowserosDir } from '../browseros-dir'
 import { logger } from '../logger'
+import { downloadPython } from './python-source'
 import { ensureSettings, writeSettings } from './settings'
 
 const HOST = '127.0.0.1'
@@ -540,8 +541,15 @@ async function provision(
   if (!fs.existsSync(pythonReady)) {
     settingUp('python', 0)
     const tgz = path.join(p.root, 'python.tar.gz')
-    await download(await resolvePythonURL(), tgz, 'the Python runtime', (pct) =>
-      settingUp('python', pct),
+    await downloadPython(
+      pbsTriple(),
+      (url) =>
+        download(url, tgz, 'the Python runtime', (pct) =>
+          settingUp('python', pct),
+        ),
+      resolvePythonURL,
+      (reason) =>
+        logger.warn(`Pinned Python build failed (${reason}); trying latest`),
     )
     await clearQuarantine(tgz)
     await extract(tgz, p.python)
