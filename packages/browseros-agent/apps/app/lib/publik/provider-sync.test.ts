@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import {
   planServerEntry,
+  removePublikEntries,
   retryWithBackoff,
   SYNC_RETRY_DELAYS_MS,
   showConnectButton,
@@ -84,5 +85,71 @@ describe('showConnectButton', () => {
     expect(showConnectButton('publik', null)).toBe(false)
     expect(showConnectButton('own_key', true)).toBe(true)
     expect(showConnectButton(null, null)).toBe(true)
+  })
+})
+
+describe('removePublikEntries (F-091 a)', () => {
+  const publik = {
+    id: 'p1',
+    name: 'publik API',
+    config: { baseURL: 'https://publikhq.com/api/v1' },
+  }
+  const ollama = {
+    id: 'o1',
+    name: 'Ollama',
+    config: { baseURL: 'http://127.0.0.1:11434' },
+  }
+
+  it('deletes only the publik entries', async () => {
+    const deleted: string[] = []
+    const ok = await removePublikEntries(
+      async () => [publik, ollama],
+      async (id) => {
+        deleted.push(id)
+        return true
+      },
+      null,
+    )
+    expect(ok).toBe(true)
+    expect(deleted).toEqual(['p1'])
+  })
+
+  it('reports failure when the server is not ready, so the caller tries again', async () => {
+    expect(
+      await removePublikEntries(
+        async () => null,
+        async () => true,
+        null,
+      ),
+    ).toBe(false)
+    expect(
+      await removePublikEntries(
+        async () => {
+          throw new TypeError('fetch failed')
+        },
+        async () => true,
+        null,
+      ),
+    ).toBe(false)
+  })
+
+  it('reports failure when a delete fails', async () => {
+    expect(
+      await removePublikEntries(
+        async () => [publik],
+        async () => false,
+        null,
+      ),
+    ).toBe(false)
+  })
+
+  it('is done when nothing is listed', async () => {
+    expect(
+      await removePublikEntries(
+        async () => [ollama],
+        async () => false,
+        null,
+      ),
+    ).toBe(true)
   })
 })

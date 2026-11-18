@@ -21,7 +21,10 @@ import type { Block } from '@/lib/simplicity/types'
 import type { Message, Widget } from '@/screens/simplicity/ChatWindow'
 import { getSuggestions } from '../actions'
 import { getAutoMediaSearch } from '../config/clientRegistry'
-import { publikServerProviderIdStorage } from '@/lib/publik/providers'
+import {
+  publikProvidersAppliedAtStorage,
+  publikServerProviderIdStorage,
+} from '@/lib/publik/providers'
 import {
   CHOSEN_CHAT_MODEL_STORAGE_KEY,
   parseChosenChatModel,
@@ -610,6 +613,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
        when it lands. A pick made in another tab (localStorage is shared by
        every app page) applies here too. */
     const unwatch = publikServerProviderIdStorage.watch(() => retryConnection())
+    /* "Use my own key" removes publik from the server after this page has
+       read the list (F-091 a: Windows kept the composer, then failed). */
+    const unwatchApplied = publikProvidersAppliedAtStorage.watch(() =>
+      retryConnection({ quiet: true }),
+    )
     const onStorage = (e: StorageEvent) => {
       if (
         e.key === CHOSEN_CHAT_MODEL_STORAGE_KEY ||
@@ -625,6 +633,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     window.addEventListener(PROVIDERS_CHANGED_EVENT, onProvidersChanged)
     return () => {
       unwatch()
+      unwatchApplied()
       window.removeEventListener('storage', onStorage)
       window.removeEventListener(PROVIDERS_CHANGED_EVENT, onProvidersChanged)
     }
@@ -1038,6 +1047,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       const text = body?.message ?? 'That request failed. Try again.'
       toast.error(errorToastText(text))
       setLoading(false)
+      /* The model may be gone (its connection was removed): look again, so
+         the page says "No AI connection yet" instead of a generic error. */
+      if (res.status >= 500) retryConnection({ quiet: true })
       /* Keep the question on screen with the reason and a Retry, like a
          failed stream: removing it lost what the person typed (F-055). */
       setMessages((prev) =>

@@ -19,6 +19,7 @@ import {
   PROVIDER_SYNC_ALARM,
   PUBLIK_PROVIDER_NAME,
   planServerEntry,
+  removePublikEntries,
   retryWithBackoff,
   type ServerProvider,
   SYNC_RETRY_DELAYS_MS,
@@ -53,6 +54,12 @@ const TIERS: { model: string; name: string }[] = [
 export const publikServerProviderIdStorage = storage.defineItem<string | null>(
   'local:publik-server-provider-id',
   { fallback: null },
+)
+
+/** When the background last applied the choice to the local server. */
+export const publikProvidersAppliedAtStorage = storage.defineItem<number>(
+  'local:publik-providers-applied-at',
+  { fallback: 0 },
 )
 
 async function upsertAgentProvider(baseUrl: string, key: string) {
@@ -164,19 +171,15 @@ async function ensureAnswerEngineProvider(
   }
 }
 
-async function removeAnswerEngineProvider() {
-  try {
-    const listed = await listServerProviders()
-    if (!listed) return
-    const serverId = await publikServerProviderIdStorage.getValue()
-    for (const p of listed) {
-      if (!isPublikServerProvider(p, serverId)) continue
-      await apiFetch(`/api/providers/${p.id}`, { method: 'DELETE' })
-    }
-    await publikServerProviderIdStorage.setValue(null)
-  } catch {
-    /* Best effort: the key is gone from the agent store either way. */
-  }
+async function removeAnswerEngineProvider(): Promise<boolean> {
+  const ok = await removePublikEntries(
+    listServerProviders,
+    async (id) =>
+      (await apiFetch(`/api/providers/${id}`, { method: 'DELETE' })).ok,
+    await publikServerProviderIdStorage.getValue(),
+  )
+  if (ok) await publikServerProviderIdStorage.setValue(null)
+  return ok
 }
 
 async function armSyncAlarm(on: boolean) {
@@ -207,11 +210,26 @@ async function apply(choice: Choice | null): Promise<void> {
       async () => (await choiceStorage.getValue()) === 'publik',
     )
     await armSyncAlarm(!ok && (await choiceStorage.getValue()) === 'publik')
+    await markApplied()
     return
   }
-  await armSyncAlarm(false)
   await removeAgentProvider()
-  await removeAnswerEngineProvider()
+  const removed = await retryWithBackoff(
+    removeAnswerEngineProvider,
+    SYNC_RETRY_DELAYS_MS,
+    async () => (await choiceStorage.getValue()) !== 'publik',
+  )
+  await armSyncAlarm(!removed && (await choiceStorage.getValue()) !== 'publik')
+  await markApplied()
+}
+
+/* The open home re-reads the server's list when this changes. The stored
+   server id alone was not enough: when it was already null, removing the
+   entry changed nothing a page could watch (F-091 a). */
+async function markApplied() {
+  try {
+    await publikProvidersAppliedAtStorage.setValue(Date.now())
+  } catch {}
 }
 
 /** The settings card and the chat call this through the background when the server may have been starting. */

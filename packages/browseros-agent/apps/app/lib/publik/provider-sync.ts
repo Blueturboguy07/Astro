@@ -68,3 +68,33 @@ export const showConnectButton = (
   choice: Choice | null | undefined,
   connected: boolean | null,
 ): boolean => choice !== 'publik' || connected === false
+
+/**
+ * Deletes every publik entry the answer engine lists. False when the server
+ * could not be asked or a delete failed, so the caller tries again: on a
+ * Windows start the server was not ready at "Use my own key", the entry
+ * stayed and the home still offered the publik model (F-091 a).
+ */
+export async function removePublikEntries(
+  list: () => Promise<ServerProvider[] | null>,
+  remove: (id: string) => Promise<boolean>,
+  serverId: string | null,
+): Promise<boolean> {
+  let listed: ServerProvider[] | null
+  try {
+    listed = await list()
+  } catch {
+    return false
+  }
+  if (!listed) return false
+  let ok = true
+  for (const p of listed) {
+    if (!isPublikServerProvider(p, serverId)) continue
+    try {
+      if (!(await remove(p.id))) ok = false
+    } catch {
+      ok = false
+    }
+  }
+  return ok
+}
