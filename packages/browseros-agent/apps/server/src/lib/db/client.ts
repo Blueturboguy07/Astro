@@ -50,10 +50,25 @@ export function openBrowserOsDatabase(options: OpenDbOptions): DbHandle {
   if (options.runMigrations !== false) {
     if (migrationsDir) {
       migrate(db, { migrationsFolder: migrationsDir })
+      /* ~/.browseros is shared with upstream BrowserOS. Its newer migrations
+         (0005 drops agent_definitions) are recorded with later timestamps, so
+         drizzle runs none of ours and GET /agents answered 500 "no such
+         table" on every side panel poll (SIDEPANEL-INPUT-CLEARS). */
+      const missing = missingCurrentTables(sqlite)
+      if (missing.length > 0) {
+        logger.warn('Database lacks current tables; bootstrapping them', {
+          dbPath: options.dbPath,
+          missing,
+        })
+        bootstrapCurrentSchema(sqlite)
+      }
     } else {
-      logger.warn('Drizzle migrations unavailable; bootstrapping current schema', {
-        dbPath: options.dbPath,
-      })
+      logger.warn(
+        'Drizzle migrations unavailable; bootstrapping current schema',
+        {
+          dbPath: options.dbPath,
+        },
+      )
       bootstrapCurrentSchema(sqlite)
     }
   }
@@ -97,7 +112,9 @@ export function resolveMigrationsDir(
 
 /** Accepts only migration folders Drizzle can read without filesystem errors. */
 function hasCompleteMigrationSet(migrationsDir: string): boolean {
-  const journal = readDrizzleJournal(join(migrationsDir, 'meta', '_journal.json'))
+  const journal = readDrizzleJournal(
+    join(migrationsDir, 'meta', '_journal.json'),
+  )
   if (!journal) return false
 
   const journalTags = new Set(journal.entries.map((entry) => entry.tag))
@@ -144,6 +161,20 @@ function isDrizzleJournal(
         typeof entry.tag === 'string',
     )
   )
+}
+
+const CURRENT_TABLES = ['agent_definitions', 'oauth_tokens', 'produced_files']
+
+function missingCurrentTables(sqlite: BunDatabase): string[] {
+  const present = new Set(
+    sqlite
+      .query<{ name: string }, []>(
+        `SELECT name FROM sqlite_master WHERE type = 'table'`,
+      )
+      .all()
+      .map((row) => row.name),
+  )
+  return CURRENT_TABLES.filter((table) => !present.has(table))
 }
 
 /** Creates the current schema when packaged builds lack migration files, and marks those migrations applied. */

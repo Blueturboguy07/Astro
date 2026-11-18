@@ -3,8 +3,8 @@
  * Copyright 2025 BrowserOS
  */
 
-import { afterEach, describe, expect, it } from 'bun:test'
 import { Database as BunDatabase } from 'bun:sqlite'
+import { afterEach, describe, expect, it } from 'bun:test'
 import { existsSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -83,6 +83,49 @@ describe('database initialization', () => {
 
     expect(handle.migrationsDir).not.toBe(packagedMigrationsDir)
     expect(handle.db.select().from(agentDefinitions).all()).toEqual([])
+  })
+
+  it('restores tables that a newer upstream BrowserOS migration dropped (SIDEPANEL-INPUT-CLEARS)', () => {
+    const dir = mkTempDir()
+    const dbPath = join(dir, 'browseros.sqlite')
+    initializeDb({ dbPath })
+    closeDb()
+
+    /* The owner's ~/.browseros DB: upstream 0005 dropped agent_definitions
+       and recorded a later migration, so drizzle runs none of ours. */
+    const shared = new BunDatabase(dbPath)
+    shared.exec('PRAGMA foreign_keys = OFF')
+    shared.exec('DROP TABLE produced_files')
+    shared.exec('DROP TABLE agent_definitions')
+    shared
+      .prepare(
+        'INSERT INTO __drizzle_migrations ("hash", "created_at") VALUES (?, ?)',
+      )
+      .run('upstream-0005', 1788724664440)
+    const rowsBefore = shared
+      .query<{ n: number }, []>(
+        'SELECT count(*) AS n FROM __drizzle_migrations',
+      )
+      .get()?.n
+    shared.close()
+
+    const handle = initializeDb({ dbPath })
+    expect(handle.db.select().from(agentDefinitions).all()).toEqual([])
+    const tables = handle.sqlite
+      .query<{ name: string }, []>(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('agent_definitions', 'produced_files') ORDER BY name`,
+      )
+      .all()
+      .map((row) => row.name)
+    expect(tables).toEqual(['agent_definitions', 'produced_files'])
+    const rowsAfter = handle.sqlite
+      .query<{ n: number }, []>(
+        'SELECT count(*) AS n FROM __drizzle_migrations',
+      )
+      .get()?.n
+    expect(rowsAfter).toBe(rowsBefore)
+    closeDb()
+    expect(() => initializeDb({ dbPath })).not.toThrow()
   })
 
   it('does not rerun old migrations after fallback schema bootstrap', () => {
