@@ -39,6 +39,7 @@ import SearchImages from './SearchImages'
 import SearchVideos from './SearchVideos'
 import ThinkBox from './ThinkBox'
 import Renderer from './Widgets/Renderer'
+import { isPartialStoppedAnswer } from './answer-status'
 
 /* Shown wherever the answer text will land, for as long as the turn is
    running with nothing written yet — the gap between "research done" and the
@@ -389,6 +390,25 @@ const MessageBox = ({
                 </button>
               </div>
             )}
+
+          {/* Stopped after some text: the text is partial (F-089). */}
+          {isPartialStoppedAnswer(
+            section.message.status,
+            section.message.responseBlocks,
+          ) && (
+            <div className="flex items-center gap-3 text-black/60 text-xs dark:text-white/60">
+              <span className="flex-1">
+                Stopped before it finished. The answer above is not complete.
+              </span>
+              <button
+                type="button"
+                onClick={() => rewrite(section.message.messageId)}
+                className="shrink-0 rounded-lg bg-light-200 px-3 py-1.5 font-medium text-black text-xs transition hover:bg-light-300 dark:bg-dark-200 dark:text-white dark:hover:bg-dark-300"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {section.widgets.length > 0 && <Renderer widgets={section.widgets} />}
 

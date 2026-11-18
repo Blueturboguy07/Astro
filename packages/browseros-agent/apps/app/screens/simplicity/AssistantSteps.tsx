@@ -19,6 +19,7 @@ import type {
   ResearchBlock,
   ResearchBlockSubStep,
 } from '@/lib/simplicity/types'
+import { stepsHeaderLabel } from './answer-status'
 
 const pluralize = (count: number, singular: string) =>
   count === 1 ? singular : `${singular}s`
@@ -242,9 +243,7 @@ const AssistantSteps = ({
       s.type === 'notice' && s.level === 'error',
   )
 
-  const headerLabel = isRunning
-    ? `Working · ${stepCount} ${pluralize(stepCount, 'step')} completed`
-    : `Completed · ${stepCount} ${pluralize(stepCount, 'step')}`
+  const headerLabel = stepsHeaderLabel(status, isRunning, stepCount)
 
   return (
     <div className="overflow-hidden rounded-lg border border-light-200 bg-light-secondary dark:border-dark-200 dark:bg-dark-secondary">
