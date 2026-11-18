@@ -14,8 +14,14 @@ Astro has no cloud sync. Astro opens with **Sign in with publik**, but that sign
 - **Theme** and other display settings
 
 <Warning>
-API keys are stored on this computer without encryption (in the browser profile and in the Astro server's settings file). Anyone with access to your user account can read them.
+API keys are stored on this computer without encryption (in the browser profile and in the Astro server's settings file, `~/.browseros/simplicity/config.json`). Only your user account can read the settings file (file mode 0600, folder 0700), but any program that runs as you can read the keys.
 </Warning>
+
+## Your publik Account
+
+- **Switch publik account** is in the logo menu and in Settings → Usage. Astro signs out, and the sign-in page says how to use another account: first sign out on publikhq.com in your browser, then click **Sign in with publik**.
+- **Sign out of publik** is in Settings → Usage.
+- If publik does not answer (busy or down), Astro opens with your last choice and shows "publik is not answering." with **Retry**. Your own keys and local models keep working.
 
 ## Moving to a New Computer
 
@@ -31,4 +37,5 @@ Chrome bookmarks, passwords and history can be imported with `chrome://settings/
 
 - Your questions and page content go to the AI model you chose (your publik plan or your own provider).
 - Web searches in the new tab go to the search engines.
+- Voice input goes to publik (speech to text), with your publik key. It needs a publik plan and is charged to it.
 - Connected apps (Connect Apps) run through a hosted Klavis service at llm.browseros.com, which BrowserOS operates. The app actions you ask for go through it to those apps.
