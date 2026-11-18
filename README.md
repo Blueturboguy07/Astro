@@ -69,10 +69,10 @@ run Astro on top of an installed BrowserOS. About ten minutes:
 
 In short:
 
-1. **Install BrowserOS** — [Windows](https://files.browseros.com/download/BrowserOS_installer.exe) ·
-   [Linux](https://files.browseros.com/download/BrowserOS.AppImage).
-   It is **unsigned on both** — see the guide for how to get past SmartScreen
-   and how to make the AppImage executable.
+1. **Install BrowserOS for Linux** — the
+   [AppImage](https://files.browseros.com/download/BrowserOS.AppImage). It is
+   unsigned: see the guide for how to make it executable. On Windows, do not
+   use this path: install `Astro-Setup.exe` (above).
 2. **Install the toolchain** — Bun 1.3.6, Node 22+, Go, Lima.
 3. **Set it up**, and mind the one trap:
    ```bash

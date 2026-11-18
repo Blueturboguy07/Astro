@@ -60,11 +60,17 @@ packages/
 
 ### Ports
 
-| Port | Sidecar Field | Purpose |
+The browser chooses the ports when it starts and writes them to the sidecar
+config, so an installed Astro can use other numbers than these development
+defaults (a default Windows install used CDP 9100, proxy 9000, server 9200).
+MCP clients use the proxy port: `http://127.0.0.1:<proxy>/mcp`. Settings >
+MCP shows the real URL. Nothing listens on 9002 or 9003.
+
+| Default port | Sidecar Field | Purpose |
 |------|---------------|---------|
 | 9100 | `ports.server` | HTTP server - MCP endpoints, agent chat, health |
-| 9000 | `ports.cdp` | Chromium CDP server (BrowserOS Server connects as client) |
-| 9100 | `ports.proxy` | Browser proxy port emitted by Chromium for managed sidecars |
+| 9000 | `ports.cdp` | Chromium CDP server (the Astro server connects as client) |
+| set by the browser | `ports.proxy` | Browser proxy port for managed sidecars; MCP clients connect here |
 
 ## Development
 
