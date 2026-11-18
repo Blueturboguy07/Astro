@@ -76,6 +76,20 @@ describe('rebrandText', () => {
     ).toBe('<title>Astro Onboarding</title>children:"Astro"')
     expect(rebrandText(Buffer.from('BrowserClawOnboarding()')).changed).toBe(0)
   })
+
+  /* F-091 g: the restore bubble after an unclean exit (en locale pak). */
+  it('renames only the exact crash sentence, not the Chromium credit', () => {
+    const { out, changed } = rebrandText(
+      Buffer.from(
+        "Chromium didn't shut down correctly.Chromium open source project",
+      ),
+    )
+    expect(out.toString()).toBe(
+      "Astro didn't shut down correctly.Chromium open source project",
+    )
+    expect(changed).toBe(1)
+    expect(rebrandText(Buffer.from('Chromium page')).changed).toBe(0)
+  })
 })
 
 describe('rebrandPakBuffer + selfTestRebrand', () => {

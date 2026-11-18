@@ -45,6 +45,17 @@ import * as zlib from 'node:zlib'
    showed "BrowserClaw Onboarding" (Astro 0.2.4 QA, F-010). */
 const BRAND_FROM = /(?<![A-Za-z_])Browser(?:OS|Claw)(?![A-Za-z0-9_])/g
 const BRAND_TO = 'Astro'
+/* F-091 g: after an unclean exit the restore bubble says "Chromium didn't
+   shut down correctly." (locale paks, English). Only these exact English
+   sentences are renamed: elsewhere "Chromium" is often the open-source
+   credit and stays. Other languages keep their own text. */
+export const PHRASE_REBRANDS: ReadonlyArray<readonly [string, string]> = [
+  ["Chromium didn't shut down correctly", "Astro didn't shut down correctly"],
+]
+
+function countOf(text: string, phrase: string): number {
+  return text.split(phrase).length - 1
+}
 const I18N_KEY = /\$i18n[A-Za-z]*\{([^}]*)\}/g
 
 function i18nKeys(text: string): string[] {
@@ -167,13 +178,17 @@ function looksText(buf: Buffer): boolean {
 
 export function rebrandText(buf: Buffer): { out: Buffer; changed: number } {
   if (!looksText(buf)) return { out: buf, changed: 0 }
-  const s = buf.toString('latin1')
-  const m = s.match(BRAND_FROM)
-  if (!m) return { out: buf, changed: 0 }
-  return {
-    out: Buffer.from(s.replace(BRAND_FROM, BRAND_TO), 'latin1'),
-    changed: m.length,
+  let s = buf.toString('latin1')
+  let changed = s.match(BRAND_FROM)?.length ?? 0
+  s = s.replace(BRAND_FROM, BRAND_TO)
+  for (const [from, to] of PHRASE_REBRANDS) {
+    const n = countOf(s, from)
+    if (!n) continue
+    changed += n
+    s = s.split(from).join(to)
   }
+  if (!changed) return { out: buf, changed: 0 }
+  return { out: Buffer.from(s, 'latin1'), changed }
 }
 
 export function rebrandPakBuffer(buf: Uint8Array): {
@@ -246,7 +261,12 @@ export function selfTestRebrand(orig: Uint8Array, next: Uint8Array): string[] {
       continue
     }
     const text = d.text.toString('latin1')
-    if (text.match(BRAND_FROM)) residual++
+    if (
+      text.match(BRAND_FROM) ||
+      PHRASE_REBRANDS.some(([from]) => text.includes(from))
+    ) {
+      residual++
+    }
     const before = a.items[i] ? decode(a.items[i].data) : null
     if (
       before &&
