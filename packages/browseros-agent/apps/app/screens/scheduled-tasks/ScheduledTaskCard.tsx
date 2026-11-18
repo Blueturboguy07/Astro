@@ -143,7 +143,11 @@ export const ScheduledTaskCard: FC<ScheduledTaskCardProps> = ({
                   {providerInfo.type === 'browseros' ? (
                     <AstroIcon size={12} />
                   ) : (
-                    <ProviderIcon type={providerInfo.type} size={12} />
+                    <ProviderIcon
+                      type={providerInfo.type}
+                      providerId={job.providerId}
+                      size={12}
+                    />
                   )}
                   {providerInfo.name}
                 </span>

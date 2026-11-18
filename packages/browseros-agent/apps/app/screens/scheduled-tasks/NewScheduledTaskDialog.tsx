@@ -380,6 +380,7 @@ export const NewScheduledTaskDialog: FC<NewScheduledTaskDialogProps> = ({
                         ) : (
                           <ProviderIcon
                             type={resolvedProvider.type as ProviderType}
+                            providerId={resolvedProvider.id}
                             size={16}
                           />
                         )}
