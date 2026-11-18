@@ -7,6 +7,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
+import { agentAction } from './agent-action'
 import { presentationFor } from './integrations-section.helpers'
 import {
   type McpAgentRow,
@@ -27,6 +28,12 @@ export const IntegrationsSection: FC<IntegrationsSectionProps> = ({
   const install = useInstallAgent(serverUrl)
   const uninstall = useUninstallAgent()
   const [errors, setErrors] = useState<Record<string, string | null>>({})
+  const [manualOpen, setManualOpen] = useState(false)
+  const [manualClient, setManualClient] = useState<string | undefined>()
+  const openManualSetup = (agentId: string) => {
+    setManualClient(agentId)
+    setManualOpen(true)
+  }
 
   const clearError = (agentId: string) =>
     setErrors((prev) => ({ ...prev, [agentId]: null }))
@@ -126,13 +133,14 @@ export const IntegrationsSection: FC<IntegrationsSectionProps> = ({
                 canConnect={serverUrl !== null}
                 onInstall={handleInstall}
                 onUninstall={handleUninstall}
+                onManualSetup={openManualSetup}
               />
             </Fragment>
           ))}
         </div>
       )}
 
-      <Collapsible>
+      <Collapsible open={manualOpen} onOpenChange={setManualOpen}>
         <CollapsibleTrigger asChild>
           <Button
             variant="ghost"
@@ -144,7 +152,10 @@ export const IntegrationsSection: FC<IntegrationsSectionProps> = ({
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="pt-3">
-          <QuickSetupSection serverUrl={serverUrl} />
+          <QuickSetupSection
+            serverUrl={serverUrl}
+            initialClient={manualClient}
+          />
         </CollapsibleContent>
       </Collapsible>
     </section>
@@ -159,6 +170,7 @@ interface AgentRowProps {
   canConnect: boolean
   onInstall: (id: string) => void
   onUninstall: (id: string) => void
+  onManualSetup: (id: string) => void
 }
 
 const AgentRow: FC<AgentRowProps> = ({
@@ -168,9 +180,11 @@ const AgentRow: FC<AgentRowProps> = ({
   canConnect,
   onInstall,
   onUninstall,
+  onManualSetup,
 }) => {
   const presentation = presentationFor(agent.id)
   const Mark = presentation.mark
+  const action = agentAction(agent)
 
   return (
     <div
@@ -201,6 +215,12 @@ const AgentRow: FC<AgentRowProps> = ({
             <span className="text-muted-foreground text-xs">Not installed</span>
           )}
         </div>
+        {action === 'manual' && (
+          <p className="mt-1 text-muted-foreground text-xs">
+            No one-click Connect: {presentation.label} needs Node.js and the
+            manual setup snippet.
+          </p>
+        )}
         {error && (
           <p className="mt-1 flex items-start gap-1 text-destructive text-xs">
             <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
@@ -210,7 +230,7 @@ const AgentRow: FC<AgentRowProps> = ({
       </div>
 
       <div className="shrink-0">
-        {!agent.installed && presentation.installUrl && (
+        {action === 'get' && presentation.installUrl && (
           <Button
             asChild
             variant="ghost"
@@ -227,7 +247,16 @@ const AgentRow: FC<AgentRowProps> = ({
             </a>
           </Button>
         )}
-        {agent.installed && !agent.linked && (
+        {action === 'manual' && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onManualSetup(agent.id)}
+          >
+            Manual setup
+          </Button>
+        )}
+        {action === 'connect' && (
           <Button
             size="sm"
             disabled={busy || !canConnect}
@@ -242,7 +271,7 @@ const AgentRow: FC<AgentRowProps> = ({
             Connect
           </Button>
         )}
-        {agent.installed && agent.linked && (
+        {action === 'disconnect' && (
           <Button
             variant="ghost"
             size="sm"

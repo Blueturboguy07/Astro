@@ -7,6 +7,8 @@ export interface McpAgentRow {
   installed: boolean
   linked: boolean
   configPath: string | null
+  /** 'manual': no one-click Connect (Claude Desktop needs Node.js). */
+  setup?: 'one-click' | 'manual'
 }
 
 interface ListAgentsResponse {

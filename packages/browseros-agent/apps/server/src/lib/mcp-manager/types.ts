@@ -22,6 +22,8 @@ export interface McpAgentRow {
   linked: boolean
   /** Absolute path of the agent's config file (when resolvable). */
   configPath: string | null
+  /** 'manual': no one-click Connect; the UI points to the manual snippet. */
+  setup: 'one-click' | 'manual'
 }
 
 export interface InstallAgentResult {

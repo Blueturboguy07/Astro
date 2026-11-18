@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export interface QuickSetupSectionProps {
   serverUrl: string | null
+  /** The snippet tab to show first, e.g. 'claude-desktop'. */
+  initialClient?: string
 }
 
 interface ClientConfig {
@@ -124,6 +126,7 @@ const CopyButton: FC<{ text: string; label?: string }> = ({ text, label }) => {
 
 export const QuickSetupSection: FC<QuickSetupSectionProps> = ({
   serverUrl,
+  initialClient,
 }) => {
   if (!serverUrl) return null
 
@@ -143,7 +146,7 @@ export const QuickSetupSection: FC<QuickSetupSectionProps> = ({
         <CopyButton text={serverUrl} label="Copy server URL" />
       </div>
 
-      <Tabs defaultValue="generic">
+      <Tabs key={initialClient} defaultValue={initialClient ?? 'generic'}>
         <TabsList className="flex-wrap">
           {clients.map((client) => (
             <TabsTrigger key={client.id} value={client.id}>

@@ -59,6 +59,9 @@ export type DetectInstalledAgentsFn = () => Promise<AgentInfo[]>
  *   bridge needs Node on the user's machine.
  *
  * Both remain reachable via the manual setup snippet on the same page.
+ * Claude Desktop still gets a row when it is installed (MANUAL_SETUP_AGENTS),
+ * so the person sees it and its button opens that snippet (Astro 0.2.4 QA,
+ * INV-SET-39).
  */
 export const CURATED_AGENTS: readonly AgentId[] = [
   'claude-code',
@@ -69,6 +72,9 @@ export const CURATED_AGENTS: readonly AgentId[] = [
   'vscode',
   'zed',
 ]
+
+/** Detected agents shown with a "Manual setup" button instead of Connect. */
+export const MANUAL_SETUP_AGENTS: readonly AgentId[] = ['claude-desktop']
 
 /**
  * The two server-names BrowserOS manages in the manifest. Every
@@ -129,7 +135,9 @@ export async function listAgents(
   const detectedById = new Map(detectedRaw.map((a) => [a.id, a]))
 
   const rows: McpAgentRow[] = []
-  for (const id of CURATED_AGENTS) {
+  const setupOf = (id: AgentId): McpAgentRow['setup'] =>
+    MANUAL_SETUP_AGENTS.includes(id) ? 'manual' : 'one-click'
+  for (const id of [...CURATED_AGENTS, ...MANUAL_SETUP_AGENTS]) {
     const detected = detectedById.get(id)
     const link = linkedByAgent.get(id)
     const linked = link !== undefined
@@ -145,6 +153,7 @@ export async function listAgents(
       installed,
       linked,
       configPath: link?.configPath ?? detected?.configPath ?? null,
+      setup: setupOf(id),
     })
   }
   return rows

@@ -122,9 +122,9 @@ describe('listAgents', () => {
   })
 
   it('does not surface non-curated agents even when detected on disk', async () => {
-    // Gemini CLI and Claude Desktop are supported by the upstream
-    // catalog but deliberately excluded from the one-click set. The
-    // curated allow-list is what keeps them out of the panel.
+    // Gemini CLI is supported by the upstream catalog but deliberately
+    // excluded from the one-click set. Claude Desktop is shown with a
+    // manual-setup row instead of Connect (INV-SET-39).
     stubAgents = [
       agent('claude-code', 'Claude Code', true),
       agent('gemini', 'Gemini CLI', true),
@@ -133,6 +133,19 @@ describe('listAgents', () => {
     const stub = createStubMcpManager()
     setMcpManagerForTesting(stub)
 
+    const rows = await listAgents({ detect: stubDetect })
+    expect(rows.map((r) => [r.id, r.setup])).toEqual([
+      ['claude-code', 'one-click'],
+      ['claude-desktop', 'manual'],
+    ])
+  })
+
+  it('shows no Claude Desktop row when Claude Desktop is not installed', async () => {
+    stubAgents = [
+      agent('claude-code', 'Claude Code', true),
+      agent('claude-desktop', 'Claude Desktop', false),
+    ]
+    setMcpManagerForTesting(createStubMcpManager())
     const rows = await listAgents({ detect: stubDetect })
     expect(rows.map((r) => r.id)).toEqual(['claude-code'])
   })
