@@ -2,6 +2,7 @@ import z from 'zod/v4';
 import { ResearchAction } from '../../../types';
 import { ResearchBlock } from '../../../../../types';
 import { executeSearch } from './baseSearch';
+import { DISCUSSION_ENGINES } from '../../verticals';
 
 const schema = z.object({
   queries: z.array(z.string()).describe('List of social search queries'),
@@ -48,7 +49,7 @@ const socialSearchAction: ResearchAction<typeof schema> = {
       researchBlock: researchBlock,
       session: additionalConfig.session,
       searchConfig: {
-        engines: ['reddit'],
+        engines: DISCUSSION_ENGINES,
       },
     });
 

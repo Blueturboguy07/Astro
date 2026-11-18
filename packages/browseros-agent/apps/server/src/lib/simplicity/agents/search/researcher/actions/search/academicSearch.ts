@@ -2,6 +2,7 @@ import z from 'zod/v4';
 import { ResearchAction } from '../../../types';
 import { ResearchBlock } from '../../../../../types';
 import { executeSearch } from './baseSearch';
+import { ACADEMIC_ENGINES } from '../../verticals';
 
 const schema = z.object({
   queries: z.array(z.string()).describe('List of academic search queries'),
@@ -48,7 +49,7 @@ const academicSearchAction: ResearchAction<typeof schema> = {
       researchBlock: researchBlock,
       session: additionalConfig.session,
       searchConfig: {
-        engines: ['arxiv', 'google scholar', 'pubmed'],
+        engines: ACADEMIC_ENGINES,
       },
     });
 

@@ -9,9 +9,14 @@ import uploadsSearchAction from './actions/uploadsSearch';
 import { planQueries, refineQueries } from './queryPlanner';
 import SessionManager from '../../../session';
 import { Chunk, ResearchBlock } from '../../../types';
-import { SearxngSearchOptions } from '../../../searxng';
 import { SearchReport } from '../../../search-report';
 import { runPublikFallback } from './publik-fallback';
+import {
+  DISCUSSION_SITE,
+  emptySourceNotice,
+  pickVerticals,
+  type VerticalName,
+} from './verticals';
 
 /* Deterministic, code-driven research.
  *
@@ -23,11 +28,6 @@ import { runPublikFallback } from './publik-fallback';
  * question), code runs the searches, and a model is consulted between rounds
  * only to decide whether MORE searching would help — never whether searching
  * happens at all. */
-
-type Vertical = {
-  name: string;
-  searchConfig?: SearxngSearchOptions;
-};
 
 const ROUNDS: Record<'speed' | 'balanced' | 'quality', number> = {
   speed: 1,
@@ -84,51 +84,62 @@ class Researcher {
     /* Which verticals to fan out to. Web runs whenever it is enabled; the
        classifier can only ADD verticals (academic, discussions), never remove
        web retrieval. */
-    const verticals: Vertical[] = [];
-    if (input.config.sources.includes('web')) {
-      verticals.push({ name: 'web' });
-    }
-    if (
-      input.config.sources.includes('academic') &&
-      input.classification.classification.academicSearch
-    ) {
-      verticals.push({
-        name: 'academic',
-        searchConfig: { engines: ['arxiv', 'google scholar', 'pubmed'] },
-      });
-    }
-    if (
-      input.config.sources.includes('discussions') &&
-      input.classification.classification.discussionSearch
-    ) {
-      verticals.push({
-        name: 'discussions',
-        searchConfig: { engines: ['reddit'] },
-      });
-    }
-    if (verticals.length === 0) {
-      verticals.push({ name: 'web' });
-    }
+    const verticals = pickVerticals(
+      input.config.sources,
+      input.classification.classification,
+    );
+
+    /* Hits per vertical over the whole turn, so a source the person chose
+       that gave nothing is said plainly (F-076). */
+    const verticalHits = new Map<VerticalName, number>();
+    const discussionFallback = { tried: false, hits: 0 };
 
     const runVerticals = async (
       queries: string[],
       overrideMode?: SearchAgentConfig['mode'],
     ) => {
+      const search = (
+        searchConfig: (typeof verticals)[number]['searchConfig'],
+        searchQueries: string[],
+        site?: string,
+      ) =>
+        executeSearch({
+          llm: utilityLLM,
+          embedding: input.config.embedding,
+          mode: overrideMode ?? mode,
+          queries: searchQueries,
+          researchBlock: block,
+          session,
+          searchConfig,
+          report,
+          site,
+        });
+
       const results = await Promise.all(
         verticals.map(async (vertical) => {
           try {
-            return await executeSearch({
-              llm: utilityLLM,
-              embedding: input.config.embedding,
-              mode: overrideMode ?? mode,
-              queries,
-              researchBlock: block,
-              session,
-              searchConfig: vertical.searchConfig,
-              report,
-            });
+            const found = await search(vertical.searchConfig, queries);
+            verticalHits.set(
+              vertical.name,
+              (verticalHits.get(vertical.name) ?? 0) + found.length,
+            );
+            /* Reddit refused or found nothing: the same questions on the
+               general web engines, limited to reddit.com (once a turn). */
+            if (
+              found.length === 0 &&
+              vertical.name === 'discussions' &&
+              !discussionFallback.tried &&
+              !input.config.signal?.aborted
+            ) {
+              discussionFallback.tried = true;
+              const viaWeb = await search(undefined, queries, DISCUSSION_SITE);
+              discussionFallback.hits += viaWeb.length;
+              return viaWeb;
+            }
+            return found;
           } catch (err) {
             console.error(`Search vertical '${vertical.name}' failed:`, err);
+            verticalHits.set(vertical.name, verticalHits.get(vertical.name) ?? 0);
             return [] as Chunk[];
           }
         }),
@@ -289,6 +300,27 @@ class Researcher {
 
         if (!refinement) break;
         plan = refinement;
+      }
+    }
+
+    if (!input.config.signal?.aborted) {
+      for (const vertical of verticals) {
+        /* Only a source that ran and found nothing. */
+        const hits = verticalHits.get(vertical.name);
+        if (vertical.name === 'web' || hits === undefined || hits > 0) continue;
+        block.data.subSteps.push({
+          id: crypto.randomUUID(),
+          type: 'notice',
+          level: 'error',
+          text: emptySourceNotice(
+            vertical.name,
+            report.failure().engines,
+            vertical.name === 'discussions' ? discussionFallback.hits : undefined,
+          ),
+        });
+        session.updateBlock(researchBlockId, [
+          { op: 'replace', path: '/data/subSteps', value: block.data.subSteps },
+        ]);
       }
     }
 

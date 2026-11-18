@@ -11,6 +11,7 @@ import { splitText } from '../../../../../utils/splitText';
 import { ensureWebSearchReady } from './webSearchSetup';
 import { words } from '../../../../../uploads/keyword-score';
 import type { SearchReport } from '../../../../../search-report';
+import { onSite } from '../../verticals';
 
 type SearchHit = Awaited<ReturnType<typeof searchSearxng>>['results'][number];
 
@@ -114,8 +115,16 @@ export const executeSearch = async (input: {
   embedding: BaseEmbedding<any>;
   /* Collects engine failures and usable-hit counts for the turn (F-088). */
   report?: SearchReport;
+  /* Limit the search to one site ("reddit.com"): SearXNG gets
+     "<query> site:<site>", hits on other sites are dropped (some engines
+     ignore the operator), and hits are ranked by the plain query (F-076). */
+  site?: string;
 }) => {
   const researchBlock = input.researchBlock;
+  const site = input.site;
+  const searxngQuery = (q: string) => (site ? `${q} site:${site}` : q);
+  const onTheSite = (hits: SearchHit[]) =>
+    site ? hits.filter((h) => onSite(h.url, site)) : hits;
 
   if (!(await ensureWebSearchReady(researchBlock, input.session))) {
     input.report?.noteError('The local search engine could not start');
@@ -148,7 +157,7 @@ export const executeSearch = async (input: {
       let res: Awaited<ReturnType<typeof searchSearxng>>;
 
       try {
-        res = await searchSearxng(q, {
+        res = await searchSearxng(searxngQuery(q), {
           ...(input.searchConfig ? input.searchConfig : {}),
         });
       } catch (err) {
@@ -159,7 +168,11 @@ export const executeSearch = async (input: {
 
       input.report?.noteEngines(res.unresponsive);
 
-      const resultChunks = await scoreResults(q, res.results, input.embedding);
+      const resultChunks = await scoreResults(
+        q,
+        onTheSite(res.results),
+        input.embedding,
+      );
       input.report?.noteUsable(resultChunks.length);
       results.push(...resultChunks);
 
@@ -258,7 +271,7 @@ export const executeSearch = async (input: {
       let res: Awaited<ReturnType<typeof searchSearxng>>;
 
       try {
-        res = await searchSearxng(q, {
+        res = await searchSearxng(searxngQuery(q), {
           ...(input.searchConfig ? input.searchConfig : {}),
         });
       } catch (err) {
@@ -271,7 +284,7 @@ export const executeSearch = async (input: {
 
       let resultChunks: Chunk[] = [];
 
-      resultChunks = res.results.filter((r) => openableUrl(r.url)).map((r) => {
+      resultChunks = onTheSite(res.results).filter((r) => openableUrl(r.url)).map((r) => {
         const content = r.content || r.title;
 
         return {
