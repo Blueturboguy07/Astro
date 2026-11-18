@@ -1,7 +1,7 @@
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,11 +11,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { ACCOUNT_API, PUBLIK_ACCOUNT_PATH } from '@/lib/auth/account-route'
 import { getAuthClient, useSession } from '@/lib/auth/auth-client'
 
 type LoginState = 'idle' | 'loading' | 'error'
 
-export const LoginPage: FC = () => {
+/* F-032: without an account API, "Continue with Google" signed in to the
+   BrowserOS account (redirect_uri on api.browseros.com). An Astro build
+   signs in with publik at start; #/login shows the publik account, and no
+   auth client is created. */
+export const LoginPage: FC = () =>
+  ACCOUNT_API ? (
+    <AccountLoginPage />
+  ) : (
+    <Navigate to={PUBLIK_ACCOUNT_PATH} replace />
+  )
+
+const AccountLoginPage: FC = () => {
   const navigate = useNavigate()
   const { data: session, isPending } = useSession()
   const [state, setState] = useState<LoginState>('idle')

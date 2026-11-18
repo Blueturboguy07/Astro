@@ -1,4 +1,4 @@
-import { ChevronDown, ExternalLink, LogOut } from 'lucide-react'
+import { ArrowLeftRight, ChevronDown, ExternalLink, LogOut } from 'lucide-react'
 import type { FC } from 'react'
 import { useNavigate } from 'react-router'
 import ProductLogo from '@/assets/product_logo.svg'
@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SWITCH_ACCOUNT_PATH } from '@/lib/auth/account-route'
 import { publikLink } from '@/lib/publik/publik'
 import { usePublikAccount } from '@/lib/publik/useGate'
 import { cn } from '@/lib/utils'
@@ -89,6 +90,12 @@ export const PublikBranding: FC<{ expanded?: boolean }> = ({
           >
             <ExternalLink className="mr-2 size-4" />
             Manage your publik account
+          </DropdownMenuItem>
+          {/* F-022: sign out, then the gate, with a note on how to sign in
+              with another publik account. */}
+          <DropdownMenuItem onClick={() => navigate(SWITCH_ACCOUNT_PATH)}>
+            <ArrowLeftRight className="mr-2 size-4" />
+            Switch publik account
           </DropdownMenuItem>
           {/* A real publik sign-out: the key is revoked and the gate shows
               again (F-086). */}

@@ -1,6 +1,8 @@
-import { ExternalLink } from 'lucide-react'
+import { ArrowLeftRight, ExternalLink, LogOut } from 'lucide-react'
 import { type FC, useEffect } from 'react'
+import { Link } from 'react-router'
 import { PUBLIK_DASHBOARD_URL } from '@/components/sidebar/PublikBranding'
+import { SWITCH_ACCOUNT_PATH } from '@/lib/auth/account-route'
 import { PublikIcon } from '@/lib/llm-providers/providerIcons'
 import { publikLink } from '@/lib/publik/publik'
 import { refreshPublikAccount, usePublikAccount } from '@/lib/publik/useGate'
@@ -44,6 +46,26 @@ export const PublikUsage: FC = () => {
           Manage on publikhq.com
         </a>
       </div>
+      {/* F-022: the settings pages have no account menu; the account page
+          offers the switch and the sign-out too. */}
+      {account && (
+        <div className="flex flex-row flex-wrap items-center gap-3">
+          <Link
+            to={SWITCH_ACCOUNT_PATH}
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-medium text-sm hover:bg-muted/50"
+          >
+            <ArrowLeftRight className="size-4" />
+            Switch publik account
+          </Link>
+          <Link
+            to="/logout"
+            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-medium text-destructive text-sm hover:bg-destructive/5"
+          >
+            <LogOut className="size-4" />
+            Sign out of publik
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

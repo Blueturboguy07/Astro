@@ -12,7 +12,7 @@ import {
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import { z } from 'zod/v3'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -32,6 +32,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { ACCOUNT_API, PUBLIK_ACCOUNT_PATH } from '@/lib/auth/account-route'
 import { useSessionInfo } from '@/lib/auth/sessionStorage'
 import { env } from '@/lib/env'
 import { getQueryKeyFromDocument } from '@/lib/graphql/getQueryKeyFromDocument'
@@ -52,7 +53,16 @@ type FormValues = z.infer<typeof formSchema>
 
 type ProfileState = 'idle' | 'loading' | 'success' | 'error'
 
-export const ProfilePage: FC = () => {
+/* F-032: the BrowserOS profile (name, avatar upload to the account API)
+   does not exist in an Astro build; #/profile shows the publik account. */
+export const ProfilePage: FC = () =>
+  ACCOUNT_API ? (
+    <AccountProfilePage />
+  ) : (
+    <Navigate to={PUBLIK_ACCOUNT_PATH} replace />
+  )
+
+const AccountProfilePage: FC = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { sessionInfo, isLoading: isSessionLoading } = useSessionInfo()
