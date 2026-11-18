@@ -22,6 +22,11 @@ mock.module(
   () => import('../../../lib/publik/limit-error'),
 )
 
+mock.module(
+  '@/lib/publik/use-minute-tick',
+  () => import('../../../lib/publik/use-minute-tick'),
+)
+
 mock.module('@/lib/publik/publik', () => ({
   publikLink: (url: unknown) =>
     typeof url === 'string' && url.startsWith('https://publikhq.com/')

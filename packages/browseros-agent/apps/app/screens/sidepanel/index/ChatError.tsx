@@ -3,6 +3,7 @@ import type { FC } from 'react'
 import { Button } from '@/components/ui/button'
 import { parsePublikLimitError } from '@/lib/publik/limit-error'
 import { publikLink } from '@/lib/publik/publik'
+import { useMinuteTick } from '@/lib/publik/use-minute-tick'
 
 export interface ChatErrorProps {
   error: Error
@@ -147,6 +148,7 @@ export const ChatError: FC<ChatErrorProps> = ({
     isModelIdle,
     title,
   } = parseErrorMessage(error.message, providerType)
+  useMinuteTick(!!isPublikLimit)
 
   const getTitle = () => {
     if (title) return title
