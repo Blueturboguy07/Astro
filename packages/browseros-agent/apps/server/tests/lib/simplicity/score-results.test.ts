@@ -252,6 +252,22 @@ describe('rankByWords: distinctive words only (UC-29)', () => {
     ])
   })
 
+  it('with a real embedding, a hit without "PEP 8" is dropped (Ollama run)', async () => {
+    const q = 'PEP 8 summary 2026'
+    /* Every hit embeds close to the query: the embedding alone kept junk. */
+    const near = new FixedEmbedding({ [q]: [1, 0] })
+    near.embedText = async (texts: string[]) => texts.map(() => [1, 0.05])
+    const out = await scoreResults(q, pepHits, near)
+    expect(out.map((c) => c.metadata.url)).toEqual([
+      'https://peps.python.org/pep-0008/',
+      'https://realpython.com/python-pep8/',
+    ])
+    /* A query without a numbered name keeps every close hit. */
+    expect(
+      await scoreResults('python style guide', pepHits, near),
+    ).toHaveLength(pepHits.length)
+  })
+
   it('a year or a generic word never counts; "PEP 8" counts as one term', () => {
     expect(titles('six main rules PEP 8 2026')).toEqual([
       'PEP 8 – Style Guide for Python Code',

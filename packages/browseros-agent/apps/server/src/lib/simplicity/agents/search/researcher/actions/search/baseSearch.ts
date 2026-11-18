@@ -129,6 +129,16 @@ export const scoreResults = async (
   embedding: BaseEmbedding<any>,
 ): Promise<Chunk[]> => {
   hits = hits.filter((h) => openableUrl(h.url));
+  /* A numbered name ("PEP 8") must be in the hit on the embedding path
+     too: with Ollama embeddings the PepsiCo, PEP-Web and pep.com.cn pages
+     scored above 0.5 for "PEP 8 summary 2026" and were cited (UC-29). */
+  const pairs = numberedTerms(query);
+  if (pairs.length > 0) {
+    hits = hits.filter((h) => {
+      const text = `${h.title} ${h.content ?? ''} ${h.url}`.toLowerCase();
+      return pairs.some((re) => re.test(text));
+    });
+  }
   try {
     const queryEmbedding = (await embedding.embedText([query]))[0];
     if (!queryEmbedding?.some((v) => v !== 0)) return rankByWords(query, hits);
