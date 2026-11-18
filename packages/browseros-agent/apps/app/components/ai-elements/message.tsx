@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { CODE_BLOCK_ALWAYS_RENDERED } from './code-block-style'
 
 const themes = ['catppuccin-latte', 'catppuccin-mocha'] as [
   BundledTheme,
@@ -348,6 +349,7 @@ export const MessageResponse = memo(
     <Streamdown
       className={cn(
         'size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_[data-streamdown="code-block"]]:w-[calc(100vw-64px)]! [&_[data-streamdown="table-wrapper"]]:w-[calc(100vw-64px)]!',
+        CODE_BLOCK_ALWAYS_RENDERED,
         className,
       )}
       shikiTheme={themes}
