@@ -2,6 +2,7 @@ import { ArrowUp, Square } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import TextareaAutosize from 'react-textarea-autosize'
 import { useChat } from '@/lib/simplicity/hooks/useChat'
+import { enterAction, HOLD_HINT } from './composer-enter'
 import ModelSelector from './MessageInputActions/ChatModelSelector'
 import ModeSelector from './MessageInputActions/ModeSelector'
 import PlusMenu from './MessageInputActions/PlusMenu'
@@ -41,6 +42,12 @@ const MessageInput = () => {
   const { loading, sendMessage, stopGeneration } = useChat()
 
   const [message, setMessage] = useState('')
+  /* Enter was pressed while the answer streamed: say why nothing was sent. */
+  const [held, setHeld] = useState(false)
+
+  useEffect(() => {
+    if (!loading) setHeld(false)
+  }, [loading])
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -80,7 +87,9 @@ const MessageInput = () => {
            (no stray newline) until the answer ends (F-063). */
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault()
-          if (loading || !message.trim()) return
+          const action = enterAction(loading, message)
+          if (action === 'hold') setHeld(true)
+          if (action !== 'send') return
           sendMessage(message)
           setMessage('')
         }
@@ -114,6 +123,14 @@ const MessageInput = () => {
           />
         </div>
       </div>
+      {held && loading && (
+        <p
+          role="status"
+          className="px-2 pt-2 text-black/60 text-xs dark:text-white/60"
+        >
+          {HOLD_HINT}
+        </p>
+      )}
     </form>
   )
 }

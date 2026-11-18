@@ -11,6 +11,11 @@ import { type Section, useChat } from '@/lib/simplicity/hooks/useChat'
 import type { SourceBlock } from '@/lib/simplicity/types'
 import { formatTimeDifference } from '@/lib/simplicity/utils'
 import DeleteChat from './DeleteChat'
+import {
+  answerMarkdown,
+  exportFileName,
+  writeThreadPdf,
+} from './thread-export'
 
 const downloadFile = (filename: string, content: string, type: string) => {
   const blob = new Blob([content], { type })
@@ -26,161 +31,56 @@ const downloadFile = (filename: string, content: string, type: string) => {
   }, 0)
 }
 
-const exportAsMarkdown = (sections: Section[], title: string) => {
-  const date = new Date(
-    sections[0].message.createdAt || Date.now(),
-  ).toLocaleString()
-  let md = `# 💬 Chat Export: ${title}\n\n`
-  md += `*Exported on: ${date}*\n\n---\n`
+const sourceUrls = (section: Section): string[] => {
+  const block = section.message.responseBlocks.find(
+    (b) => b.type === 'source',
+  ) as SourceBlock | undefined
+  return (block?.data ?? []).map((src: any) => src.metadata?.url || '')
+}
 
-  sections.forEach((section, _idx) => {
+/* "Exported on" said the chat's start time (Astro 0.2.4 QA, F-063). */
+const exportAsMarkdown = (sections: Section[], title: string) => {
+  let md = `# 💬 Chat Export: ${title}\n\n`
+  md += `*Exported on: ${new Date().toLocaleString()}*\n\n---\n`
+
+  sections.forEach((section) => {
     md += `\n---\n`
-    md += `**🧑 User**  
-`
+    md += `**🧑 User**  \n`
     md += `*${new Date(section.message.createdAt).toLocaleString()}*\n\n`
     md += `> ${section.message.query.replace(/\n/g, '\n> ')}\n`
 
     if (section.message.responseBlocks.length > 0) {
       md += `\n---\n`
-      md += `**🤖 Assistant**  
-`
+      md += `**🤖 Assistant**  \n`
       md += `*${new Date(section.message.createdAt).toLocaleString()}*\n\n`
-      md += `> ${section.message.responseBlocks
-        .filter((b) => b.type === 'text')
-        .map((block) => block.data)
-        .join('\n')
-        .replace(/\n/g, '\n> ')}\n`
+      md += `> ${answerMarkdown(section.message.responseBlocks).replace(/\n/g, '\n> ')}\n`
     }
 
-    const sourceResponseBlock = section.message.responseBlocks.find(
-      (block) => block.type === 'source',
-    ) as SourceBlock | undefined
-
-    if (sourceResponseBlock?.data && sourceResponseBlock.data.length > 0) {
+    const urls = sourceUrls(section)
+    if (urls.length > 0) {
       md += `\n**Citations:**\n`
-      sourceResponseBlock.data.forEach((src: any, i: number) => {
-        const url = src.metadata?.url || ''
+      urls.forEach((url, i) => {
         md += `- [${i + 1}] [${url}](${url})\n`
       })
     }
   })
   md += '\n---\n'
-  downloadFile(`${title || 'chat'}.md`, md, 'text/markdown')
+  downloadFile(exportFileName(title, 'md'), md, 'text/markdown')
 }
 
 const exportAsPDF = (sections: Section[], title: string) => {
   const doc = new jsPDF()
-  const date = new Date(
-    sections[0]?.message?.createdAt || Date.now(),
-  ).toLocaleString()
-  let y = 15
-  const pageHeight = doc.internal.pageSize.height
-  doc.setFontSize(18)
-  doc.text(`Chat Export: ${title}`, 10, y)
-  y += 8
-  doc.setFontSize(11)
-  doc.setTextColor(100)
-  doc.text(`Exported on: ${date}`, 10, y)
-  y += 8
-  doc.setDrawColor(200)
-  doc.line(10, y, 200, y)
-  y += 6
-  doc.setTextColor(30)
-
-  sections.forEach((section, _idx) => {
-    if (y > pageHeight - 30) {
-      doc.addPage()
-      y = 15
-    }
-    doc.setFont('helvetica', 'bold')
-    doc.text('User', 10, y)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(120)
-    doc.text(`${new Date(section.message.createdAt).toLocaleString()}`, 40, y)
-    y += 6
-    doc.setTextColor(30)
-    doc.setFontSize(12)
-    const userLines = doc.splitTextToSize(section.message.query, 180)
-    for (let i = 0; i < userLines.length; i++) {
-      if (y > pageHeight - 20) {
-        doc.addPage()
-        y = 15
-      }
-      doc.text(userLines[i], 12, y)
-      y += 6
-    }
-    y += 6
-    doc.setDrawColor(230)
-    if (y > pageHeight - 10) {
-      doc.addPage()
-      y = 15
-    }
-    doc.line(10, y, 200, y)
-    y += 4
-
-    if (section.message.responseBlocks.length > 0) {
-      if (y > pageHeight - 30) {
-        doc.addPage()
-        y = 15
-      }
-      doc.setFont('helvetica', 'bold')
-      doc.text('Assistant', 10, y)
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(10)
-      doc.setTextColor(120)
-      doc.text(`${new Date(section.message.createdAt).toLocaleString()}`, 40, y)
-      y += 6
-      doc.setTextColor(30)
-      doc.setFontSize(12)
-      const assistantLines = doc.splitTextToSize(
-        section.parsedTextBlocks.join('\n'),
-        180,
-      )
-      for (let i = 0; i < assistantLines.length; i++) {
-        if (y > pageHeight - 20) {
-          doc.addPage()
-          y = 15
-        }
-        doc.text(assistantLines[i], 12, y)
-        y += 6
-      }
-
-      const sourceResponseBlock = section.message.responseBlocks.find(
-        (block) => block.type === 'source',
-      ) as SourceBlock | undefined
-
-      if (sourceResponseBlock?.data && sourceResponseBlock.data.length > 0) {
-        doc.setFontSize(11)
-        doc.setTextColor(80)
-        if (y > pageHeight - 20) {
-          doc.addPage()
-          y = 15
-        }
-        doc.text('Citations:', 12, y)
-        y += 5
-        sourceResponseBlock.data.forEach((src: any, i: number) => {
-          const url = src.metadata?.url || ''
-          if (y > pageHeight - 15) {
-            doc.addPage()
-            y = 15
-          }
-          doc.text(`- [${i + 1}] ${url}`, 15, y)
-          y += 5
-        })
-        doc.setTextColor(30)
-      }
-      y += 6
-      doc.setDrawColor(230)
-      if (y > pageHeight - 10) {
-        doc.addPage()
-        y = 15
-      }
-      doc.line(10, y, 200, y)
-      y += 4
-    }
+  writeThreadPdf(doc, {
+    title,
+    exportedAt: new Date(),
+    turns: sections.map((section) => ({
+      query: section.message.query,
+      askedAt: new Date(section.message.createdAt),
+      answer: answerMarkdown(section.message.responseBlocks),
+      sources: sourceUrls(section),
+    })),
   })
-  doc.save(`${title || 'chat'}.pdf`)
+  doc.save(exportFileName(title, 'pdf'))
 }
 
 const Navbar = () => {

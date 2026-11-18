@@ -7,10 +7,12 @@
    trailing `:` alignment markers), which is exactly how GFM itself defines
    a table's start. */
 
+import { stripInlineMarkdown } from './markdown-inline'
+
 /** A pipe escaped as `\|` is kept as a literal pipe rather than treated as a
  * column boundary — the "handle escaped pipes minimally" the spec calls
  * for, not a full inline-markdown parser. */
-const splitRow = (line: string): string[] => {
+export const splitRow = (line: string): string[] => {
   let row = line.trim()
   if (row.startsWith('|')) row = row.slice(1)
   if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1)
@@ -35,9 +37,9 @@ const splitRow = (line: string): string[] => {
   return cells
 }
 
-const isTableRow = (line: string) => line.includes('|')
+export const isTableRow = (line: string) => line.includes('|')
 
-const isSeparatorRow = (line: string) => {
+export const isSeparatorRow = (line: string) => {
   const trimmed = line.trim()
   if (!trimmed?.includes('-')) return false
 
@@ -92,8 +94,13 @@ export const hasMarkdownTable = (markdown: string): boolean =>
 const csvEscape = (cell: string): string =>
   /[",\r\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell
 
+/* Cells are plain text: a spreadsheet shows "**Aspect**" literally. */
 const tableToCsv = (rows: string[][]): string =>
-  rows.map((row) => row.map(csvEscape).join(',')).join('\n')
+  rows
+    .map((row) =>
+      row.map((cell) => csvEscape(stripInlineMarkdown(cell))).join(','),
+    )
+    .join('\n')
 
 /** Every table in `markdown`, each converted to CSV and concatenated with a
  * blank line between — one downloadable file covering every table in the
