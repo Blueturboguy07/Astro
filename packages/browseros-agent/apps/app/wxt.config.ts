@@ -44,8 +44,9 @@ export default defineConfig({
     chrome_url_overrides: {
       newtab: 'app.html',
     },
+    /* settings.html redirects to app.html#/settings (F-091 d). */
     options_ui: {
-      page: 'app.html#/settings',
+      page: 'settings.html',
       open_in_tab: true,
     },
     action: {
