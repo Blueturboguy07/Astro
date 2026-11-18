@@ -21,12 +21,12 @@
  */
 
 import { spawn } from 'node:child_process'
-import crypto from 'node:crypto'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
 import { getBrowserosDir } from '../browseros-dir'
 import { logger } from '../logger'
+import { ensureSettings, writeSettings } from './settings'
 
 const HOST = '127.0.0.1'
 const READY_TIMEOUT_MS = 60_000
@@ -456,56 +456,6 @@ const SEARXNG_EXCLUDES = [
   'searxng-*/.github/*',
 ]
 
-/* `formats: [json]` is the load-bearing line — without it the JSON API that
-   search.ts calls returns 403.
-
-   The engine list is deliberately broad: with a single general engine, one
-   upstream throttling this IP (DuckDuckGo does after sustained use — observed
-   as every query "Found 0 results") zeroes out all retrieval. Several
-   independent engines means a blocked one degrades results instead of
-   blanking them. */
-function writeSettings(p: SearxngPaths) {
-  fs.writeFileSync(
-    p.settings,
-    `use_default_settings: true
-
-general:
-  instance_name: 'browseros'
-
-search:
-  autocomplete: 'google'
-  formats:
-    - html
-    - json
-
-server:
-  secret_key: '${crypto.randomBytes(32).toString('hex')}'
-
-outgoing:
-  request_timeout: 8.0
-  max_request_timeout: 12.0
-
-engines:
-  - name: wolframalpha
-    disabled: false
-  - name: duckduckgo
-    disabled: false
-  - name: brave
-    disabled: false
-  - name: bing
-    disabled: false
-  - name: startpage
-    disabled: false
-  - name: qwant
-    disabled: false
-  - name: mojeek
-    disabled: false
-  - name: wikipedia
-    disabled: false
-`,
-  )
-}
-
 /* SearXNG's master branch assumes a git checkout on a POSIX host in two spots
    that break a fresh Windows provision. Both are patched against the extracted
    source before pip runs. */
@@ -650,7 +600,7 @@ async function provision(
   )
   await ensureNoQuarantine(p.root)
 
-  writeSettings(p)
+  writeSettings(p.settings)
   fs.writeFileSync(p.marker, new Date().toISOString())
   logger.info('Local search is ready')
   return p
@@ -807,7 +757,8 @@ async function startOnce(dataDir: string): Promise<string> {
     const p = isProvisioned(dataDir)
       ? paths(dataDir)
       : await withSetupLock(paths(dataDir), () => provision(dataDir))
-    if (!fs.existsSync(p.settings)) writeSettings(p)
+    /* Also brings settings an older build wrote up to date (F-088). */
+    ensureSettings(p.settings)
     /* Also for a tree an older build installed: never exec a quarantined
        Python. */
     await ensureNoQuarantine(p.root)
