@@ -35,6 +35,7 @@ import CouncilBlockRenderer from './MessageRenderer/CouncilBlock'
 import SearchFailedCard from './MessageRenderer/SearchFailedCard'
 import { annotateCitations } from './MessageRenderer/citationParser'
 import UsageLine from './MessageRenderer/UsageLine'
+import QuestionHeading from './QuestionHeading'
 import SearchImages from './SearchImages'
 import SearchVideos from './SearchVideos'
 import ThinkBox from './ThinkBox'
@@ -277,11 +278,7 @@ const MessageBox = ({
 
   return (
     <div className="space-y-6">
-      <div className={'w-full break-words pt-8'}>
-        <h2 className="font-medium text-3xl text-black lg:w-9/12 dark:text-white">
-          {section.message.query}
-        </h2>
-      </div>
+      <QuestionHeading query={section.message.query} />
 
       <div className="flex flex-col space-y-9 lg:flex-row lg:justify-between lg:space-x-9 lg:space-y-0">
         <div

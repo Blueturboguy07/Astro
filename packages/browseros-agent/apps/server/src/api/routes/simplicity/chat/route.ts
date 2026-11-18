@@ -23,6 +23,7 @@ import UploadManager from '../../../../lib/simplicity/uploads/manager';
 import { UsageMeter, LLMUsage } from '../../../../lib/simplicity/pricing/meter';
 import { getConfiguredModelProviderById } from '../../../../lib/simplicity/config/serverRegistry';
 import { publikSearchAccess } from '../../../../lib/simplicity/publik-search';
+import { chatTitle } from '../../../../lib/simplicity/chat-title';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -168,7 +169,7 @@ const ensureChatExists = async (input: {
         id: input.id,
         createdAt: new Date().toISOString(),
         sources: input.sources,
-        title: input.query,
+        title: chatTitle(input.query),
         files: input.fileIds.map((id) => {
           return {
             fileId: id,
