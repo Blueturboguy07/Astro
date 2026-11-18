@@ -12,6 +12,14 @@
  * one last step without tools: a short report. The stream transform puts a
  * fixed first line before that report ("Stopped after 40 actions.") and a
  * "Continue" line after it, so the wording does not depend on the model.
+ *
+ * UC-42 (0.0.114 retest): the booking page stayed on a loading spinner,
+ * the agent clicked around other pages, every step looked new, and 34
+ * calls took 7 minutes. The run now also stops when the same page state
+ * (the same URL and the same page text) is read again after
+ * RUN_SAME_PAGE_MS or RUN_SAME_PAGE_CALLS calls, or when a loading screen
+ * on one URL is unchanged after RUN_LOADING_PAGE_MS (a reload or a revisit
+ * counts).
  */
 
 import { AGENT_LIMITS } from '@browseros/shared/constants/limits'
@@ -23,7 +31,7 @@ import type {
   ToolSet,
 } from 'ai'
 
-export type RunBudgetStopReason = 'actions' | 'no-progress'
+export type RunBudgetStopReason = 'actions' | 'no-progress' | 'same-page'
 
 export interface SiteError {
   status: number
@@ -42,8 +50,25 @@ export interface RunBudgetOptions {
   instructions: string
   maxToolCalls?: number
   noProgressMs?: number
+  samePageMs?: number
+  samePageCalls?: number
+  loadingPageMs?: number
   now?: () => number
 }
+
+/* The same page state read again: why and for how long. */
+interface SamePage {
+  url: string
+  by: 'loading' | 'time' | 'calls'
+  ms: number
+  calls: number
+}
+
+/* Defaults: conservative. 3 minutes or 15 calls on one unchanged page; a
+   loading screen unchanged for 1 minute. */
+export const RUN_SAME_PAGE_MS = 3 * 60_000
+export const RUN_SAME_PAGE_CALLS = 15
+export const RUN_LOADING_PAGE_MS = 60_000
 
 /* Script and wait tools can run for minutes without moving the task (UC-42
    probed the site's API with 22 evaluate/run calls), so their results never
@@ -56,7 +81,13 @@ export class RunBudget {
   private readonly instructions: string
   private readonly maxToolCalls: number
   private readonly noProgressMs: number
+  private readonly samePageMs: number
+  private readonly samePageCalls: number
+  private readonly loadingPageMs: number
   private readonly now: () => number
+  private pageFirstSeen = new Map<string, number>()
+  private currentPage: { key: string; since: number; calls: number } | undefined
+  private samePage: SamePage | undefined
 
   private assessedSteps = 0
   private toolCalls = 0
@@ -72,6 +103,9 @@ export class RunBudget {
     this.instructions = options.instructions
     this.maxToolCalls = options.maxToolCalls ?? AGENT_LIMITS.RUN_MAX_TOOL_CALLS
     this.noProgressMs = options.noProgressMs ?? AGENT_LIMITS.RUN_NO_PROGRESS_MS
+    this.samePageMs = options.samePageMs ?? RUN_SAME_PAGE_MS
+    this.samePageCalls = options.samePageCalls ?? RUN_SAME_PAGE_CALLS
+    this.loadingPageMs = options.loadingPageMs ?? RUN_LOADING_PAGE_MS
     this.now = options.now ?? Date.now
     this.lastProgressAt = this.now()
   }
@@ -92,6 +126,9 @@ export class RunBudget {
     this.seenOutputs = new Set()
     this.lastPageUrl = undefined
     this.siteError = undefined
+    this.pageFirstSeen = new Map()
+    this.currentPage = undefined
+    this.samePage = undefined
     this.reason = undefined
     this.actionsAtStop = 0
     this.reportStep = undefined
@@ -127,9 +164,11 @@ export class RunBudget {
   /** The fixed first line of the report. */
   header(): string {
     const why =
-      this.reason === 'no-progress'
-        ? `**Stopped: no progress for ${formatMinutes(this.noProgressMs)}.**`
-        : `**Stopped after ${formatActions(this.actionsAtStop)}.**`
+      this.reason === 'same-page' && this.samePage
+        ? `**Stopped: ${samePageSentence(this.samePage)}**`
+        : this.reason === 'no-progress'
+          ? `**Stopped: no progress for ${formatMinutes(this.noProgressMs)}.**`
+          : `**Stopped after ${formatActions(this.actionsAtStop)}.**`
     return this.siteError ? `${why} ${siteErrorSentence(this.siteError)}` : why
   }
 
@@ -186,12 +225,22 @@ export class RunBudget {
     const siteLine = this.siteError
       ? `\n- The site returned an error (HTTP ${this.siteError.status}${this.siteError.url ? ` at ${this.siteError.url}` : ''}). Say that the problem is on the site, not in the request.`
       : ''
+    const pageLine =
+      this.reason === 'same-page' && this.samePage?.by === 'loading'
+        ? `\n- The page ${this.samePage.url} stays on a loading screen. Say that the site did not load, not that the request was wrong.`
+        : ''
+    const budget =
+      this.reason === 'same-page' && this.samePage
+        ? samePageSentence(this.samePage).replace(/\.$/, '')
+        : this.reason === 'no-progress'
+          ? `no progress for ${formatMinutes(this.noProgressMs)}`
+          : formatActions(this.actionsAtStop)
     return `<run_budget>
-This turn reached its run budget: ${this.reason === 'no-progress' ? `no progress for ${formatMinutes(this.noProgressMs)}` : formatActions(this.actionsAtStop)}. Tools are off for this reply.
+This turn reached its run budget: ${budget}. Tools are off for this reply.
 Write a short report for the user:
 - What you did and what you found so far.
 - What is still left to do.
-- If what the user asked for is not on the page, say so plainly (for example: "The page has no h1 heading.").${siteLine}
+- If what the user asked for is not on the page, say so plainly (for example: "The page has no h1 heading.").${siteLine}${pageLine}
 The app shows the first line ("Stopped ...") and a "Continue" option itself. Do not repeat them, and do not apologize at length.
 </run_budget>`
   }
@@ -209,19 +258,58 @@ The app shows the first line ("Stopped ...") and a "Continue" option itself. Do 
         const error = detectSiteError(outcome.text, pageUrl ?? this.lastPageUrl)
         if (error) stepError = error
         else if (this.isProgress(outcome)) progressed = true
+        const state = outcome.ok
+          ? pageStateOf(outcome.toolName, outcome.text)
+          : undefined
+        if (state) this.notePageState(state)
       }
       if (progressed) this.lastProgressAt = this.now()
       /* An error the agent got past is no longer the reason it stopped. */
       if (stepError) this.siteError = stepError
       else if (progressed) this.siteError = undefined
     }
-    if (this.reason) return
-    if (this.toolCalls >= this.maxToolCalls) {
-      this.reason = 'actions'
-      this.actionsAtStop = this.toolCalls
-    } else if (this.now() - this.lastProgressAt >= this.noProgressMs) {
-      this.reason = 'no-progress'
+    if (!this.reason) this.reason = this.spentReason()
+    if (this.reason && !this.actionsAtStop) this.actionsAtStop = this.toolCalls
+  }
+
+  private spentReason(): RunBudgetStopReason | undefined {
+    if (this.toolCalls >= this.maxToolCalls) return 'actions'
+    if (this.samePage) return 'same-page'
+    if (this.now() - this.lastProgressAt >= this.noProgressMs)
+      return 'no-progress'
+    return undefined
+  }
+
+  /** Records one read of a page; sets samePage when the page is stuck. */
+  private notePageState(state: PageState): void {
+    if (this.samePage) return
+    const now = this.now()
+    const first = this.pageFirstSeen.get(state.key)
+    if (first === undefined) this.pageFirstSeen.set(state.key, now)
+    if (
+      state.loading &&
+      first !== undefined &&
+      now - first >= this.loadingPageMs
+    ) {
+      this.samePage = {
+        url: state.url,
+        by: 'loading',
+        ms: now - first,
+        calls: 0,
+      }
+      return
     }
+    const current = this.currentPage
+    if (current?.key !== state.key) {
+      this.currentPage = { key: state.key, since: now, calls: this.toolCalls }
+      return
+    }
+    const ms = now - current.since
+    const calls = this.toolCalls - current.calls
+    if (ms >= this.samePageMs)
+      this.samePage = { url: state.url, by: 'time', ms, calls }
+    else if (calls >= this.samePageCalls)
+      this.samePage = { url: state.url, by: 'calls', ms, calls }
   }
 
   /** A successful result of an observing or acting tool with new content. */
@@ -254,6 +342,48 @@ function formatActions(count: number): string {
 function formatMinutes(ms: number): string {
   const minutes = Math.max(1, Math.round(ms / 60_000))
   return minutes === 1 ? '1 minute' : `${minutes} minutes`
+}
+
+function samePageSentence(page: SamePage): string {
+  if (page.by === 'loading')
+    return `the page stays on a loading screen (${page.url}).`
+  if (page.by === 'calls')
+    return `the page did not change after ${formatActions(page.calls)} (${page.url}).`
+  return `the page did not change for ${formatMinutes(page.ms)} (${page.url}).`
+}
+
+/* Tools whose result is the whole page (a diff or a grep is a part). */
+const PAGE_STATE_TOOLS = new Set(['snapshot', 'navigate', 'read'])
+/* A loading screen: little text and a loading word or a busy role. */
+const LOADING_TEXT = /\b(loading|please wait)\b|\bspinner\b|\bprogressbar\b/i
+const LOADING_MAX_CHARS = 2000
+
+interface PageState {
+  url: string
+  key: string
+  loading: boolean
+}
+
+/** The page a tool result shows: its URL and a hash of its text. */
+export function pageStateOf(
+  toolName: string,
+  text: string,
+): PageState | undefined {
+  if (!PAGE_STATE_TOOLS.has(toolName)) return undefined
+  const start = WRAPPER_ORIGIN.exec(text)
+  const url = start?.[1]
+  if (!start || !url || !HTTP_URL.test(url)) return undefined
+  const afterStart = text.indexOf('\n', start.index)
+  if (afterStart < 0) return undefined
+  const end = text.indexOf('[END_UNTRUSTED_PAGE_CONTENT', afterStart)
+  const body = normalizeForCompare(
+    text.slice(afterStart + 1, end < 0 ? undefined : end),
+  )
+  return {
+    url,
+    key: `${url} ${Bun.hash(body)}`,
+    loading: body.length < LOADING_MAX_CHARS && LOADING_TEXT.test(body),
+  }
 }
 
 function siteErrorSentence(error: SiteError): string {

@@ -261,9 +261,65 @@ describe('RunBudget', () => {
         clock += 40_000
       },
     })
-    expect(budget.stopReason).toBe('no-progress')
-    /* The first "Loading..." read is new content; five more reach 3 min. */
-    expect(same.result.steps).toHaveLength(7)
+    /* UC-42: a loading screen read again after 1 minute (3 reads, 80 s)
+       stops before the 3-minute no-progress limit. */
+    expect(budget.stopReason).toBe('same-page')
+    expect(budget.header()).toBe(
+      '**Stopped: the page stays on a loading screen (https://a.example/).**',
+    )
+    expect(same.result.steps).toHaveLength(4)
+  })
+
+  it('the same page text read again for 15 calls stops (UC-42)', async () => {
+    let clock = 0
+    const budget = new RunBudget({
+      instructions: INSTRUCTIONS,
+      now: () => clock,
+    })
+    /* Clicks between reads look new (act results differ); the page does not. */
+    const { result } = await runTurn({
+      budget,
+      next: (_o, call) =>
+        call % 2
+          ? callTool('read', { page: 1 })
+          : callTool('navigate', { page: 1 }),
+      output: (name, n) =>
+        name === 'read'
+          ? wrapped(
+              'Book a room. Check in. Check out. Check availability.',
+              'https://b.example/',
+            )
+          : `clicked date ${n}`,
+      afterTool: () => {
+        clock += 5_000
+      },
+    })
+    expect(budget.stopReason).toBe('same-page')
+    expect(budget.header()).toBe(
+      '**Stopped: the page did not change after 16 actions (https://b.example/).**',
+    )
+    expect(result.steps.length).toBeLessThan(20)
+  })
+
+  it('a page that changes, or a new URL, does not stop the run', async () => {
+    let clock = 0
+    const budget = new RunBudget({
+      instructions: INSTRUCTIONS,
+      now: () => clock,
+    })
+    const { result } = await runTurn({
+      budget,
+      next: (_o, call) =>
+        call <= 30 ? callTool('read', { page: 1 }) : answer('Done.'),
+      /* A form being filled: the text changes on every read. */
+      output: (_name, n) =>
+        wrapped(`Form: ${n} fields filled. Loading...`, 'https://c.example/'),
+      afterTool: () => {
+        clock += 5_000
+      },
+    })
+    expect(budget.stopReason).toBeUndefined()
+    expect(result.text).toBe('Done.')
   })
 
   it('"Continue" starts a fresh budget in the next turn', async () => {
