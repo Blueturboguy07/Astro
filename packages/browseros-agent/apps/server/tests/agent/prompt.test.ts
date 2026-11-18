@@ -283,6 +283,13 @@ describe('mode-aware framing', () => {
     expect(prompt).toContain('cannot interact with them')
   })
 
+  it('chat mode answers "not on the page" instead of reading again (F-093)', () => {
+    const prompt = buildChatMode()
+    expect(prompt).toContain('The page has no h1 heading.')
+    expect(prompt).toContain('Do not read the page again to look for it.')
+    expect(buildScheduled()).not.toContain('The page has no h1 heading.')
+  })
+
   it('chat mode does not include retired memory and soul instructions', () => {
     const prompt = buildChatMode()
     expect(prompt).not.toContain('<memory_and_identity>')

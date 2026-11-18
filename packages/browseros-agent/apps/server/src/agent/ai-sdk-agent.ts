@@ -62,7 +62,7 @@ function scheduledRunWindowId(config: AiSdkAgentConfig): number | undefined {
 
 /**
  * Interactive turns stop after 40 actions or 3 minutes without progress
- * (F-072). Scheduled runs keep the app's 15-min/5-min limits (F-071), and
+ * (F-072); Chat Mode turns after 8 page reads (F-093). Scheduled runs keep the app's 15-min/5-min limits (F-071), and
  * ACP agents run their own tool loop inside one step.
  */
 export function runBudgetFor(
@@ -71,7 +71,12 @@ export function runBudgetFor(
 ): RunBudget | undefined {
   if (config.resolvedConfig.isScheduledTask) return undefined
   if (isAcpProvider(config.resolvedConfig.provider)) return undefined
-  return new RunBudget({ instructions })
+  return new RunBudget({
+    instructions,
+    maxToolCalls: config.resolvedConfig.chatMode
+      ? AGENT_LIMITS.RUN_MAX_TOOL_CALLS_CHAT_MODE
+      : AGENT_LIMITS.RUN_MAX_TOOL_CALLS,
+  })
 }
 
 function agentStopConditions(runBudget?: RunBudget): StopCondition<ToolSet>[] {

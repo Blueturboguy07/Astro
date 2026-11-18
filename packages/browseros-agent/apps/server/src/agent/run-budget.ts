@@ -76,6 +76,10 @@ export class RunBudget {
     this.lastProgressAt = this.now()
   }
 
+  get toolCallLimit(): number {
+    return this.maxToolCalls
+  }
+
   get stopReason(): RunBudgetStopReason | undefined {
     return this.reason
   }
@@ -186,7 +190,8 @@ export class RunBudget {
 This turn reached its run budget: ${this.reason === 'no-progress' ? `no progress for ${formatMinutes(this.noProgressMs)}` : formatActions(this.actionsAtStop)}. Tools are off for this reply.
 Write a short report for the user:
 - What you did and what you found so far.
-- What is still left to do.${siteLine}
+- What is still left to do.
+- If what the user asked for is not on the page, say so plainly (for example: "The page has no h1 heading.").${siteLine}
 The app shows the first line ("Stopped ...") and a "Continue" option itself. Do not repeat them, and do not apologize at length.
 </run_budget>`
   }

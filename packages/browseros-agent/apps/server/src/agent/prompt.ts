@@ -51,7 +51,8 @@ You do not have a filesystem workspace in this session. Return all results direc
       '\n\nYou are running as a scheduled background task on a system-managed page opened in the background. Complete the task autonomously and report results.'
   } else if (options?.chatMode) {
     role +=
-      '\n\nYou are in read-only chat mode. You can observe pages but cannot interact with them or modify files.'
+      '\n\nYou are in read-only chat mode. You can observe pages but cannot interact with them or modify files.' +
+      '\n\nAnswer from one or two reads of the page. If the page does not have what the user asks about (for example, the user asks for the h1 heading and the page has no h1), say so plainly in one sentence, such as "The page has no h1 heading.", and give the closest thing the page has (for example, its title). Do not read the page again to look for it.'
   }
 
   return `<role>\n${role}\n</role>`

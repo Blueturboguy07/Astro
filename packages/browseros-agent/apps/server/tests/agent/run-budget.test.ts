@@ -6,7 +6,14 @@ import type {
   LanguageModelV3Usage,
 } from '@ai-sdk/provider'
 import { LLM_PROVIDERS } from '@browseros/shared/schemas/llm'
-import { generateText, stepCountIs, streamText, tool } from 'ai'
+import {
+  generateText,
+  type StepResult,
+  stepCountIs,
+  streamText,
+  type ToolSet,
+  tool,
+} from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
 import { z } from 'zod'
 import { runBudgetFor } from '../../src/agent/ai-sdk-agent'
@@ -351,6 +358,25 @@ describe('RunBudget', () => {
   })
 })
 
+/* One step with one read tool call and its result, as the AI SDK stores it. */
+function readStep(text: string): StepResult<ToolSet> {
+  const id = `read-${++callSeq}`
+  return {
+    toolCalls: [
+      { type: 'tool-call', toolCallId: id, toolName: 'read', input: {} },
+    ],
+    content: [
+      {
+        type: 'tool-result',
+        toolCallId: id,
+        toolName: 'read',
+        input: {},
+        output: { content: [{ type: 'text', text }] },
+      },
+    ],
+  } as unknown as StepResult<ToolSet>
+}
+
 describe('runBudgetFor', () => {
   const base = {
     conversationId: 'c',
@@ -364,6 +390,32 @@ describe('runBudgetFor', () => {
     expect(
       runBudgetFor({ resolvedConfig: { ...base, chatMode: true } }, 'x'),
     ).toBeInstanceOf(RunBudget)
+  })
+
+  it('gives Chat Mode a smaller budget than agent mode (F-093)', () => {
+    const agent = runBudgetFor({ resolvedConfig: base }, 'x')
+    const chat = runBudgetFor(
+      { resolvedConfig: { ...base, chatMode: true } },
+      'x',
+    )
+    expect(agent?.toolCallLimit).toBe(40)
+    expect(chat?.toolCallLimit).toBe(8)
+  })
+
+  it('stops a Chat Mode turn after 8 page reads and asks for a plain "not on the page" answer', async () => {
+    const budget = runBudgetFor(
+      { resolvedConfig: { ...base, chatMode: true } },
+      INSTRUCTIONS,
+    ) as RunBudget
+    budget.beginTurn()
+    const steps = Array.from({ length: 8 }, (_, i) =>
+      readStep(`page text ${i}`),
+    )
+    const plan = budget.prepareStep(steps)
+    expect(budget.stopReason).toBe('actions')
+    expect(plan?.toolChoice).toBe('none')
+    expect(plan?.system).toContain('The page has no h1 heading.')
+    expect(budget.header()).toBe('**Stopped after 8 actions.**')
   })
 
   it('leaves scheduled runs (F-071 limits) and ACP agents without one', () => {

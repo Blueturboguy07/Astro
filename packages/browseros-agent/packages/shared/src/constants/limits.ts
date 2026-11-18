@@ -18,6 +18,9 @@ export const AGENT_LIMITS = {
      stops and reports; the user can send "Continue". Scheduled runs keep
      their own 15-min/5-min limits in the app (F-071). */
   RUN_MAX_TOOL_CALLS: 40,
+  /* Chat Mode only reads pages. It read one page 19 times in 181 s looking
+     for an h1 that was not there (F-093), so it gets a smaller budget. */
+  RUN_MAX_TOOL_CALLS_CHAT_MODE: 8,
   RUN_NO_PROGRESS_MS: 3 * 60_000,
 
   // Compression settings for context compaction heuristics
