@@ -1,6 +1,7 @@
 import {
   BotIcon,
   CheckCircle2,
+  ChevronRight,
   CircleDashed,
   Clock,
   Loader2,
@@ -18,6 +19,7 @@ import type {
   ToolInvocationInfo,
   ToolInvocationState,
 } from './getMessageSegments'
+import { toolDetails } from './tool-details'
 
 export interface ToolBatchProps {
   tools: ToolInvocationInfo[]
@@ -35,6 +37,14 @@ export const ToolBatch: FC<ToolBatchProps> = ({
   const shouldBeOpen = isLastMessage && isLastBatch && isStreaming
   const [isOpen, setIsOpen] = useState(shouldBeOpen)
   const [hasUserInteracted, setHasUserInteracted] = useState(false)
+  const [openRows, setOpenRows] = useState<Set<string>>(new Set())
+  const toggleRow = (id: string) =>
+    setOpenRows((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   useEffect(() => {
     if (isLastMessage && !hasUserInteracted) {
@@ -61,21 +71,78 @@ export const ToolBatch: FC<ToolBatchProps> = ({
     <Task open={isOpen} onOpenChange={onManualToggle}>
       <TaskTrigger title={triggerTitle} TriggerIcon={BotIcon} />
       <TaskContent>
-        {tools.map((tool) => (
-          <div key={tool.toolCallId}>
-            <TaskItem className="flex items-center gap-2">
-              <ToolStatusIcon state={tool.state} />
-              <span className="flex-1">{formatToolName(tool.toolName)}</span>
-            </TaskItem>
-            {tool.errorText ? (
-              <p className="break-words pl-5.5 text-muted-foreground text-xs">
-                {tool.errorText}
-              </p>
-            ) : null}
-          </div>
-        ))}
+        {tools.map((tool) => {
+          const open = openRows.has(tool.toolCallId)
+          return (
+            <div key={tool.toolCallId}>
+              <TaskItem>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 text-left hover:text-foreground"
+                  aria-expanded={open}
+                  onClick={() => toggleRow(tool.toolCallId)}
+                >
+                  <ToolStatusIcon state={tool.state} />
+                  <span className="flex-1">
+                    {formatToolName(tool.toolName)}
+                  </span>
+                  <ChevronRight
+                    className={`h-3 w-3 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
+                  />
+                </button>
+              </TaskItem>
+              {tool.errorText ? (
+                <p className="break-words pl-5.5 text-muted-foreground text-xs">
+                  {tool.errorText}
+                </p>
+              ) : null}
+              {open ? <ToolRowDetails tool={tool} /> : null}
+            </div>
+          )
+        })}
       </TaskContent>
     </Task>
+  )
+}
+
+const ToolRowDetails: FC<{ tool: ToolInvocationInfo }> = ({ tool }) => {
+  const d = toolDetails(tool)
+  if (!d.diff && !d.input && !d.output) {
+    return <p className="pl-5.5 text-muted-foreground text-xs">No details.</p>
+  }
+  return (
+    <div className="space-y-1 pt-1 pl-5.5 text-xs" data-tool-details>
+      {d.path ? (
+        <p className="font-mono text-muted-foreground">{d.path}</p>
+      ) : null}
+      {d.diff ? (
+        <pre className="max-h-48 overflow-auto rounded border border-border bg-muted/40 p-2 font-mono">
+          {d.diff.map((line, i) => (
+            <div
+              // biome-ignore lint/suspicious/noArrayIndexKey: diff lines have no id
+              key={i}
+              className={
+                line.sign === '-'
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-green-700 dark:text-green-400'
+              }
+            >
+              {line.sign} {line.text}
+            </div>
+          ))}
+        </pre>
+      ) : null}
+      {d.input ? (
+        <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 p-2 font-mono text-muted-foreground">
+          {d.input}
+        </pre>
+      ) : null}
+      {d.output ? (
+        <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 p-2 font-mono">
+          {d.output}
+        </pre>
+      ) : null}
+    </div>
   )
 }
 
