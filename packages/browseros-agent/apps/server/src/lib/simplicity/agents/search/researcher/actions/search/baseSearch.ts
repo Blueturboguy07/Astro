@@ -41,25 +41,74 @@ const stem = (w: string) =>
 /* Scripts written without spaces: word matching cannot work there. */
 const NO_SPACES = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}]/u;
 
-/* Without an embedding signal: rank by how many query words a hit has and
-   drop hits with too few. Rate-limited engines returned hits for one word
-   of the query ("longest", "major", Wells Fargo for "capital") or for
-   nothing at all (Microsoft sign-in pages for "rivers in Australia") ahead
-   of the real ones, and the answer said the sources did not cover the
-   question (F-061, 0.0.109 UI run). A hit needs 2 query words (1 for a
-   query of 1-2 words). No fallback: an empty list makes the answer say it
-   found nothing, which is true, instead of citing junk. Queries in a
+/* Query words that say nothing about the topic. A year or a number, or a
+   word like "latest", "summary" or "six", matched a snippet date or a
+   heading on any page: for "PEP 8 style guide summary 2026" the PepsiCo
+   ticker page and a CDC "PEP" page passed with "pep" + "2026", and the
+   answer cited them instead of peps.python.org (Astro 0.2.4 QA, UC-29). */
+const GENERIC = new Set(
+  (
+    'latest newest new recent recently current today now best top main key ' +
+    'point summary summarize summarise overview explain explained list info ' +
+    'information detail details about give show tell find get more most some ' +
+    'many all any one two three four five six seven eight nine ten first last ' +
+    'year month week day bullet short brief quick simple basic complete full ' +
+    'update news vs versus like use using used can do does did should would'
+  )
+    .split(' ')
+    .map(stem),
+);
+
+/* Distinctive query words: no bare numbers or years, no generic words. */
+export const topicWords = (query: string): string[] => {
+  const all = [...new Set(words(query).map(stem))];
+  const topic = all.filter((w) => !/^\d+$/.test(w) && !GENERIC.has(w));
+  /* A query of only generic words keeps them, or nothing could match. */
+  return topic.length > 0 ? topic : all.filter((w) => !/^\d+$/.test(w));
+};
+
+/* A name with a small number ("PEP 8", "iPhone 15", "Windows 11") is one
+   term: the hit must carry the same pair ("PEP 8", "pep8", "pep-0008").
+   "PEP" alone matched CDC and PepsiCo pages. Years are left out. */
+export const numberedTerms = (query: string): RegExp[] => {
+  const raw = query.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const out = new Map<string, RegExp>();
+  for (let i = 0; i + 1 < raw.length; i++) {
+    const [w, n] = [raw[i], raw[i + 1]];
+    if (!/^\p{L}{2,}$/u.test(w) || !/^\d{1,3}$/.test(n)) continue;
+    const key = `${w} ${Number(n)}`;
+    out.set(
+      key,
+      new RegExp(`(^|[^\\p{L}\\p{N}])${w}[\\s_-]*0*${Number(n)}(?!\\p{N})`, 'u'),
+    );
+  }
+  return [...out.values()];
+};
+
+/* Without an embedding signal: rank by how many distinctive query terms a
+   hit has and drop hits with too few. Rate-limited engines returned hits
+   for one word of the query ("longest", "major", Wells Fargo for
+   "capital") or for nothing at all (Microsoft sign-in pages for "rivers in
+   Australia") ahead of the real ones, and the answer said the sources did
+   not cover the question (F-061). A hit needs 2 distinctive terms (1 when
+   the query has only one). No fallback: an empty list makes the answer say
+   it found nothing, which is true, instead of citing junk. Queries in a
    script without spaces keep the engine order. */
 export const rankByWords = (query: string, hits: SearchHit[]): Chunk[] => {
-  const q = [...new Set(words(query).map(stem))];
+  const q = topicWords(query);
+  const pairs = numberedTerms(query);
+  const terms = q.length + pairs.length;
   if (q.length === 0 || NO_SPACES.test(query)) return unranked(hits);
-  const need = q.length <= 2 ? 1 : 2;
+  const need = Math.min(2, terms);
   return hits
     .map((r, i) => {
-      const have = new Set(
-        words(`${r.title} ${r.content ?? ''} ${r.url}`).map(stem),
-      );
-      return { r, i, n: q.filter((w) => have.has(w)).length };
+      const text = `${r.title} ${r.content ?? ''} ${r.url}`;
+      const have = new Set(words(text).map(stem));
+      const lower = text.toLowerCase();
+      const n =
+        q.filter((w) => have.has(w)).length +
+        pairs.filter((re) => re.test(lower)).length;
+      return { r, i, n };
     })
     .filter((s) => s.n >= need)
     .sort((a, b) => b.n - a.n || a.i - b.i)
@@ -68,7 +117,7 @@ export const rankByWords = (query: string, hits: SearchHit[]): Chunk[] => {
       metadata: {
         title: r.title,
         url: r.url,
-        similarity: n / q.length,
+        similarity: n / terms,
         embedding: [],
       },
     }));

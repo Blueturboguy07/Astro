@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  numberedTerms,
   openableUrl,
   rankByWords,
   scoreResults,
@@ -179,5 +180,87 @@ describe('rankByWords and openableUrl (no embedding model)', () => {
       new NullEmbedding(),
     )
     expect(out.some((c) => c.metadata.url.startsWith('http:///'))).toBe(false)
+  })
+})
+
+/* Astro 0.2.4 QA, UC-29 (0.0.114 retest): "Summarize the Python style guide
+   PEP 8 in 6 bullets." The planned queries carried "2026", "latest" and
+   "six"; junk "PEP" pages passed with "pep" + a year in the snippet date.
+   Real titles from the run. */
+describe('rankByWords: distinctive words only (UC-29)', () => {
+  const pepHits = [
+    {
+      title: 'PEP | HIV Risk and Prevention | CDC',
+      url: 'https://www.cdc.gov/hiv/risk/pep/index.html',
+      content: 'Post-exposure prophylaxis (PEP) ... Updated March 2026.',
+    },
+    {
+      title: 'PepsiCo (PEP) Stock Price & Overview',
+      url: 'https://stockanalysis.com/stocks/pep/',
+      content: 'PEP stock price, news and summary for 2026.',
+    },
+    {
+      title: 'SIX Definition & Meaning - Merriam-Webster',
+      url: 'https://www.merriam-webster.com/dictionary/six',
+      content: 'six: being one more than five; latest 2026 update',
+    },
+    {
+      title: 'PEP-Web',
+      url: 'https://pep-web.org/',
+      content: 'Psychoanalytic Electronic Publishing. 2026',
+    },
+    {
+      title: 'Pep Guardiola - Wikipedia',
+      url: 'https://en.wikipedia.org/wiki/Pep_Guardiola',
+      content: 'Pep Guardiola is a Spanish football manager (2026 season)',
+    },
+    {
+      title: 'PEP 8 – Style Guide for Python Code',
+      url: 'https://peps.python.org/pep-0008/',
+      content:
+        'This document gives coding conventions for the Python code comprising the standard library.',
+    },
+    {
+      title: 'How to Write Beautiful Python Code With PEP 8',
+      url: 'https://realpython.com/python-pep8/',
+      content:
+        'Learn how to write high-quality, readable code by using the Python style guidelines laid out in PEP 8.',
+    },
+  ]
+  const titles = (q: string) =>
+    rankByWords(q, pepHits).map((c) => c.metadata.title)
+
+  it('drops the junk PEP pages and keeps peps.python.org for every planned query', () => {
+    for (const q of [
+      'PEP 8 style guide summary 2026',
+      'key points of PEP 8 latest',
+      'Summarize PEP 8 Python code style conventions',
+    ]) {
+      const got = titles(q)
+      expect(got).not.toContain('PepsiCo (PEP) Stock Price & Overview')
+      expect(got).not.toContain('PEP | HIV Risk and Prevention | CDC')
+      expect(got).not.toContain('PEP-Web')
+      expect(got).not.toContain('Pep Guardiola - Wikipedia')
+      expect(got).not.toContain('SIX Definition & Meaning - Merriam-Webster')
+    }
+    expect(titles('PEP 8 style guide summary 2026')[0]).toBe(
+      'PEP 8 – Style Guide for Python Code',
+    )
+    expect(titles('Summarize PEP 8 Python code style conventions')).toEqual([
+      'PEP 8 – Style Guide for Python Code',
+      'How to Write Beautiful Python Code With PEP 8',
+    ])
+  })
+
+  it('a year or a generic word never counts; "PEP 8" counts as one term', () => {
+    expect(titles('six main rules PEP 8 2026')).toEqual([
+      'PEP 8 – Style Guide for Python Code',
+      'How to Write Beautiful Python Code With PEP 8',
+    ])
+    expect(
+      numberedTerms('PEP 8 in 2026').map((r) => r.test('pep-0008')),
+    ).toEqual([true])
+    expect(numberedTerms('PEP 8').some((r) => r.test('pep 80'))).toBe(false)
+    expect(numberedTerms('World Cup 2026')).toEqual([])
   })
 })
