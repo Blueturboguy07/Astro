@@ -5,6 +5,12 @@ description: "What's new in Astro"
 
 Astro's releases, with download links and full notes, are on [GitHub Releases](https://github.com/Blueturboguy07/Astro/releases). Astro is a fork of BrowserOS; changes that come from upstream are in [BrowserOS's releases](https://github.com/browseros-ai/BrowserOS/releases).
 
+<Update label="0.2.6" description="November 2026">
+- The side panel input box no longer clears while you type. A background refresh never removes it, and unsent text comes back if it is drawn again.
+- The local server creates again the tables that a newer upstream BrowserOS removes from the shared `~/.browseros` database, so the agents list loads.
+- Agent extension 0.0.116, local server 0.0.128. Files: `Astro.dmg` (macOS, Apple silicon), `Astro-Setup.exe` (Windows x64, unsigned).
+</Update>
+
 <Update label="0.2.5" description="November 2026">
 - Fixes from a full test of 0.2.4 on macOS and Windows: web search on the first question, search setup that no longer stops the local server, publik Balanced as the default model after **Connect your plan**, answers that end, and clear messages for daily limits and an empty balance.
 - `chrome://settings` opens on macOS. The Windows installer carries Astro's own local server.
