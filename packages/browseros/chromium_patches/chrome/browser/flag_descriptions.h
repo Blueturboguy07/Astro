@@ -8,14 +8,14 @@ index eb93b7a1529f9..0bc2602ef8dd4 100644
  
 +// BrowserOS: feature flags
 +inline constexpr char kBrowserOsAlphaFeaturesName[] =
-+    "BrowserOS Alpha Features";
++    "Astro Alpha Features";
 +inline constexpr char kBrowserOsAlphaFeaturesDescription[] =
-+    "Enables BrowserOS alpha features.";
++    "Enables Astro alpha features.";
 +
 +inline constexpr char kBrowserOsKeyboardShortcutsName[] =
-+    "BrowserOS Keyboard Shortcuts";
++    "Astro Keyboard Shortcuts";
 +inline constexpr char kBrowserOsKeyboardShortcutsDescription[] =
-+    "Enables BrowserOS keyboard shortcuts (Cmd+Shift+K, Cmd+Shift+L, "
++    "Enables Astro keyboard shortcuts (Cmd+Shift+K, Cmd+Shift+L, "
 +    "Option+A). Disable if these conflict with your keyboard layout.";
 +
  inline constexpr char kBrowsingHistoryActorIntegrationM2Name[] =
