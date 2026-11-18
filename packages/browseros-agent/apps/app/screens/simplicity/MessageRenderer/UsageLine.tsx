@@ -5,7 +5,7 @@ import { useState } from 'react'
 import type { UsageBlock } from '@/lib/simplicity/types'
 import { cn } from '@/lib/simplicity/utils'
 import ProviderLogo from '../ui/ProviderLogo'
-import { usageParts } from './usage-parts'
+import { showTotal, unpricedLabel, usageParts } from './usage-parts'
 
 /* Never renders raw floats like $0.00417382 — 2 sig figs above a cent,
    nearest tenth-of-a-cent below it. */
@@ -115,11 +115,8 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
                 {entry.free ? (
                   <FreeChip />
                 ) : entry.cost == null ? (
-                  <span
-                    className="text-black/30 dark:text-white/30"
-                    title="No price data for this model"
-                  >
-                    —
+                  <span className="text-black/40 dark:text-white/40">
+                    {unpricedLabel(entry.model)}
                   </span>
                 ) : (
                   <span className="text-black/70 tabular-nums dark:text-white/70">
@@ -129,12 +126,14 @@ const UsageLine = ({ block }: { block: UsageBlock }) => {
               </div>
             </div>
           ))}
-          <div className="flex items-center justify-between gap-3 px-3 py-2 font-medium text-xs">
-            <span className="text-black/60 dark:text-white/60">Total</span>
-            <span className="text-black tabular-nums dark:text-white">
-              {free ? 'Free' : priced ? formatCost(totalCost) : '—'}
-            </span>
-          </div>
+          {showTotal(block.data) && (
+            <div className="flex items-center justify-between gap-3 px-3 py-2 font-medium text-xs">
+              <span className="text-black/60 dark:text-white/60">Total</span>
+              <span className="text-black tabular-nums dark:text-white">
+                {free ? 'Free' : formatCost(totalCost)}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

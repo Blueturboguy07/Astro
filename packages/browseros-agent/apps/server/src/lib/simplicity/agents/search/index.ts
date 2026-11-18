@@ -1,5 +1,6 @@
 import { ResearcherOutput, SearchAgentInput } from './types';
 import { turnEndStatus } from '../../turn-end';
+import { providerRefusal } from './provider-refusal';
 import SessionManager from '../../session';
 import { withIdleLimit } from '../../models/time-limits';
 import { classify } from './classifier';
@@ -180,6 +181,7 @@ class SearchAgent {
     });
 
     let responseBlockId = '';
+    let finishReason: string | null = null;
 
     /* Stop must end the turn even while the model sends nothing (F-059);
        the model's own time limit comes from limitModel. */
@@ -188,6 +190,9 @@ class SearchAgent {
       signal: input.config.signal,
     })) {
       if (input.config.signal?.aborted) break;
+      const reason = (chunk as { additionalInfo?: { finishReason?: string | null } })
+        .additionalInfo?.finishReason;
+      if (reason) finishReason = reason;
 
       if (!responseBlockId) {
         const block: TextBlock = {
@@ -223,6 +228,10 @@ class SearchAgent {
        the writer died — throwing routes it to the error handler, which
        reports it and marks the row status:'error'. */
     const answerBlock = session.getBlock(responseBlockId) as TextBlock | null;
+    const refusal = input.config.signal?.aborted
+      ? null
+      : providerRefusal(answerBlock?.data ?? '', finishReason);
+    if (refusal) throw new Error(refusal);
     if (
       !input.config.signal?.aborted &&
       (!answerBlock || answerBlock.data.trim().length === 0)

@@ -12,3 +12,14 @@ export const usageParts = (data: UsageBlock['data']) => {
     searchCost: searches.reduce((s, e) => s + (e.cost ?? 0), 0),
   }
 }
+
+/* What a row with no price shows. publik bills its own models from the
+   wallet at its per-token price; Astro has no copy of that price list, so
+   the row says who bills it instead of a bare "—" (INV-DOCS-23). */
+export const unpricedLabel = (model: string): string =>
+  model.startsWith('publik-') ? 'billed by publik' : 'no price data'
+
+/* The Total row is shown only when Astro knows the total: free, or every
+   paid row priced. "Total —" read as a missing number (INV-DOCS-23). */
+export const showTotal = (data: UsageBlock['data']): boolean =>
+  data.free || data.priced !== false

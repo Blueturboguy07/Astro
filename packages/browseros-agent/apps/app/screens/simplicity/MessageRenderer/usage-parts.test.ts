@@ -3,7 +3,7 @@
  * "web search $0.01", not as a model with no tokens.
  */
 import { describe, expect, it } from 'bun:test'
-import { usageParts } from './usage-parts'
+import { showTotal, unpricedLabel, usageParts } from './usage-parts'
 
 const model = {
   label: 'publik Balanced',
@@ -49,5 +49,16 @@ describe('usageParts', () => {
         free: false,
       }),
     ).toEqual({ tokens: 3000, modelCount: 2, searchCount: 0, searchCost: 0 })
+  })
+})
+
+describe('unknown prices (INV-DOCS-23)', () => {
+  it('a publik row says publik bills it; no Total when the total is unknown', () => {
+    expect(unpricedLabel('publik-balanced')).toBe('billed by publik')
+    expect(unpricedLabel('some-model')).toBe('no price data')
+    const base = { totalCost: 0, breakdown: [model], free: false }
+    expect(showTotal({ ...base, priced: false } as never)).toBe(false)
+    expect(showTotal({ ...base, priced: true } as never)).toBe(true)
+    expect(showTotal({ ...base, free: true, priced: false } as never)).toBe(true)
   })
 })
