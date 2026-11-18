@@ -12,17 +12,21 @@ import { Fragment, useState } from 'react'
 import { toast } from 'sonner'
 import type { Chat } from '@/lib/simplicity/types/discover'
 import { apiFetch } from '@/lib/simplicity/api-fetch'
+import { leaveDeletedChat } from './delete-chat'
 
 const DeleteChat = ({
   chatId,
   chats,
   setChats,
   redirect = false,
+  onLeave,
 }: {
   chatId: string
   chats: Chat[]
   setChats: (chats: Chat[]) => void
   redirect?: boolean
+  /* Clears the thread on screen (useChat startNewChat). */
+  onLeave?: () => void
 }) => {
   const [confirmationDialogOpen, setConfirmationDialogOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -46,9 +50,9 @@ const DeleteChat = ({
       setChats(newChats)
 
       if (redirect) {
-        /* Hash route: a bare '/' would leave app.html for a nonexistent
-           extension path. */
-        window.location.hash = '#/home'
+        leaveDeletedChat(onLeave, (hash) => {
+          window.location.hash = hash
+        })
       }
     } catch (err: any) {
       toast.error(err.message)

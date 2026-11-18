@@ -87,7 +87,7 @@ const Navbar = () => {
   const [title, setTitle] = useState<string>('')
   const [timeAgo, setTimeAgo] = useState<string>('')
 
-  const { sections, chatId } = useChat()
+  const { sections, chatId, startNewChat } = useChat()
 
   useEffect(() => {
     if (sections.length > 0 && sections[0].message) {
@@ -204,6 +204,7 @@ const Navbar = () => {
             </Popover>
             <DeleteChat
               redirect
+              onLeave={startNewChat}
               chatId={chatId!}
               chats={[]}
               setChats={() => {}}
