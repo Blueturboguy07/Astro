@@ -10,10 +10,14 @@ param(
 )
 $dir = $InstallDir.TrimEnd('\') + '\'
 
+# Every process that runs from the install folder. Through WMI, not
+# Get-Process: the update package is a 32-bit program, so this script runs in
+# 32-bit PowerShell, where Get-Process cannot read the path of a 64-bit
+# process (proof run 44608751570: no process found, every file in use).
 function Get-Mine {
-  @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
-      try { $_.Path -and $_.Path.StartsWith($dir, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-    })
+  @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir, [StringComparison]::OrdinalIgnoreCase)
+    } | ForEach-Object { [pscustomobject]@{ Id = [int]$_.ProcessId; Name = $_.Name } })
 }
 
 if ($Action -eq 'close') {
@@ -25,7 +29,7 @@ if ($Action -eq 'close') {
   $left = Get-Mine
   if ($left.Count -gt 0) {
     Write-Output "astro-update: $($left.Count) process(es) still running after 30 s; stopping them"
-    $left | Stop-Process -Force -ErrorAction SilentlyContinue
+    foreach ($p in $left) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
     $deadline = (Get-Date).AddSeconds(15)
     while ((Get-Mine).Count -gt 0 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
   }
