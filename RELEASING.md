@@ -259,17 +259,9 @@ is deleted. Every install left as-is is a timer.
   string inside a Mach-O can be overwritten but not resized. `--sparkle-feed`
   enforces that length.
 
-Upstream's `SUPublicEDKey` is deliberately left in place while publik has no
-EdDSA key: a feed publik cannot sign is a feed nothing can install from, which
-is the safe direction. When publik does have one:
-
-```bash
-… --sparkle-ed-key "<base64 public half>"
-```
-
-and publish a signed appcast at `https://publikhq.com/astro/update`. That is the
-step that turns this release process into an **auto-update** channel — until
-then, installed users update by downloading the dmg again.
+From 0.2.7 Astro has its own Ed25519 update key and updates itself (§10). A
+release uses `--sparkle enable --sparkle-ed-key "<public half>"` in place of
+the default.
 
 `--sparkle keep` leaves every Sparkle key as upstream shipped it. Do not use it
 on a release.
@@ -449,6 +441,65 @@ gh workflow run release-windows-astro.yml -R Blueturboguy07/Astro --ref main \
 
 Then add `Astro-Setup.exe` to `SHA256SUMS.txt`, upload it with `--clobber`, and
 mark the release latest (§8).
+
+## 10. The updater (from 0.2.7)
+
+Astro 0.2.7 and newer update themselves: Sparkle on macOS, WinSparkle on
+Windows. Both ask publik: `https://publikhq.com/astro/up/mac.xml` and
+`https://publikhq.com/astro/up/w/<version>`. publik makes those feeds from the
+latest release here and its asset `astro-update.json`. Astro checks at start
+and each hour, and shows the update window; the user selects Install.
+
+**The key.** One Ed25519 key signs the dmg and `Astro-Update.exe`.
+
+| Where | Name |
+|---|---|
+| This Mac's keychain | service `astro-update-key`, accounts `private` and `public` |
+| GitHub Actions | secret `ASTRO_UPDATE_KEY` on the repository that runs the Windows build |
+
+Never put the key in git, a log or a chat. A new key cuts off every installed
+Astro: those users download one more time.
+
+**macOS.** In §4, re-cut with the public half, then sign the dmg after §6:
+
+```bash
+PUB="$(ASTRO_UPDATE_KEY="$(security find-generic-password -s astro-update-key -a private -w)" \
+  bun scripts/release/astro-update.ts public-key)"
+bun scripts/release/astro-recut.ts … --app-version 0.2.8 --sparkle enable --sparkle-ed-key "$PUB" --sign
+# §6: notarize, staple, dmg. Then:
+ASTRO_UPDATE_KEY="$(security find-generic-password -s astro-update-key -a private -w)" \
+  bun scripts/release/astro-update.ts manifest --app-version 0.2.8 --mac Astro.dmg --out astro-update.macos.json
+```
+
+Check the result: `CFBundleVersion` is `10001.<version>`, `SUFeedURL` is the
+publik feed, and `strings` of the Sparkle framework shows no `cdn.browseros.com`.
+
+**Windows.** The workflow of §9 with the secret present also makes
+`Astro-Update.exe` (the package WinSparkle runs; its log is
+`%TEMP%\astro-update.log`) and `astro-update.windows.json`. Download the
+workflow artifact.
+
+**Join and publish.**
+
+```bash
+bun scripts/release/astro-update.ts merge --out astro-update.json astro-update.windows.json astro-update.macos.json
+bun scripts/release/astro-update.ts verify --file Astro.dmg --sig "<macos.ed_signature>"
+bun scripts/release/astro-update.ts verify --file Astro-Update.exe --sig "<windows.ed_signature>"
+```
+
+Upload `Astro.dmg`, `Astro-Setup.exe`, `Astro-Update.exe`, `astro-update.json`,
+`astro-agent.crx` and `SHA256SUMS.txt`. publik's feeds follow the release
+marked latest within 15 minutes. Then read both feeds: each must offer
+`10001.<version>` with the URL of this release.
+
+**Roll back a bad release.** Mark the previous good release latest
+(`gh release edit <tag> --latest`). The feeds then offer nothing newer to
+users on the bad version, so also publish a fixed version with a higher number:
+an updater never installs a lower version.
+
+**Proof.** `astro-qa-windows`, branch `feat/updater`, `scripts/update-proof`:
+one job per OS installs version N, serves a signed feed, and checks that Astro
+starts as N+1 and refuses a wrong signature.
 
 ---
 
