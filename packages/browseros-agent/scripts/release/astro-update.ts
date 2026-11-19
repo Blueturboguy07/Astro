@@ -11,12 +11,17 @@
  *
  *   bun astro-update.ts public-key
  *   bun astro-update.ts manifest --app-version 0.2.7 [--mac Astro.dmg] [--win Astro-Update.exe] --out astro-update.json
+ *   bun astro-update.ts merge --out astro-update.json astro-update.windows.json astro-update.macos.json
  *   bun astro-update.ts appcast --os macos|windows --manifest astro-update.json --url <enclosure url>
  *   bun astro-update.ts appcast --os macos|windows --none
  *   bun astro-update.ts verify --file <path> --sig <base64>
  *
  * --other-key lets a proof sign with a key that is not Astro's (the
  * "wrong key" case); a release never passes it.
+ *
+ * A release signs each OS where its package is made (Windows in CI, the
+ * notarized dmg on the Mac) and merges the halves. `merge` needs no key: it
+ * checks that every half is for the same version and that no OS appears twice.
  */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -66,6 +71,28 @@ export function makeManifest(argv: string[]): UpdateManifest {
   return manifest
 }
 
+/** Joins per-OS manifests of one version; refuses a mismatch or a duplicate OS. */
+export function mergeManifests(parts: UpdateManifest[]): UpdateManifest {
+  if (parts.length === 0) throw new Error('merge needs at least one manifest')
+  const first = parts[0] as UpdateManifest
+  const out: UpdateManifest = { app_version: first.app_version, update_version: first.update_version }
+  for (const p of parts) {
+    if (p.app_version !== out.app_version || p.update_version !== out.update_version) {
+      throw new Error(`manifests disagree: ${p.app_version} vs ${out.app_version}`)
+    }
+    if (p.update_version !== updateVersion(p.app_version)) {
+      throw new Error(`update_version ${p.update_version} is not ${updateVersion(p.app_version)}`)
+    }
+    for (const os of ['macos', 'windows'] as const) {
+      const f = p[os]
+      if (!f) continue
+      if (out[os]) throw new Error(`two manifests carry ${os}`)
+      out[os] = f
+    }
+  }
+  return out
+}
+
 function main(argv: string[]): void {
   const cmd = argv[0]
   if (cmd === 'public-key') {
@@ -80,6 +107,14 @@ function main(argv: string[]): void {
       if (f) console.log(`${os}: ${f.file} ${f.length} bytes, sha256 ${f.sha256}, signed`)
     }
     console.log(`wrote ${path.resolve(out)} (update version ${m.update_version})`)
+    return
+  }
+  if (cmd === 'merge') {
+    const out = get(argv, '--out') ?? 'astro-update.json'
+    const files = argv.slice(1).filter((a, i, all) => a !== '--out' && all[i - 1] !== '--out')
+    const m = mergeManifests(files.map((f) => JSON.parse(fs.readFileSync(f, 'utf8')) as UpdateManifest))
+    fs.writeFileSync(out, `${JSON.stringify(m, null, 2)}\n`)
+    console.log(`wrote ${path.resolve(out)}: ${m.app_version}, ${[m.macos && 'macos', m.windows && 'windows'].filter(Boolean).join(' + ')}`)
     return
   }
   if (cmd === 'appcast') {
@@ -107,7 +142,7 @@ function main(argv: string[]): void {
     if (!ok) process.exit(2)
     return
   }
-  throw new Error('commands: public-key | manifest | appcast | verify')
+  throw new Error('commands: public-key | manifest | merge | appcast | verify')
 }
 
 if (import.meta.main) {

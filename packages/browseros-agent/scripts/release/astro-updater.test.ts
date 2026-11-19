@@ -127,3 +127,32 @@ describe('appcastXml', () => {
     expect(xml).toContain('sparkle:os="macos"')
   })
 })
+
+describe('astro-update.ts merge', () => {
+  const { mergeManifests } = require('./astro-update') as typeof import('./astro-update')
+  const f = (file: string) => ({ file, length: 1, sha256: 'x', ed_signature: 'y' })
+
+  it('joins the Windows half (CI) and the macOS half (the Mac)', () => {
+    const m = mergeManifests([
+      { app_version: '0.2.7', update_version: '10001.0.2.7', windows: f('Astro-Update.exe') },
+      { app_version: '0.2.7', update_version: '10001.0.2.7', macos: f('Astro.dmg') },
+    ])
+    expect(m.windows?.file).toBe('Astro-Update.exe')
+    expect(m.macos?.file).toBe('Astro.dmg')
+  })
+
+  it('refuses halves of different versions, or the same OS twice', () => {
+    expect(() =>
+      mergeManifests([
+        { app_version: '0.2.7', update_version: '10001.0.2.7', windows: f('a') },
+        { app_version: '0.2.8', update_version: '10001.0.2.8', macos: f('b') },
+      ]),
+    ).toThrow(/disagree/)
+    expect(() =>
+      mergeManifests([
+        { app_version: '0.2.7', update_version: '10001.0.2.7', windows: f('a') },
+        { app_version: '0.2.7', update_version: '10001.0.2.7', windows: f('b') },
+      ]),
+    ).toThrow(/two manifests/)
+  })
+})
