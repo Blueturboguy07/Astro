@@ -400,6 +400,19 @@ function utf16le(text: string): Uint8Array {
   return out
 }
 
+export function countUtf16(buf: Uint8Array, needle: string): number {
+  const bytes = utf16le(needle)
+  let n = 0
+  outer: for (let i = 0; i + bytes.length <= buf.length; i++) {
+    for (let j = 0; j < bytes.length; j++) {
+      if (buf[i + j] !== bytes[j]) continue outer
+    }
+    n++
+    i += bytes.length - 1
+  }
+  return n
+}
+
 export function countAscii(buf: Uint8Array, needle: string): number {
   const bytes = new TextEncoder().encode(needle)
   let n = 0
@@ -892,8 +905,13 @@ export async function recut(opts: RecutOptions): Promise<string> {
       console.log(`      visible "${p.from}" → "${p.to}" ×${r.occurrences}`)
     }
     for (const p of VISIBLE_UTF16_PATCHES) {
-      const r = patchUtf16InPlace(fw, p.from, p.to)
-      console.log(`      visible u"${p.from}" → "${p.to}" ×${r.occurrences}`)
+      // The source is usually the previous Astro bundle, which already carries the swap.
+      const done = countUtf16(fw, p.to)
+      const r = patchUtf16InPlace(fw, p.from, p.to, { required: done === 0 })
+      console.log(
+        `      visible u"${p.from}" → "${p.to}" ×${r.occurrences}` +
+          (done ? ` (×${done} already in the source)` : ''),
+      )
     }
     fs.writeFileSync(frameworkBinary, fw)
     const total = applied.reduce((n, p) => n + p.occurrences, 0)

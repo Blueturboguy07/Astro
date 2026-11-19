@@ -567,6 +567,15 @@ describe('patchUtf16InPlace (F-091 c: toolbar button name)', () => {
     ).toBe(0)
   })
 
+  it('counts the swapped literal, so a re-cut of an Astro bundle knows it is done', () => {
+    const { countUtf16 } = require('./astro-recut') as typeof import('./astro-recut')
+    const buf = new Uint8Array([1, ...u16('Ask BrowserOS'), 0, ...u16('Astro sidebar')])
+    expect(countUtf16(buf, 'Astro sidebar')).toBe(1)
+    patchUtf16InPlace(buf, 'Ask BrowserOS', 'Astro sidebar')
+    expect(countUtf16(buf, 'Astro sidebar')).toBe(2)
+    expect(countUtf16(buf, 'Ask BrowserOS')).toBe(0)
+  })
+
   it('every listed pair is the same length and names Astro', () => {
     for (const p of VISIBLE_UTF16_PATCHES) {
       expect(p.to.length).toBe(p.from.length)
