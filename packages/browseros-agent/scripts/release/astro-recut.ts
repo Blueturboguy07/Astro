@@ -34,13 +34,24 @@
  *     --source ~/Downloads/Astro.app \
  *     --crx dist/astro-agent-0.0.101.crx \
  *     --out dist/astro-recut \
- *     [--sparkle disable|keep] [--sparkle-feed <url, same length>] \
- *     [--sparkle-ed-key <base64>] [--patch-id] [--sign] [--dry-run]
+ *     [--sparkle disable|keep|enable] [--sparkle-feed <url, same length>] \
+ *     [--sparkle-ed-key <base64>] [--patch-id] [--sign] [--no-timestamp] [--dry-run]
+ *
+ * `--sparkle enable` (with --sparkle-ed-key and --app-version) turns on
+ * Astro's own updater (astro-updater.ts): Astro's key in SUPublicEDKey,
+ * CFBundleVersion = 10001.<Astro version> (what Sparkle compares), automatic
+ * checks on, and the browser feed compiled into the framework pointed at
+ * https://publikhq.com/astro/up/mac(.xml | -x86_64.xml).
  */
 import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import {
+  MAC_FEED_BASE,
+  updateVersion,
+  validatePublicKey,
+} from './astro-updater'
 import { findPaks, rebrandResourcePaks, renamedI18nKeys } from './pak-rebrand'
 
 /* Astro's extension id: the fork packs the agent with its own key
@@ -456,11 +467,30 @@ export type PlistOp = {
  * update can never be validated — which is the safe direction.
  */
 export function sparklePlistOps(opts: {
-  mode: 'disable' | 'keep'
+  mode: 'disable' | 'keep' | 'enable'
   feedUrl?: string
   edKey?: string
+  appVersion?: string
 }): PlistOp[] {
   if (opts.mode === 'keep') return []
+  if (opts.mode === 'enable') {
+    /* Astro's own updater: the glue's user driver downloads a found update
+       by itself and installs it at the next relaunch (sparkle_glue.mm), so
+       SUAutomaticallyUpdate stays NO. The feed URL Sparkle really asks is the
+       one compiled into the framework (feedURLStringForUpdater); SUFeedURL is
+       written to match it. */
+    if (!opts.edKey || !opts.appVersion) {
+      throw new Error('--sparkle enable needs --sparkle-ed-key and --app-version')
+    }
+    return [
+      { key: 'SUEnableAutomaticChecks', type: 'bool', value: 'YES' },
+      { key: 'SUAutomaticallyUpdate', type: 'bool', value: 'NO' },
+      { key: 'SUScheduledCheckInterval', type: 'integer', value: '3600' },
+      { key: 'SUFeedURL', type: 'string', value: `${MAC_FEED_BASE}.xml` },
+      { key: 'SUPublicEDKey', type: 'string', value: validatePublicKey(opts.edKey) },
+      { key: 'CFBundleVersion', type: 'string', value: updateVersion(opts.appVersion) },
+    ]
+  }
   const ops: PlistOp[] = [
     { key: 'SUEnableAutomaticChecks', type: 'bool', value: 'NO' },
     { key: 'SUAutomaticallyUpdate', type: 'bool', value: 'NO' },
@@ -475,6 +505,41 @@ export function sparklePlistOps(opts: {
     ops.push({ key: 'SUPublicEDKey', type: 'string', value: opts.edKey })
   }
   return ops
+}
+
+/**
+ * Points the browser's Sparkle feed at Astro's own feed.
+ *
+ * The glue builds the feed from a compiled-in base plus ".xml" (arm64) or
+ * "-x86_64.xml" (sparkle_glue.mm, GetArchitectureSpecificFeedURL). Only that
+ * base is replaced, matched with its terminating NUL, so the server feeds
+ * that share its prefix (".../update-server.xml") are left alone. Works on an
+ * upstream framework and on a prior Astro one (whose base is publik's old
+ * https://publikhq.com/astro/update). Upstream's server feeds are moved to
+ * publik as in `disable`.
+ */
+export function patchMacFeed(fw: Uint8Array): { feed: number; server: number } {
+  let feed = 0
+  for (const from of [UPSTREAM_APPCAST_URL, PUBLIK_APPCAST_URL]) {
+    feed += patchAsciiInPlace(fw, `${from}\0`, `${MAC_FEED_BASE}\0`, {
+      required: false,
+    }).occurrences
+  }
+  const server = patchAsciiInPlace(fw, UPSTREAM_APPCAST_URL, PUBLIK_APPCAST_URL, {
+    required: false,
+  }).occurrences
+  if (countAscii(fw, `${MAC_FEED_BASE}\0`) < 1) {
+    throw new Error(
+      `Sparkle feed base not found: neither "${UPSTREAM_APPCAST_URL}" nor ` +
+        `"${PUBLIK_APPCAST_URL}" (NUL-terminated) is in the framework.`,
+    )
+  }
+  for (const old of [UPSTREAM_APPCAST_URL, PUBLIK_APPCAST_URL]) {
+    if (countAscii(fw, `${old}\0`) !== 0) {
+      throw new Error(`The old feed base "${old}" survived the patch`)
+    }
+  }
+  return { feed, server }
 }
 
 /** `plutil -replace <key> -<type> <value> <plist>`, one per op. */
@@ -494,10 +559,11 @@ export function codesignArgs(
   target: string,
   identity: string,
   entitlements?: string,
+  timestamp = true,
 ): string[] {
   return [
     '--force',
-    '--timestamp',
+    timestamp ? '--timestamp' : '--timestamp=none',
     '--options',
     'runtime',
     ...(entitlements ? ['--entitlements', entitlements] : []),
@@ -585,10 +651,12 @@ export type RecutOptions = {
   version?: string
   /** CFBundleShortVersionString, e.g. 0.2.5. CFBundleVersion stays the browser's. */
   appVersion?: string
-  sparkle: 'disable' | 'keep'
+  sparkle: 'disable' | 'keep' | 'enable'
   sparkleFeed?: string
   sparkleEdKey?: string
   sign: boolean
+  /** false only for a test identity that has no timestamp service (proof runs). */
+  timestamp?: boolean
   patchId: boolean
   /** A freshly built browseros_server to install in place of the source bundle's. */
   server?: string
@@ -930,6 +998,23 @@ export async function recut(opts: RecutOptions): Promise<string> {
   }
 
   console.log(`[5/7] Sparkle: ${opts.sparkle}`)
+  if (opts.sparkle === 'enable' && !opts.dryRun) {
+    const infoPlist = path.join(appOut, 'Contents/Info.plist')
+    for (const op of sparklePlistOps({
+      mode: 'enable',
+      edKey: opts.sparkleEdKey,
+      appVersion: opts.appVersion,
+    })) {
+      run('plutil', plutilArgs(infoPlist, op))
+    }
+    const fw = new Uint8Array(fs.readFileSync(frameworkBinary))
+    const res = patchMacFeed(fw)
+    fs.writeFileSync(frameworkBinary, fw)
+    console.log(
+      `      browser feed -> ${MAC_FEED_BASE}(.xml) x${res.feed}; server feeds stay on publik x${res.server}; ` +
+        `SUPublicEDKey = Astro's; CFBundleVersion = ${updateVersion(opts.appVersion as string)}; automatic checks on`,
+    )
+  }
   if (opts.sparkle === 'disable' && !opts.dryRun) {
     const feed = opts.sparkleFeed ?? PUBLIK_APPCAST_URL
     const infoPlist = path.join(appOut, 'Contents/Info.plist')
@@ -974,7 +1059,7 @@ export async function recut(opts: RecutOptions): Promise<string> {
      framework — otherwise a maintainer poll or update check still reaches
      upstream and can reinstate the bug reporter. Fails loud rather than ship a
      bundle that phones home. */
-  if (opts.sparkle === 'disable' && !opts.dryRun) {
+  if (opts.sparkle !== 'keep' && !opts.dryRun) {
     const fw = new Uint8Array(fs.readFileSync(frameworkBinary))
     const survivors = countAscii(fw, 'cdn.browseros.com')
     if (survivors > 0) {
@@ -1039,7 +1124,10 @@ export async function recut(opts: RecutOptions): Promise<string> {
         entFile = path.join(entDir, `ent-${carried++}.plist`)
         fs.writeFileSync(entFile, xml)
       }
-      run('codesign', codesignArgs(target, opts.identity, entFile))
+      run(
+        'codesign',
+        codesignArgs(target, opts.identity, entFile, opts.timestamp !== false),
+      )
     }
 
     /* The server is a plain executable in Resources, which the find above
@@ -1098,15 +1186,20 @@ export function parseArgs(argv: string[]): RecutOptions {
   if (!source || !crx) {
     throw new Error(
       'Usage: bun scripts/release/astro-recut.ts --source <Astro.app> --crx <file.crx> ' +
-        '[--out dir] [--version 0.0.101] [--app-version 0.2.5] [--sparkle disable|keep] ' +
+        '[--out dir] [--version 0.0.101] [--app-version 0.2.5] [--sparkle disable|keep|enable] ' +
         '[--sparkle-feed url] [--sparkle-ed-key base64] [--server browseros_server] ' +
         '[--paks-from upstream/BrowserOS.app] ' +
-        '[--patch-id] [--sign] [--dry-run]',
+        '[--patch-id] [--sign] [--no-timestamp] [--dry-run]',
     )
   }
-  const sparkle = (get('--sparkle') ?? 'disable') as 'disable' | 'keep'
-  if (sparkle !== 'disable' && sparkle !== 'keep') {
-    throw new Error(`--sparkle must be "disable" or "keep", got "${sparkle}"`)
+  const sparkle = (get('--sparkle') ?? 'disable') as
+    | 'disable'
+    | 'keep'
+    | 'enable'
+  if (sparkle !== 'disable' && sparkle !== 'keep' && sparkle !== 'enable') {
+    throw new Error(
+      `--sparkle must be "disable", "keep" or "enable", got "${sparkle}"`,
+    )
   }
   const sparkleFeed = get('--sparkle-feed')
   if (sparkleFeed && sparkleFeed.length !== UPSTREAM_APPCAST_URL.length) {
@@ -1126,6 +1219,7 @@ export function parseArgs(argv: string[]): RecutOptions {
     sparkleFeed,
     sparkleEdKey: get('--sparkle-ed-key'),
     sign: argv.includes('--sign'),
+    timestamp: !argv.includes('--no-timestamp'),
     patchId: argv.includes('--patch-id'),
     server: get('--server'),
     paksFrom: get('--paks-from'),

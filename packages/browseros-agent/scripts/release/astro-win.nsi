@@ -16,6 +16,24 @@
 ;
 ; Driven entirely by /D defines from astro-recut-win.ts:
 ;   makensis /DSRCDIR=<abs Chrome-bin> /DOUTFILE=<abs setup.exe> /DVERSION=x.y.z astro-win.nsi
+;
+; With /DUPDATER (plus /DVERSIONDIR=<Chromium version dir> /DHELPER=<astro-update-helper.ps1>)
+; the same tree becomes Astro-Update-<version>.exe, the package Astro's own
+; updater (WinSparkle) downloads, checks against Astro's update key and runs.
+; WinSparkle's glue starts it with CreateProcess, hidden, with "--silent"
+; (chrome/browser/win/winsparkle_glue.cc). So the package:
+;   - asks for no admin rights in its manifest (RequestExecutionLevel user):
+;     CreateProcess cannot start an exe whose manifest asks for admin from a
+;     normal (non-elevated) process (error 740);
+;   - is always silent: no page can wait behind a hidden window;
+;   - when its token is not admin, starts itself again with ShellExecute
+;     "runas" (the UAC prompt) and waits; the elevated copy does the work;
+;   - closes Astro first (chrome.dll and the other files cannot be written
+;     while Astro runs), installs the tree, updates the version keys, removes
+;     version folders of older Chromium builds, then starts Astro again as the
+;     user who ran the update.
+; Exit codes: 0 updated; 2 admin rights refused or the elevated copy failed;
+; 3 Astro is not installed; 5 Astro did not close; 6 files could not be written.
 
 Unicode true
 
@@ -41,7 +59,19 @@ Name "${APPNAME}"
 OutFile "${OUTFILE}"
 InstallDir "$PROGRAMFILES64\Astro"
 InstallDirRegKey HKLM "${APP_REG_KEY}" "InstallDir"
-RequestExecutionLevel admin
+!ifdef UPDATER
+  !ifndef VERSIONDIR
+    !error "UPDATER needs /DVERSIONDIR=<Chromium version dir of the tree>"
+  !endif
+  !ifndef HELPER
+    !error "UPDATER needs /DHELPER=<path to astro-update-helper.ps1>"
+  !endif
+  !include "LogicLib.nsh"
+  RequestExecutionLevel user
+  SilentInstall silent
+!else
+  RequestExecutionLevel admin
+!endif
 ShowInstDetails show
 ShowUninstDetails show
 SetCompressor /SOLID lzma
@@ -54,6 +84,112 @@ VIAddVersionKey "FileVersion"     "${VERSION}"
 VIAddVersionKey "ProductVersion"  "${VERSION}"
 VIAddVersionKey "LegalCopyright"  "Copyright 2026 publik"
 
+; The version keys both the installer and the update package write.
+!macro WriteVersionKeys
+  WriteRegStr HKLM "${APP_REG_KEY}" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "${APP_REG_KEY}" "Version" "${VERSION}"
+  WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${VERSION}"
+!macroend
+
+!ifdef UPDATER
+; ---------------- the update package (see the header) ----------------
+Var Elevated
+Var ResultFile
+
+Function .onInit
+  SetShellVarContext all
+  SetRegView 64
+  ReadRegStr $INSTDIR HKLM "${APP_REG_KEY}" "InstallDir"
+  ${If} $INSTDIR == ""
+  ${OrIfNot} ${FileExists} "$INSTDIR\chrome.exe"
+    SetErrorLevel 3
+    Quit
+  ${EndIf}
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/ELEVATED" $R1
+  ${IfNot} ${Errors}
+    StrCpy $Elevated 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $R0 "/RESULT=" $ResultFile
+FunctionEnd
+
+Function WriteResult
+  ; $0 = the word to write. Only the elevated copy writes one.
+  ${If} $ResultFile != ""
+    FileOpen $9 "$ResultFile" w
+    FileWrite $9 "$0"
+    FileClose $9
+  ${EndIf}
+FunctionEnd
+
+Function Fail
+  ; $0 = exit code.
+  Push $0
+  StrCpy $0 "fail $0"
+  Call WriteResult
+  Pop $0
+  SetErrorLevel $0
+  Quit
+FunctionEnd
+
+Section "Update" SecUpdate
+  SectionIn RO
+  SetShellVarContext all
+  SetRegView 64
+  ${If} $Elevated != 1
+    UserInfo::GetAccountType
+    Pop $1
+    ${If} $1 != "Admin"
+      ; Ask for admin rights (UAC) and let the elevated copy do the work.
+      InitPluginsDir
+      ExecShellWait "runas" "$EXEPATH" '/ELEVATED /RESULT="$PLUGINSDIR\result.txt"'
+      ClearErrors
+      FileOpen $9 "$PLUGINSDIR\result.txt" r
+      FileRead $9 $2
+      FileClose $9
+      ${If} $2 != "ok"
+        SetErrorLevel 2
+        Quit
+      ${EndIf}
+      Exec '"$INSTDIR\chrome.exe"'
+      SetErrorLevel 0
+      Quit
+    ${EndIf}
+  ${EndIf}
+
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\astro-update-helper.ps1" "${HELPER}"
+  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\astro-update-helper.ps1" -Action close -InstallDir "$INSTDIR"'
+  Pop $1
+  ${If} $1 != 0
+    StrCpy $0 5
+    Call Fail
+  ${EndIf}
+
+  SetOutPath "$INSTDIR"
+  SetOverwrite on
+  ClearErrors
+  File /r "${SRCDIR}\*"
+  ${If} ${Errors}
+    StrCpy $0 6
+    Call Fail
+  ${EndIf}
+  !insertmacro WriteVersionKeys
+  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\astro-update-helper.ps1" -Action prune -InstallDir "$INSTDIR" -Keep "${VERSIONDIR}"'
+  Pop $1
+
+  ${If} $Elevated == 1
+    StrCpy $0 "ok"
+    Call WriteResult
+  ${Else}
+    Exec '"$INSTDIR\chrome.exe"'
+  ${EndIf}
+  SetErrorLevel 0
+SectionEnd
+
+!else
 ; ---- pages (skipped automatically under /S) ----
 Page directory
 Page instfiles
@@ -76,12 +212,10 @@ Section "Astro" SecMain
   ; versioned payload dir (chrome.dll, browseros_extensions, etc.).
   File /r "${SRCDIR}\*"
 
-  WriteRegStr HKLM "${APP_REG_KEY}" "InstallDir" "$INSTDIR"
-  WriteRegStr HKLM "${APP_REG_KEY}" "Version" "${VERSION}"
+  !insertmacro WriteVersionKeys
 
   ; Add/Remove Programs.
   WriteRegStr   HKLM "${UNINST_KEY}" "DisplayName"     "${APPNAME}"
-  WriteRegStr   HKLM "${UNINST_KEY}" "DisplayVersion"  "${VERSION}"
   WriteRegStr   HKLM "${UNINST_KEY}" "Publisher"       "${PUBLISHER}"
   WriteRegStr   HKLM "${UNINST_KEY}" "DisplayIcon"     "$INSTDIR\chrome.exe,0"
   WriteRegStr   HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
@@ -117,3 +251,4 @@ Section "Uninstall"
   DeleteRegKey HKLM "${UNINST_KEY}"
   DeleteRegKey HKLM "${APP_REG_KEY}"
 SectionEnd
+!endif

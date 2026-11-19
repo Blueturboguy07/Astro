@@ -284,3 +284,63 @@ describe('release-windows-astro workflow (F-015)', () => {
     expect(wf).toContain('$vi.ProductName -ne "Astro"')
   })
 })
+
+describe("Astro's updater on Windows (--update-key)", () => {
+  const { patchUpdateKey, UPSTREAM_WINSPARKLE_FEED, KEY_ANCHOR_WINDOW } =
+    require('./astro-recut-win') as typeof import('./astro-recut-win')
+  const {
+    ASTRO_UPDATE_PUBLIC_KEY,
+    UPSTREAM_ED_PUBLIC_KEY,
+    windowsFeedUrl,
+  } = require('./astro-updater') as typeof import('./astro-updater')
+
+  it('points the WinSparkle feed at the build’s own versioned URL', () => {
+    const buf = new Uint8Array(
+      ascii(
+        'x https://cdn.browseros.com/extensions/extensions.json y ' +
+          'https://cdn.browseros.com/extensions/update-manifest.xml z ' +
+          `${UPSTREAM_WINSPARKLE_FEED} w`,
+      ),
+    )
+    patchChromeDllUrls(buf, { winSparkleFeed: windowsFeedUrl('0.2.7') })
+    const s = new TextDecoder().decode(buf)
+    expect(s).toContain('https://publikhq.com/astro/up/w/0.2.7?xx')
+    expect(s).not.toContain('/astro/update/win.xml')
+  })
+
+  it("replaces only WinSparkle's copy of upstream's key (the one next to its feed URL)", () => {
+    const feed = windowsFeedUrl('0.2.7')
+    const far = '.'.repeat(KEY_ANCHOR_WINDOW + 10)
+    const src = `${UPSTREAM_ED_PUBLIC_KEY}${far}${feed}..${UPSTREAM_ED_PUBLIC_KEY}..`
+    const buf = new Uint8Array(ascii(src))
+    const res = patchUpdateKey(buf, ASTRO_UPDATE_PUBLIC_KEY, feed)
+    const out = new TextDecoder().decode(buf)
+    expect(out.length).toBe(src.length)
+    expect(res.others).toBe(1)
+    /* The far copy (the server updater's) is untouched; the near one is Astro's. */
+    expect(out.startsWith(UPSTREAM_ED_PUBLIC_KEY)).toBe(true)
+    expect(out.endsWith(`${feed}..${ASTRO_UPDATE_PUBLIC_KEY}..`)).toBe(true)
+  })
+
+  it("refuses when no copy of upstream's key is near the feed URL", () => {
+    const feed = windowsFeedUrl('0.2.7')
+    const buf = new Uint8Array(
+      ascii(`${UPSTREAM_ED_PUBLIC_KEY}${'.'.repeat(KEY_ANCHOR_WINDOW + 10)}${feed}`),
+    )
+    expect(() => patchUpdateKey(buf, ASTRO_UPDATE_PUBLIC_KEY, feed)).toThrow(/No copy/)
+  })
+
+  it("refuses a tree without upstream's key", () => {
+    const feed = windowsFeedUrl('0.2.7')
+    expect(() =>
+      patchUpdateKey(new Uint8Array(ascii(`nothing ${feed}`)), ASTRO_UPDATE_PUBLIC_KEY, feed),
+    ).toThrow(/not in chrome.dll/)
+  })
+
+  it('parses --update-key and rejects a malformed key', () => {
+    const base = ['--tree', 't', '--crx', 'c', '--server', 's', '--version', '0.0.101', '--app-version', '0.2.7']
+    expect(parseArgs([...base, '--update-key', ASTRO_UPDATE_PUBLIC_KEY]).updateKey).toBe(ASTRO_UPDATE_PUBLIC_KEY)
+    expect(parseArgs(base).updateKey).toBeUndefined()
+    expect(() => parseArgs([...base, '--update-key', 'nope'])).toThrow()
+  })
+})

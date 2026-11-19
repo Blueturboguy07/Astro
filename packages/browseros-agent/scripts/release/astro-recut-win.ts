@@ -22,6 +22,11 @@
  *   3. The phone-home URLs compiled into chrome.dll repointed to publikhq.com
  *      hosts (all same-length ASCII overwrites) so the build never reaches
  *      cdn.browseros.com.
+ *   3a. With --update-key (Astro's own updater, see astro-updater.ts):
+ *      upstream's Ed25519 update key in chrome.dll replaced by Astro's (both
+ *      44 bytes), and the WinSparkle feed pointed at a publik URL that names
+ *      this build's Astro version. The package step then also makes
+ *      Astro-Update-<version>.exe, the file WinSparkle downloads and runs.
  *   4. Upstream's local server (BrowserOSServer\default\resources: the
  *      browseros_server.exe and its DB migrations) replaced by Astro's, built
  *      from this repo's apps/server for windows-x64. Without it the Windows
@@ -77,6 +82,11 @@ import {
   VISIBLE_UTF16_PATCHES,
   validateExtensionVersion,
 } from './astro-recut'
+import {
+  UPSTREAM_ED_PUBLIC_KEY,
+  validatePublicKey,
+  windowsFeedUrl,
+} from './astro-updater'
 import { rebrandResourcePaks } from './pak-rebrand'
 
 /** The bundled bug reporter. Dropped from Astro: no upstream reporting UI. */
@@ -152,6 +162,75 @@ export const WIN_URL_PATCHES: ReadonlyArray<{
     note: 'server appcast -> publik',
   },
 ]
+
+/** WinSparkle's compiled-in feed (x64 build). */
+export const UPSTREAM_WINSPARKLE_FEED = 'https://cdn.browseros.com/appcast-win.xml'
+
+/** Offsets of every occurrence of an ASCII string. */
+export function findAscii(buf: Uint8Array, needle: string): number[] {
+  const b = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength)
+  const n = Buffer.from(needle, 'latin1')
+  const at: number[] = []
+  for (let i = b.indexOf(n); i >= 0; i = b.indexOf(n, i + 1)) at.push(i)
+  return at
+}
+
+/** How far (bytes) the WinSparkle key may sit from WinSparkle's feed URL. */
+export const KEY_ANCHOR_WINDOW = 64 * 1024
+
+/**
+ * Replace WinSparkle's copy of upstream's update key in chrome.dll with
+ * Astro's. WinSparkle checks every download against this key
+ * (win_sparkle_set_eddsa_public_key), so it decides who can ship an update to
+ * this build. Both keys are 44 base64 bytes.
+ *
+ * chrome.dll holds upstream's key more than once: the browser's server
+ * updater (browseros_server_updater.cc) has its own copy for the bundled
+ * server's OTA feed. Only WinSparkle's copy changes, so nothing but the app
+ * updater trusts a new key. That copy is the one next to WinSparkle's feed
+ * URL (`anchor`): both are file-scope constants of winsparkle_glue.cc. Throws
+ * when no copy is within KEY_ANCHOR_WINDOW of the anchor.
+ */
+export function patchUpdateKey(
+  buf: Uint8Array,
+  key: string,
+  anchor: string,
+): BinaryPatch & { offset: number; distance: number; others: number } {
+  validatePublicKey(key)
+  const keys = findAscii(buf, UPSTREAM_ED_PUBLIC_KEY)
+  if (keys.length === 0) {
+    throw new Error(
+      "Upstream's update key is not in chrome.dll: this is not the WinSparkle " +
+        'build the re-cut expects. Refusing to guess where the key is.',
+    )
+  }
+  const anchors = findAscii(buf, anchor)
+  if (anchors.length !== 1) {
+    throw new Error(
+      `WinSparkle's feed URL "${anchor}" is in chrome.dll ${anchors.length} times; expected once`,
+    )
+  }
+  let best = keys[0]
+  for (const k of keys) {
+    if (Math.abs(k - anchors[0]) < Math.abs(best - anchors[0])) best = k
+  }
+  const distance = Math.abs(best - anchors[0])
+  if (distance > KEY_ANCHOR_WINDOW) {
+    throw new Error(
+      `No copy of upstream's key within ${KEY_ANCHOR_WINDOW} bytes of WinSparkle's feed URL ` +
+        `(nearest ${distance}); refusing to patch a key that may not be WinSparkle's`,
+    )
+  }
+  buf.set(new TextEncoder().encode(key), best)
+  return {
+    from: UPSTREAM_ED_PUBLIC_KEY,
+    to: key,
+    occurrences: 1,
+    offset: best,
+    distance,
+    others: keys.length - 1,
+  }
+}
 
 /* Fail loudly at load, not mid-patch, if any pair drifted out of length. */
 for (const p of WIN_URL_PATCHES) {
@@ -249,10 +328,18 @@ export function astroBundledManifest(
  * times -- shipping a DLL that still points at cdn.browseros.com is exactly
  * the failure this script exists to prevent.
  */
-export function patchChromeDllUrls(buf: Uint8Array): BinaryPatch[] {
+export function patchChromeDllUrls(
+  buf: Uint8Array,
+  opts: { winSparkleFeed?: string } = {},
+): BinaryPatch[] {
   const out: BinaryPatch[] = []
   for (const p of WIN_URL_PATCHES) {
-    const res = patchAsciiInPlace(buf, p.from, p.to, { required: false })
+    /* With Astro's updater the WinSparkle feed is the build's own URL. */
+    const to =
+      opts.winSparkleFeed && p.from === UPSTREAM_WINSPARKLE_FEED
+        ? opts.winSparkleFeed
+        : p.to
+    const res = patchAsciiInPlace(buf, p.from, to, { required: false })
     if (p.required && res.occurrences === 0) {
       throw new Error(
         `Required url not found in chrome.dll: "${p.from}" (${p.note}). ` +
@@ -289,6 +376,9 @@ export type WinRecutOptions = {
   makensis?: string
   /** rcedit-x64.exe; without it chrome.exe keeps upstream's version info. */
   rcedit?: string
+  /** Astro's update public key (base64). Turns on Astro's own updater:
+      key + feed patch, and the Astro-Update package. */
+  updateKey?: string
   dryRun: boolean
 }
 
@@ -369,7 +459,10 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
   }
 
   console.log(`[2/5] chrome.dll: phone-home urls`)
-  const patches = patchChromeDllUrls(fw)
+  const winSparkleFeed = opts.updateKey
+    ? windowsFeedUrl(opts.appVersion)
+    : undefined
+  const patches = patchChromeDllUrls(fw, { winSparkleFeed })
   for (const p of patches) {
     console.log(
       `      ${p.occurrences === 0 ? 'skip' : `x${p.occurrences}`}  ${p.from} -> ${p.to}`,
@@ -389,6 +482,14 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
       `Post-patch chrome.dll still contains cdn.browseros.com x${cdnAfter}. ` +
         'A phone-home url was missed -- refuse to ship.',
     )
+  }
+  if (opts.updateKey && winSparkleFeed) {
+    const k = patchUpdateKey(fw, opts.updateKey, winSparkleFeed)
+    console.log(
+      `      WinSparkle update key -> Astro's (at 0x${k.offset.toString(16)}, ${k.distance} bytes from the feed URL; ` +
+        `${k.others} other copy of upstream's key left for the server updater)`,
+    )
+    console.log(`      WinSparkle feed -> ${winSparkleFeed}`)
   }
   if (!opts.dryRun) fs.writeFileSync(dll, fw)
   console.log(
@@ -526,6 +627,25 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
     ])
   }
   console.log(`      wrote ${outFile}`)
+  if (opts.updateKey) {
+    /* The update package: same tree, run by WinSparkle (see astro-win.nsi). */
+    const updateFile = path.join(
+      path.resolve(opts.out),
+      `Astro-Update-${opts.appVersion}.exe`,
+    )
+    if (!opts.dryRun) {
+      run(makensis, [
+        '/DUPDATER',
+        `/DSRCDIR=${path.resolve(opts.tree)}`,
+        `/DOUTFILE=${updateFile}`,
+        `/DVERSION=${opts.appVersion}`,
+        `/DVERSIONDIR=${path.basename(versionDir)}`,
+        `/DHELPER=${path.join(path.dirname(path.resolve(nsi)), 'astro-update-helper.ps1')}`,
+        path.resolve(nsi),
+      ])
+    }
+    console.log(`      wrote ${updateFile}`)
+  }
   return outFile
 }
 
@@ -558,7 +678,7 @@ export function parseArgs(argv: string[]): WinRecutOptions {
         '--server <windows-x64 server resources dir> ' +
         '--version <CRX version, 0.0.101> --app-version <Astro release, 0.2.4> ' +
         '[--out dir] [--package nsis|zip] [--nsi <.nsi>] ' +
-        '[--makensis <path>] [--rcedit <rcedit-x64.exe>] [--dry-run]',
+        '[--makensis <path>] [--rcedit <rcedit-x64.exe>] [--update-key <base64>] [--dry-run]',
     )
   }
   const pkg = (get('--package') ?? 'nsis') as 'nsis' | 'zip'
@@ -576,6 +696,9 @@ export function parseArgs(argv: string[]): WinRecutOptions {
     nsi: get('--nsi'),
     makensis: get('--makensis'),
     rcedit: get('--rcedit'),
+    updateKey: get('--update-key')
+      ? validatePublicKey(get('--update-key') as string)
+      : undefined,
     dryRun: argv.includes('--dry-run'),
   }
 }

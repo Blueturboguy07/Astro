@@ -574,3 +574,58 @@ describe('patchUtf16InPlace (F-091 c: toolbar button name)', () => {
     }
   })
 })
+
+describe("Astro's updater on macOS (--sparkle enable)", () => {
+  const { patchMacFeed } = require('./astro-recut') as typeof import('./astro-recut')
+  const { ASTRO_UPDATE_PUBLIC_KEY, MAC_FEED_BASE } =
+    require('./astro-updater') as typeof import('./astro-updater')
+
+  it("writes Astro's key, the compared version and turns checks on", () => {
+    const ops = sparklePlistOps({ mode: 'enable', edKey: ASTRO_UPDATE_PUBLIC_KEY, appVersion: '0.2.7' })
+    const byKey = Object.fromEntries(ops.map((o) => [o.key, o.value]))
+    expect(byKey.SUPublicEDKey).toBe(ASTRO_UPDATE_PUBLIC_KEY)
+    expect(byKey.CFBundleVersion).toBe('10001.0.2.7')
+    expect(byKey.SUEnableAutomaticChecks).toBe('YES')
+    expect(byKey.SUAutomaticallyUpdate).toBe('NO')
+    expect(byKey.SUFeedURL).toBe(`${MAC_FEED_BASE}.xml`)
+  })
+
+  it('needs the key and the Astro version', () => {
+    expect(() => sparklePlistOps({ mode: 'enable', appVersion: '0.2.7' })).toThrow()
+    expect(() => sparklePlistOps({ mode: 'enable', edKey: ASTRO_UPDATE_PUBLIC_KEY })).toThrow()
+  })
+
+  it('moves only the NUL-terminated browser feed base; server feeds stay', () => {
+    const src =
+      `a ${PUBLIK_APPCAST_URL}\0 b ${PUBLIK_APPCAST_URL}-server.xml\0 ` +
+      `c ${PUBLIK_APPCAST_URL}-server.alpha.xml\0 d %s.xml\0`
+    const buf = new Uint8Array(ascii(src))
+    const res = patchMacFeed(buf)
+    const out = new TextDecoder().decode(buf)
+    expect(out.length).toBe(src.length)
+    expect(res.feed).toBe(1)
+    expect(out).toContain(`${MAC_FEED_BASE}\0`)
+    expect(out).toContain(`${PUBLIK_APPCAST_URL}-server.xml\0`)
+    expect(out).toContain(`${PUBLIK_APPCAST_URL}-server.alpha.xml\0`)
+    expect(out).not.toContain(`${PUBLIK_APPCAST_URL}\0`)
+  })
+
+  it('works on an upstream framework too (server feeds move to publik)', () => {
+    const src = `a ${UPSTREAM_APPCAST_URL}\0 b ${UPSTREAM_APPCAST_URL}-server.xml\0`
+    const buf = new Uint8Array(ascii(src))
+    patchMacFeed(buf)
+    const out = new TextDecoder().decode(buf)
+    expect(out).toContain(`${MAC_FEED_BASE}\0`)
+    expect(out).toContain(`${PUBLIK_APPCAST_URL}-server.xml\0`)
+    expect(out).not.toContain('cdn.browseros.com')
+  })
+
+  it('refuses a framework without a known feed base', () => {
+    expect(() => patchMacFeed(new Uint8Array(ascii('nothing here')))).toThrow(/not found/)
+  })
+
+  it('codesign can skip the timestamp for a runner-made identity', () => {
+    expect(codesignArgs('/x.app', 'id', undefined, false)).toContain('--timestamp=none')
+    expect(codesignArgs('/x.app', 'id')).toContain('--timestamp')
+  })
+})
