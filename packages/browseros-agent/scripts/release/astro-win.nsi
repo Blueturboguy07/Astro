@@ -33,7 +33,8 @@
 ;     version folders of older Chromium builds, then starts Astro again as the
 ;     user who ran the update.
 ; Exit codes: 0 updated; 2 admin rights refused or the elevated copy failed;
-; 3 Astro is not installed; 5 Astro did not close; 6 files could not be written.
+; 3 Astro is not installed; 5 Astro did not close or its files stayed in use
+; (nothing written); 6 files could not be written.
 
 Unicode true
 

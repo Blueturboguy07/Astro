@@ -1,5 +1,6 @@
 # Run by Astro-Update.exe (astro-win.nsi, UPDATER) with admin rights.
-#   -Action close -InstallDir <dir>              close every process that runs from <dir>
+#   -Action close -InstallDir <dir>              close every process that runs from <dir>, then
+#                                                check that every .exe/.dll there can be written
 #   -Action prune -InstallDir <dir> -Keep <ver>  remove Chromium version folders other than <ver>
 # Exit 0 on success.
 param(
@@ -33,7 +34,23 @@ if ($Action -eq 'close') {
     Write-Output "astro-update: still running: $(($left | ForEach-Object { "$($_.Name)($($_.Id))" }) -join ', ')"
     exit 1
   }
-  Write-Output 'astro-update: Astro is closed'
+  # A silent NSIS copy skips a file it cannot open and goes on (a half-updated
+  # Astro). So before any file is written, every .exe and .dll of the install
+  # must open for exclusive writing; wait up to 15 s for a scanner to let go.
+  $deadline = (Get-Date).AddSeconds(15)
+  do {
+    $locked = @()
+    foreach ($f in Get-ChildItem $dir -Recurse -File -Include *.exe, *.dll -ErrorAction SilentlyContinue) {
+      try { $h = [IO.File]::Open($f.FullName, 'Open', 'ReadWrite', 'None'); $h.Close() } catch { $locked += $f.FullName }
+    }
+    if ($locked.Count -eq 0) { break }
+    Start-Sleep -Milliseconds 500
+  } while ((Get-Date) -lt $deadline)
+  if ($locked.Count -gt 0) {
+    Write-Output "astro-update: files still in use, nothing written: $($locked[0..4] -join ', ')"
+    exit 1
+  }
+  Write-Output 'astro-update: Astro is closed and its files can be written'
   exit 0
 }
 
