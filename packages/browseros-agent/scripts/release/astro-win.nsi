@@ -96,6 +96,7 @@ VIAddVersionKey "LegalCopyright"  "Copyright 2026 publik"
 ; ---------------- the update package (see the header) ----------------
 Var Elevated
 Var ResultFile
+Var LogFile
 
 Function .onInit
   SetShellVarContext all
@@ -114,6 +115,22 @@ Function .onInit
   ${EndIf}
   ClearErrors
   ${GetOptions} $R0 "/RESULT=" $ResultFile
+  ; What the update did, for a person who asks why it failed: %TEMP%\astro-update.log.
+  ; The elevated copy writes next to its result file; the first copy keeps that file.
+  ${If} $ResultFile != ""
+    StrCpy $LogFile "$ResultFile.log"
+  ${Else}
+    StrCpy $LogFile "$TEMP\astro-update.log"
+    Delete "$LogFile"
+  ${EndIf}
+FunctionEnd
+
+Function Log
+  ; $0 = the line.
+  FileOpen $8 "$LogFile" a
+  FileSeek $8 0 END
+  FileWrite $8 "$0$\r$\n"
+  FileClose $8
 FunctionEnd
 
 Function WriteResult
@@ -129,6 +146,7 @@ Function Fail
   ; $0 = exit code.
   Push $0
   StrCpy $0 "fail $0"
+  Call Log
   Call WriteResult
   Pop $0
   SetErrorLevel $0
@@ -145,11 +163,33 @@ Section "Update" SecUpdate
     ${If} $1 != "Admin"
       ; Ask for admin rights (UAC) and let the elevated copy do the work.
       InitPluginsDir
+      StrCpy $0 "not admin: asking for admin rights"
+      Call Log
       ExecShellWait "runas" "$EXEPATH" '/ELEVATED /RESULT="$PLUGINSDIR\result.txt"'
+      StrCpy $2 ""
       ClearErrors
       FileOpen $9 "$PLUGINSDIR\result.txt" r
-      FileRead $9 $2
-      FileClose $9
+      ${IfNot} ${Errors}
+        FileRead $9 $2
+        FileClose $9
+      ${EndIf}
+      ${If} ${FileExists} "$PLUGINSDIR\result.txt.log"
+        FileOpen $9 "$PLUGINSDIR\result.txt.log" r
+        ${Do}
+          ClearErrors
+          FileRead $9 $0
+          ${If} ${Errors}
+            ${ExitDo}
+          ${EndIf}
+          FileOpen $8 "$LogFile" a
+          FileSeek $8 0 END
+          FileWrite $8 "$0"
+          FileClose $8
+        ${Loop}
+        FileClose $9
+      ${EndIf}
+      StrCpy $0 "the copy with admin rights answered: '$2'"
+      Call Log
       ${If} $2 != "ok"
         SetErrorLevel 2
         Quit
@@ -162,8 +202,13 @@ Section "Update" SecUpdate
 
   InitPluginsDir
   File "/oname=$PLUGINSDIR\astro-update-helper.ps1" "${HELPER}"
-  nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\astro-update-helper.ps1" -Action close -InstallDir "$INSTDIR"'
+  StrCpy $0 "update to ${VERSION}: closing Astro in $INSTDIR"
+  Call Log
+  nsExec::ExecToStack 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\astro-update-helper.ps1" -Action close -InstallDir "$INSTDIR"'
   Pop $1
+  Pop $2
+  StrCpy $0 "close: exit $1: $2"
+  Call Log
   ${If} $1 != 0
     StrCpy $0 5
     Call Fail
@@ -177,6 +222,8 @@ Section "Update" SecUpdate
     StrCpy $0 6
     Call Fail
   ${EndIf}
+  StrCpy $0 "files copied"
+  Call Log
   !insertmacro WriteVersionKeys
   nsExec::ExecToLog 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\astro-update-helper.ps1" -Action prune -InstallDir "$INSTDIR" -Keep "${VERSIONDIR}"'
   Pop $1
