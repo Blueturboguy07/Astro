@@ -35,7 +35,7 @@
  *     --crx dist/astro-agent-0.0.101.crx \
  *     --out dist/astro-recut \
  *     [--sparkle disable|keep|enable] [--sparkle-feed <url, same length>] \
- *     [--sparkle-ed-key <base64>] [--patch-id] [--sign] [--no-timestamp] [--dry-run]
+ *     [--sparkle-ed-key <base64>] [--patch-id] [--sign] [--test-identity] [--dry-run]
  *
  * `--sparkle enable` (with --sparkle-ed-key and --app-version) turns on
  * Astro's own updater (astro-updater.ts): Astro's key in SUPublicEDKey,
@@ -559,13 +559,15 @@ export function codesignArgs(
   target: string,
   identity: string,
   entitlements?: string,
-  timestamp = true,
+  testIdentity = false,
 ): string[] {
   return [
     '--force',
-    timestamp ? '--timestamp' : '--timestamp=none',
-    '--options',
-    'runtime',
+    // A test identity is not Apple-issued: no timestamp service, and no Team
+    // ID, so library validation (part of the hardened runtime) would stop
+    // every helper that lacks disable-library-validation from loading the
+    // framework. A release always signs with both.
+    ...(testIdentity ? ['--timestamp=none'] : ['--timestamp', '--options', 'runtime']),
     ...(entitlements ? ['--entitlements', entitlements] : []),
     '--sign',
     identity,
@@ -649,14 +651,14 @@ export type RecutOptions = {
   crx: string
   out: string
   version?: string
-  /** CFBundleShortVersionString, e.g. 0.2.5. CFBundleVersion stays the browser's. */
+  /** CFBundleShortVersionString, e.g. 0.2.5 (with --sparkle enable also CFBundleVersion 10001.<it>). */
   appVersion?: string
   sparkle: 'disable' | 'keep' | 'enable'
   sparkleFeed?: string
   sparkleEdKey?: string
   sign: boolean
-  /** false only for a test identity that has no timestamp service (proof runs). */
-  timestamp?: boolean
+  /** Proof runs only: the identity is a runner-made certificate (see codesignArgs). */
+  testIdentity?: boolean
   patchId: boolean
   /** A freshly built browseros_server to install in place of the source bundle's. */
   server?: string
@@ -973,8 +975,9 @@ export async function recut(opts: RecutOptions): Promise<string> {
       run('plutil', ['-replace', key, '-string', 'Astro', infoPlist])
     }
     console.log('      CFBundleName / CFBundleDisplayName = Astro')
-    /* CFBundleVersion stays the browser's (10000.<BrowserOS version>): the
-       browser finds its framework by it, and Sparkle compares it. */
+    /* CFBundleVersion is what Sparkle compares. It stays the browser's
+       (10000.<BrowserOS version>) unless --sparkle enable sets 10001.<app
+       version> (step 5); the framework is found by its own version folder. */
     if (opts.appVersion) {
       run('plutil', [
         '-replace',
@@ -1126,7 +1129,7 @@ export async function recut(opts: RecutOptions): Promise<string> {
       }
       run(
         'codesign',
-        codesignArgs(target, opts.identity, entFile, opts.timestamp !== false),
+        codesignArgs(target, opts.identity, entFile, opts.testIdentity === true),
       )
     }
 
@@ -1189,7 +1192,7 @@ export function parseArgs(argv: string[]): RecutOptions {
         '[--out dir] [--version 0.0.101] [--app-version 0.2.5] [--sparkle disable|keep|enable] ' +
         '[--sparkle-feed url] [--sparkle-ed-key base64] [--server browseros_server] ' +
         '[--paks-from upstream/BrowserOS.app] ' +
-        '[--patch-id] [--sign] [--no-timestamp] [--dry-run]',
+        '[--patch-id] [--sign] [--test-identity] [--dry-run]',
     )
   }
   const sparkle = (get('--sparkle') ?? 'disable') as
@@ -1219,7 +1222,7 @@ export function parseArgs(argv: string[]): RecutOptions {
     sparkleFeed,
     sparkleEdKey: get('--sparkle-ed-key'),
     sign: argv.includes('--sign'),
-    timestamp: !argv.includes('--no-timestamp'),
+    testIdentity: argv.includes('--test-identity'),
     patchId: argv.includes('--patch-id'),
     server: get('--server'),
     paksFrom: get('--paks-from'),

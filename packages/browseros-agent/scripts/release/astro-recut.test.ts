@@ -624,8 +624,12 @@ describe("Astro's updater on macOS (--sparkle enable)", () => {
     expect(() => patchMacFeed(new Uint8Array(ascii('nothing here')))).toThrow(/not found/)
   })
 
-  it('codesign can skip the timestamp for a runner-made identity', () => {
-    expect(codesignArgs('/x.app', 'id', undefined, false)).toContain('--timestamp=none')
-    expect(codesignArgs('/x.app', 'id')).toContain('--timestamp')
+  it('a runner-made test identity signs without a timestamp or the hardened runtime', () => {
+    const test = codesignArgs('/x.app', 'id', undefined, true)
+    expect(test).toContain('--timestamp=none')
+    expect(test).not.toContain('runtime')
+    const release = codesignArgs('/x.app', 'id')
+    expect(release).toContain('--timestamp')
+    expect(release.join(' ')).toContain('--options runtime')
   })
 })
