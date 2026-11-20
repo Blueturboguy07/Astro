@@ -1,5 +1,12 @@
 # Cutting an Astro release
 
+**One command:** `scripts/publik-release.sh <version>` does §4 to §10 for a release that re-cuts the
+latest release (new version, Astro's updater, the same or a new CRX with `--crx`, a new server with
+`--server`): macOS re-cut, sign, notarize, dmg, the Windows build, both update signatures, the checks,
+a draft, then publication. `--no-publish` stops at the checked draft; `--verify-only` checks a release
+that exists. Write `release-notes/v<version>.md` first. The sections below say what each step does
+and why; use them by hand only for a release the script does not cover (a new Chromium base).
+
 Astro is not a Chromium build. The shipped `Astro.app` is upstream's **prebuilt**
 BrowserOS bundle with three edits, and every release repeats them. A branded
 Chromium needs roughly 100 GB of disk per platform and cannot be cross-compiled
