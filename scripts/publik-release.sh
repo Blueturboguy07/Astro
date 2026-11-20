@@ -292,7 +292,7 @@ fi
 
 step "7. publish"
 gh release edit "$TAG" -R "$REPO" --draft=false --latest >/dev/null
-check "the release $TAG is public and latest" "$(is "$(gh release view "$TAG" -R "$REPO" --json isDraft,isLatest -q '(.isDraft|not) and .isLatest' 2>/dev/null || true)" true)"
+check "the release $TAG is public and latest" "$( [ "$(gh release view "$TAG" -R "$REPO" --json isDraft -q .isDraft 2>/dev/null || true)" = false ] && [ "$(gh api "repos/$REPO/releases/latest" -q .tag_name 2>/dev/null || true)" = "$TAG" ] && echo 1 || echo 0)"
 echo "waiting for publik's feeds (they follow the latest release within 15 minutes)"
 FEEDS=0
 for _ in $(seq 1 40); do
