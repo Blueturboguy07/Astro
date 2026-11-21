@@ -174,6 +174,11 @@ describe('astro-win.nsi: per user, no admin rights', () => {
     expect(nsi).toMatch(/DeleteRegKey HKLM "\$\{UNINST_KEY\}"/)
   })
 
+  it('leaves the folder it wrote, so that Stage can rename it', () => {
+    const extract = nsi.slice(nsi.indexOf('Function ExtractTree'), nsi.indexOf('FunctionEnd', nsi.indexOf('Function ExtractTree')))
+    expect(extract.trimEnd().endsWith('SetOutPath "${ROOT}"')).toBe(true)
+  })
+
   it('refuses a package that is not newer, and stages under the swap lock', () => {
     expect(nsi).toContain('${VersionCompare} "${VERSION}" "$Installed" $0')
     expect(nsi).toContain('Local\\AstroUpdateSwap')

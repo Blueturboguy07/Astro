@@ -148,6 +148,10 @@ Function ExtractTree
     StrCpy $0 6
     Call Fail
   ${EndIf}
+  ; SetOutPath also made $Target this process's current folder, and Windows
+  ; cannot rename a folder that is a process's current folder (Stage renames
+  ; Application.next.tmp; proof run 44857898579).
+  SetOutPath "${ROOT}"
 FunctionEnd
 
 ; Version keys and the Apps & Features entry of this user.
