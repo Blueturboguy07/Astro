@@ -445,6 +445,11 @@ gh workflow run release-windows-astro.yml -R Blueturboguy07/Astro --ref main \
 - Unsigned: there is no Windows code-signing certificate. rcedit also removes
   upstream's Authenticode signature from `chrome.exe` and `chrome_proxy.exe`.
   SmartScreen asks for **More info → Run anyway**.
+- Per user (from the first release after 0.2.9): the installer asks for no
+  admin rights. It installs to `%LOCALAPPDATA%\Astro\Application`, writes
+  `HKCU\Software\Astro` and the Apps & Features entry under HKCU, and makes
+  the Start-menu and Desktop shortcuts of the current user only. 0.2.9 and
+  older installed for all users in `C:\Program Files\Astro` (see §10b).
 
 Then add `Astro-Setup.exe` to `SHA256SUMS.txt`, upload it with `--clobber`, and
 mark the release latest (§8).
@@ -484,7 +489,9 @@ publik feed, and `strings` of the Sparkle framework shows no `cdn.browseros.com`
 **Windows.** The workflow of §9 with the secret present also makes
 `Astro-Update.exe` (the package WinSparkle runs; its log is
 `%TEMP%\astro-update.log`) and `astro-update.windows.json`. Download the
-workflow artifact.
+workflow artifact. From the first per-user release the job also downloads
+Astro's WinSparkle fork (`bun scripts/release/astro-winsparkle.ts fetch`, pinned
+by sha256) and passes `--winsparkle` to the re-cut (§10b).
 
 **Join and publish.**
 
@@ -508,11 +515,54 @@ an updater never installs a lower version.
 one job per OS installs version N, serves a signed feed, and checks that Astro
 starts as N+1 and refuses a wrong signature.
 
+## 10b. Windows: updates in the background (from the first release after 0.2.9)
+
+Astro on Windows downloads and installs an update with no question. Then it
+asks only for a restart. The parts:
+
+| Part | What it does |
+|---|---|
+| `WinSparkle.dll` | Astro's fork of WinSparkle 0.9.3: https://github.com/Blueturboguy07/winsparkle-astro (MIT, `README-ASTRO.md`). `astro-winsparkle.ts` pins the URL and sha256 of its release; the re-cut refuses any other file and checks that it exports every function `chrome.dll` imports. The Ed25519 check is upstream's code, not changed. |
+| `WinSparkle.ini` | Next to the DLL in the version folder. `SilentAutoInstall=1`: the hourly check downloads with no window. `BuildVersion=10001.<version>`: an item that is not newer is never downloaded. |
+| `Astro-Update.exe` | Asks for no admin rights. With Astro installed for this user, it refuses a version that is not newer, writes the new version to `%LOCALAPPDATA%\Astro\Application.next`, and starts the restart helper. It never closes Astro. |
+| `astro-restart-<version>.exe` | In `%LOCALAPPDATA%\Astro\Updater` (from `astro-restart.cs`). Shows "Astro <version> is downloaded and installed. Restart now / Later". **Restart now** closes Astro (as a normal quit), puts `Application.next` in place of `Application` (the old folder comes back if that fails) and starts Astro. **Later** (or the close box): the switch happens when the person quits Astro, or at the next logon (`HKCU\...\Run`, value `Astro Update`). |
+
+The "Relaunch" button in Astro's own settings page restarts the old files; the
+helper's window is the way to restart into the new version.
+
+To change the fork: push to its `astro` branch, tag `astro-v0.9.3-<n>`, wait for
+its `astro.yml` release, then put the new URL and sha256 in
+`astro-winsparkle.ts` and run the Windows proof.
+
+**The one-time move from Program Files.** A person on 0.2.9 or older has Astro
+in `C:\Program Files\Astro` with upstream's WinSparkle. For that person the
+first per-user release looks like every update before it:
+
+1. The "Software Update" window says a new version is available. The person
+   selects **Install update**.
+2. The package installs Astro for this user (no admin rights), then asks
+   Windows for admin rights once (the UAC question) to remove the old copy.
+3. Old Astro closes and new Astro starts from `%LOCALAPPDATA%\Astro\Application`.
+   The profile (`%LOCALAPPDATA%\BrowserOS\User Data`) does not move, so tabs,
+   sign-ins and history stay.
+4. If the person says **No** to the UAC question, Astro still moves: the new
+   copy starts, and the old copy stays in Program Files with its all-users
+   "Astro" shortcut until the person removes it in Apps & Features.
+
+From then on there is no UAC question and no update window.
+
+**Proof.** `astro-qa-windows`, branch `feat/win-background-update`, workflow
+`astro-update-proof-bg-windows.yml` (`scripts/update-proof/win/proof-bg.ps1`).
+
 ---
 
 ## Publik side, not this repo
 
 These are the integrator's, in `~/publik`:
+
+- `lib/guides/astro.ts` (Windows): from the first per-user release Astro is in
+  `%LOCALAPPDATA%\Astro\Application`, not `C:\Program Files\Astro`, and the
+  installer asks no admin question. Change any step that names the old folder.
 
 - Mint the app token once: `scripts/mint-app-token.mts astro`. Desktop app, so
   no `--origins`. Store it where step 2 reads it; never echo it.

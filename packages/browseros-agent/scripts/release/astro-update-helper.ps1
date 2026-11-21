@@ -1,12 +1,15 @@
-# Run by Astro-Update.exe (astro-win.nsi, UPDATER) with admin rights.
+# Run by Astro-Setup.exe and Astro-Update.exe (astro-win.nsi).
 #   -Action close -InstallDir <dir>              close every process that runs from <dir>, then
 #                                                check that every .exe/.dll there can be written
+#                 [-SkipWriteCheck]              (not that check: the old copy in Program Files,
+#                                                closed without admin rights, stays as it is)
 #   -Action prune -InstallDir <dir> -Keep <ver>  remove Chromium version folders other than <ver>
 # Exit 0 on success.
 param(
   [Parameter(Mandatory = $true)][ValidateSet('close', 'prune')][string]$Action,
   [Parameter(Mandatory = $true)][string]$InstallDir,
-  [string]$Keep = ''
+  [string]$Keep = '',
+  [switch]$SkipWriteCheck
 )
 $dir = $InstallDir.TrimEnd('\') + '\'
 
@@ -38,6 +41,7 @@ if ($Action -eq 'close') {
     Write-Output "astro-update: still running: $(($left | ForEach-Object { "$($_.Name)($($_.Id))" }) -join ', ')"
     exit 1
   }
+  if ($SkipWriteCheck) { Write-Output 'astro-update: Astro is closed'; exit 0 }
   # A silent NSIS copy skips a file it cannot open and goes on (a half-updated
   # Astro). So before any file is written, every .exe and .dll of the install
   # must open for exclusive writing; wait up to 15 s for a scanner to let go.

@@ -167,17 +167,17 @@ jobs:
           Write-Host "Installing $env:SETUP_EXE /S"
           $p = Start-Process -FilePath "$env:SETUP_EXE" -ArgumentList "/S" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
-          $exe = "$env:ProgramFiles\Astro\chrome.exe"
+          $exe = "$env:LOCALAPPDATA\Astro\Application\chrome.exe"
           if (-not (Test-Path $exe)) { throw "chrome.exe not installed at $exe" }
           # F-015: Task Manager and Properties show Astro, not BrowserOS.
           $vi = (Get-Item $exe).VersionInfo
           if ($vi.ProductName -ne "Astro" -or $vi.FileDescription -ne "Astro") {
             throw "chrome.exe version info: ProductName '$($vi.ProductName)', FileDescription '$($vi.FileDescription)'"
           }
-          if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk")) {
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk")) {
             throw "Start-menu shortcut missing"
           }
-          $reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro"
+          $reg = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro"
           if (-not (Test-Path $reg)) { throw "Add/Remove Programs entry missing" }
           Write-Host "Installed OK; ARP DisplayName = $((Get-ItemProperty $reg).DisplayName)"
           "ASTRO_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append
@@ -339,10 +339,10 @@ jobs:
           # remove its own directory, so the old "_?=" test could never observe
           # a clean removal. Without it, NSIS copies itself to %TEMP%,
           # relaunches, and returns immediately — so poll for the dir to vanish.
-          $reg = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro"
+          $reg = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro"
           $quiet = (Get-ItemProperty $reg -ErrorAction SilentlyContinue).QuietUninstallString
           if (-not $quiet) {
-            $u = "$env:ProgramFiles\Astro\Uninstall.exe"
+            $u = "$env:LOCALAPPDATA\Astro\Uninstall.exe"
             if (-not (Test-Path $u)) { throw "uninstaller missing and no QuietUninstallString" }
             $quiet = "`"$u`" /S"
           }
@@ -350,12 +350,12 @@ jobs:
           cmd /c $quiet
           $gone = $false
           for ($i = 0; $i -lt 30; $i++) {
-            if (-not (Test-Path "$env:ProgramFiles\Astro\chrome.exe")) { $gone = $true; break }
+            if (-not (Test-Path "$env:LOCALAPPDATA\Astro\Application\chrome.exe")) { $gone = $true; break }
             Start-Sleep -Seconds 2
           }
           if (-not $gone) { throw "FAIL: files remain after uninstall (waited 60s)" }
-          if (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk") { throw "FAIL: shortcut remains" }
-          if (Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro") { throw "FAIL: ARP entry remains" }
+          if (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Astro\Astro.lnk") { throw "FAIL: shortcut remains" }
+          if (Test-Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Astro") { throw "FAIL: ARP entry remains" }
           Write-Host "PASS: uninstall left nothing behind"
 
       - name: Upload installer

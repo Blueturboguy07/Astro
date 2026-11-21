@@ -27,6 +27,10 @@
  *      44 bytes), and the WinSparkle feed pointed at a publik URL that names
  *      this build's Astro version. The package step then also makes
  *      Astro-Update-<version>.exe, the file WinSparkle downloads and runs.
+ *   3b. With --update-key also --winsparkle: upstream's WinSparkle.dll replaced
+ *      by Astro's fork (pinned sha256), WinSparkle.ini written next to it, and
+ *      the restart helper compiled (astro-winsparkle.ts): updates download and
+ *      install in the background and Astro then asks only for a restart.
  *   4. Upstream's local server (BrowserOSServer\default\resources: the
  *      browseros_server.exe and its DB migrations) replaced by Astro's, built
  *      from this repo's apps/server for windows-x64. Without it the Windows
@@ -66,7 +70,7 @@
  *     --app-version 0.2.4 \
  *     --out   dist\win \
  *     [--package nsis|zip] [--nsi <astro-win.nsi>] [--makensis <makensis.exe>] \
- *     [--dry-run]
+ *     [--update-key <base64> --winsparkle <fork WinSparkle.dll>] [--dry-run]
  */
 import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
@@ -87,6 +91,15 @@ import {
   validatePublicKey,
   windowsFeedUrl,
 } from './astro-updater'
+import {
+  checkWinSparkleDll,
+  checkWinSparkleLinks,
+  RESTART_HELPER_EXE,
+  RESTART_HELPER_SOURCE,
+  WINSPARKLE_DLL,
+  WINSPARKLE_INI,
+  winSparkleIni,
+} from './astro-winsparkle'
 import { rebrandResourcePaks } from './pak-rebrand'
 
 /** The bundled bug reporter. Dropped from Astro: no upstream reporting UI. */
@@ -379,7 +392,36 @@ export type WinRecutOptions = {
   /** Astro's update public key (base64). Turns on Astro's own updater:
       key + feed patch, and the Astro-Update package. */
   updateKey?: string
+  /** Astro's WinSparkle fork (astro-winsparkle.ts); required with updateKey. */
+  winSparkle?: string
+  /** The .NET Framework C# compiler for the restart helper (default: Windows' own). */
+  csc?: string
   dryRun: boolean
+}
+
+/** Windows' own .NET Framework 4 C# compiler (on every Windows 10 and 11). */
+export function defaultCsc(): string {
+  return path.join(
+    process.env.WINDIR ?? 'C:\\Windows',
+    'Microsoft.NET',
+    'Framework64',
+    'v4.0.30319',
+    'csc.exe',
+  )
+}
+
+export function cscArgs(source: string, exe: string): string[] {
+  return [
+    '/nologo',
+    '/target:winexe',
+    '/optimize+',
+    '/platform:anycpu',
+    `/out:${exe}`,
+    '/r:System.Management.dll',
+    '/r:System.Windows.Forms.dll',
+    '/r:System.Drawing.dll',
+    source,
+  ]
 }
 
 /* F-015: Explorer's Properties and Task Manager read these strings from
@@ -425,6 +467,15 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
   if (!fs.existsSync(opts.crx)) throw new Error(`CRX not found: ${opts.crx}`)
   validateExtensionVersion(opts.version)
   checkServerResources(opts.server)
+  if (opts.updateKey && !opts.winSparkle) {
+    throw new Error(
+      '--update-key needs --winsparkle <WinSparkle.dll of Astro\'s fork> (background updates)',
+    )
+  }
+  const forkDll = opts.winSparkle
+    ? new Uint8Array(fs.readFileSync(opts.winSparkle))
+    : undefined
+  if (forkDll) checkWinSparkleDll(forkDll)
 
   const versionDir = chromeVersionDir(opts.tree)
   const dll = path.join(versionDir, 'chrome.dll')
@@ -490,6 +541,12 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
         `${k.others} other copy of upstream's key left for the server updater)`,
     )
     console.log(`      WinSparkle feed -> ${winSparkleFeed}`)
+  }
+  if (forkDll) {
+    const names = checkWinSparkleLinks(fw, forkDll)
+    console.log(
+      `      ok: Astro's ${WINSPARKLE_DLL} exports all ${names.length} functions chrome.dll imports`,
+    )
   }
   if (!opts.dryRun) fs.writeFileSync(dll, fw)
   console.log(
@@ -594,6 +651,24 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
     }
   }
 
+  if (forkDll) {
+    console.log("[4d/5] WinSparkle: Astro's fork + WinSparkle.ini")
+    const target = path.join(versionDir, WINSPARKLE_DLL)
+    if (!fs.existsSync(target)) {
+      throw new Error(`The tree has no ${target}; refusing to guess where it goes.`)
+    }
+    if (!opts.dryRun) {
+      fs.writeFileSync(target, forkDll)
+      fs.writeFileSync(
+        path.join(versionDir, WINSPARKLE_INI),
+        winSparkleIni(opts.appVersion),
+      )
+    }
+    console.log(
+      `      installed the pinned ${WINSPARKLE_DLL}; ${WINSPARKLE_INI}: silent, BuildVersion for ${opts.appVersion}`,
+    )
+  }
+
   console.log(`[5/5] package: ${opts.pkg}`)
   fs.mkdirSync(opts.out, { recursive: true })
   if (opts.pkg === 'zip') {
@@ -614,6 +689,22 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
     opts.nsi ??
     path.join(path.dirname(new URL(import.meta.url).pathname), 'astro-win.nsi')
   const makensis = opts.makensis ?? 'makensis'
+  /* The restart helper (astro-win.nsi installs it outside Application\). */
+  const helperExe = path.join(path.resolve(opts.out), RESTART_HELPER_EXE)
+  if (!opts.dryRun) {
+    run(
+      opts.csc ?? defaultCsc(),
+      cscArgs(
+        path.join(path.dirname(path.resolve(nsi)), RESTART_HELPER_SOURCE),
+        helperExe,
+      ),
+    )
+  }
+  console.log(`      compiled ${helperExe}`)
+  const nsisHelpers = [
+    `/DHELPER=${path.join(path.dirname(path.resolve(nsi)), 'astro-update-helper.ps1')}`,
+    `/DRESTART=${helperExe}`,
+  ]
   const outFile = path.join(
     path.resolve(opts.out),
     `Astro-Setup-${opts.appVersion}.exe`,
@@ -623,6 +714,7 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
       `/DSRCDIR=${path.resolve(opts.tree)}`,
       `/DOUTFILE=${outFile}`,
       `/DVERSION=${opts.appVersion}`,
+      ...nsisHelpers,
       path.resolve(nsi),
     ])
   }
@@ -639,8 +731,7 @@ export async function recutWin(opts: WinRecutOptions): Promise<string> {
         `/DSRCDIR=${path.resolve(opts.tree)}`,
         `/DOUTFILE=${updateFile}`,
         `/DVERSION=${opts.appVersion}`,
-        `/DVERSIONDIR=${path.basename(versionDir)}`,
-        `/DHELPER=${path.join(path.dirname(path.resolve(nsi)), 'astro-update-helper.ps1')}`,
+        ...nsisHelpers,
         path.resolve(nsi),
       ])
     }
@@ -678,7 +769,8 @@ export function parseArgs(argv: string[]): WinRecutOptions {
         '--server <windows-x64 server resources dir> ' +
         '--version <CRX version, 0.0.101> --app-version <Astro release, 0.2.4> ' +
         '[--out dir] [--package nsis|zip] [--nsi <.nsi>] ' +
-        '[--makensis <path>] [--rcedit <rcedit-x64.exe>] [--update-key <base64>] [--dry-run]',
+        '[--makensis <path>] [--rcedit <rcedit-x64.exe>] [--update-key <base64> --winsparkle <WinSparkle.dll>] ' +
+        '[--csc <csc.exe>] [--dry-run]',
     )
   }
   const pkg = (get('--package') ?? 'nsis') as 'nsis' | 'zip'
@@ -699,6 +791,8 @@ export function parseArgs(argv: string[]): WinRecutOptions {
     updateKey: get('--update-key')
       ? validatePublicKey(get('--update-key') as string)
       : undefined,
+    winSparkle: get('--winsparkle'),
+    csc: get('--csc'),
     dryRun: argv.includes('--dry-run'),
   }
 }
