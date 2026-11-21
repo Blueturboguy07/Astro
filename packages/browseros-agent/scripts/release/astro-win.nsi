@@ -426,9 +426,11 @@ Section "Astro" SecMain
     StrCpy $1 ""
     Call CloseAstroIn
   ${EndIf}
-  ; A staged update belongs to the copy this install replaces.
+  ; A staged update belongs to the copy this install replaces, and so does
+  ; the version the update package told WinSparkle to skip.
   RMDir /r "${ROOT}\Application.next"
   RMDir /r "${ROOT}\Application.next.tmp"
+  DeleteRegValue HKCU "Software\BrowserOS\WinSparkle" "SkipThisVersion"
   RMDir /r "${ROOT}\Application"
   StrCpy $Target "${ROOT}\Application"
   Call ExtractTree
